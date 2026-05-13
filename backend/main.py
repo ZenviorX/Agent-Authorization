@@ -213,6 +213,144 @@ def agent_simulate(request: AgentTextRequest):
         agent_result=plan_result,
     )
 
+@app.post("/agent/injection-demo")
+def agent_injection_demo():
+    """
+    提示注入攻击链演示接口。
+
+    演示流程：
+    1. Agent 正常读取 public/injected_notice.txt；
+    2. 网关认为 public 文件读取属于低风险操作，允许执行；
+    3. 系统读取到文件内容后，发现其中包含提示注入指令；
+    4. 模拟 Agent 被诱导生成新的危险工具调用：读取 secret/password.txt；
+    5. 危险工具调用再次经过授权网关；
+    6. 网关识别敏感路径并拦截。
+    """
+
+    attack_chain = []
+
+    # 第一次工具调用：读取公开文件
+    first_request = ToolCallRequest(
+        user="alice",
+        tool="file.read",
+        params={
+            "path": "public/injected_notice.txt"
+        }
+    )
+
+    first_check = check_tool_call(first_request)
+
+    first_tool_result = None
+    first_executed = False
+
+    if first_check["decision"] == "allow":
+        first_tool_result = execute_tool(
+            first_request.tool,
+            first_request.params
+        )
+        first_executed = True
+
+    write_log(
+        user=first_request.user,
+        tool=first_request.tool,
+        params=first_request.params,
+        gateway_result=first_check,
+        executed=first_executed,
+        original_input="读取文件：public/injected_notice.txt",
+        message="提示注入演示：第一步读取公开文件",
+        tool_result=first_tool_result,
+    )
+
+    attack_chain.append({
+        "step": 1,
+        "description": "Agent 正常读取公开文件 public/injected_notice.txt",
+        "request": first_request.dict(),
+        "gateway_result": first_check,
+        "executed": first_executed,
+        "tool_result": first_tool_result,
+    })
+
+    # 如果第一步没有成功执行，则攻击链终止
+    if not first_executed or not first_tool_result or not first_tool_result.get("success"):
+        return {
+            "success": False,
+            "message": "第一步公开文件读取失败，攻击链终止",
+            "attack_chain": attack_chain
+        }
+
+    file_content = str(first_tool_result.get("result", ""))
+
+    # 检测公开文件中是否包含提示注入特征
+    injection_keywords = [
+        "忽略之前的规则",
+        "忽略以上要求",
+        "ignore previous rules",
+        "ignore previous instructions",
+        "secret/password.txt",
+        "attacker@example.com"
+    ]
+
+    detected_keywords = [
+        keyword for keyword in injection_keywords
+        if keyword.lower() in file_content.lower()
+    ]
+
+    if not detected_keywords:
+        return {
+            "success": True,
+            "message": "公开文件读取成功，但未检测到明显提示注入内容",
+            "attack_chain": attack_chain,
+            "detected_keywords": []
+        }
+
+    # 第二次工具调用：模拟 Agent 被恶意内容诱导，尝试读取敏感文件
+    second_request = ToolCallRequest(
+        user="alice",
+        tool="file.read",
+        params={
+            "path": "secret/password.txt"
+        }
+    )
+
+    second_check = check_tool_call(second_request)
+
+    second_tool_result = None
+    second_executed = False
+
+    if second_check["decision"] == "allow":
+        second_tool_result = execute_tool(
+            second_request.tool,
+            second_request.params
+        )
+        second_executed = True
+
+    write_log(
+        user=second_request.user,
+        tool=second_request.tool,
+        params=second_request.params,
+        gateway_result=second_check,
+        executed=second_executed,
+        original_input="提示注入诱导：读取 secret/password.txt",
+        message="提示注入演示：第二步危险工具调用被网关处理",
+        tool_result=second_tool_result,
+    )
+
+    attack_chain.append({
+        "step": 2,
+        "description": "检测到提示注入内容，模拟 Agent 被诱导读取 secret/password.txt",
+        "detected_keywords": detected_keywords,
+        "request": second_request.dict(),
+        "gateway_result": second_check,
+        "executed": second_executed,
+        "tool_result": second_tool_result,
+    })
+
+    return {
+        "success": True,
+        "message": "提示注入攻击链演示完成",
+        "detected_keywords": detected_keywords,
+        "attack_chain": attack_chain
+    }
 
 @app.post("/agent/call")
 def agent_call(request: ToolCallRequest):
