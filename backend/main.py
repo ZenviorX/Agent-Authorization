@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.schemas import (
     ToolCallRequest,
@@ -23,6 +24,13 @@ app = FastAPI(
     title="AI Agent Auth Gateway",
     description="面向 AI 智能体工具调用的授权与安全防护系统",
     version="0.3.0"
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 fake_agent = FakeAgent()
