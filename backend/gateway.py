@@ -1,4 +1,13 @@
 from backend.schemas import ToolCallRequest
+from backend.policy_loader import (
+    get_tool_risk,
+    get_decision_threshold,
+    get_user_role,
+    match_role_policy,
+    get_resource_risk,
+    get_dangerous_keywords,
+    match_keywords,
+)
 from backend.utils import (
     normalize_tool_name,
     normalize_params,
@@ -6,7 +15,6 @@ from backend.utils import (
     get_content,
     get_command,
 )
-
 
 def check_tool_call(request: ToolCallRequest):
     """
@@ -20,9 +28,10 @@ def check_tool_call(request: ToolCallRequest):
     reason = []
 
     user = request.user
+    role = get_user_role(user)
+
     tool = normalize_tool_name(request.tool)
     params = normalize_params(tool, request.params)
-
     path = get_path(params)
     content = get_content(params)
     command = get_command(params)
@@ -33,55 +42,32 @@ def check_tool_call(request: ToolCallRequest):
     command_lower = command.lower()
     sql_lower = sql.lower()
     user_lower = user.lower()
+    role_lower = role.lower()
 
-    # 1. 工具自身风险判断
-    if tool == "shell.run":
-        risk_score += 80
-        reason.append("系统命令或代码执行工具风险极高")
+    # 1. 工具自身风险判断：从 config/policy.yaml 读取基础风险分
+    tool_base_risk = get_tool_risk(tool)
+    risk_score += tool_base_risk
 
-    elif tool == "file.delete":
-        risk_score += 80
-        reason.append("文件删除操作风险极高")
+    tool_reason_map = {
+        "shell.run": "系统命令或代码执行工具风险极高",
+        "file.delete": "文件删除操作风险极高",
+        "email.send": "邮件发送工具存在数据外发风险，需要用户确认",
+        "file.write": "文件写入操作可能修改本地数据",
+        "file.read": "文件读取操作存在一定信息泄露风险",
+        "db.query": "数据库查询操作存在一定数据泄露风险",
+    }
 
-    elif tool == "email.send":
-        risk_score += 40
-        reason.append("邮件发送工具存在数据外发风险，需要用户确认")
+    reason.append(
+        tool_reason_map.get(
+            tool,
+            f"未知工具类型，使用默认基础风险分：{tool_base_risk}"
+        )
+    )
+    # 2. 文件路径风险判断：从 config/policy.yaml 的 resource_risk 中读取
+    resource_risk_score, resource_reasons = get_resource_risk(path)
 
-    elif tool == "file.write":
-        risk_score += 50
-        reason.append("文件写入操作可能修改本地数据")
-
-    elif tool == "file.read":
-        risk_score += 10
-        reason.append("文件读取操作存在一定信息泄露风险")
-
-    elif tool == "db.query":
-        risk_score += 20
-        reason.append("数据库查询操作存在一定数据泄露风险")
-
-    else:
-        risk_score += 30
-        reason.append("未知工具类型，存在不确定风险")
-
-    # 2. 文件路径风险判断
-    sensitive_path_keywords = [
-        "secret",
-        "private",
-        "password",
-        "passwd",
-        "key",
-        "token",
-        "credential",
-        "config",
-        ".env",
-        "shadow",
-        "id_rsa",
-    ]
-
-    for keyword in sensitive_path_keywords:
-        if keyword in path_lower:
-            risk_score += 30
-            reason.append(f"访问路径包含敏感关键词：{keyword}")
+    risk_score += resource_risk_score
+    reason.extend(resource_reasons)
 
     # 3. 路径穿越风险判断
     if ".." in path_lower:
@@ -92,18 +78,23 @@ def check_tool_call(request: ToolCallRequest):
         risk_score += 40
         reason.append("路径疑似绝对路径，存在越权访问风险")
 
-    # 4. 用户权限判断
-    if user_lower == "student" and tool == "shell.run":
-        risk_score += 40
-        reason.append("student 用户无权执行系统命令")
+    # 4. 角色权限策略判断：从 config/policy.yaml 的 roles 中读取
+    policy_decision, policy_reason = match_role_policy(role, tool, path_lower)
 
-    if user_lower == "student" and path_lower.startswith("secret/"):
-        risk_score += 40
-        reason.append("student 用户无权访问 secret 目录")
+    if policy_decision == "deny":
+        risk_score += 70
+        reason.append(policy_reason)
 
-    if user_lower in ["guest", "anonymous"] and tool in ["email.send", "file.write", "file.delete", "shell.run"]:
+    elif policy_decision == "confirm":
         risk_score += 40
-        reason.append("低权限用户无权执行该类高风险工具")
+        reason.append(policy_reason)
+
+    elif policy_decision == "allow":
+        reason.append(policy_reason)
+
+    else:
+        risk_score += 20
+        reason.append(policy_reason)
 
     # 5. 邮件外发风险判断
     if tool == "email.send":
@@ -121,50 +112,28 @@ def check_tool_call(request: ToolCallRequest):
             risk_score += 30
             reason.append("邮件内容包含敏感信息关键词")
 
-    # 6. 内容风险判断
-    dangerous_words = [
-        "ignore previous rules",
-        "ignore previous instructions",
-        "忽略之前的规则",
-        "忽略以上要求",
-        "password",
-        "secret",
-        "token",
-        "credential",
-        "delete",
-        "drop table",
-        "rm -rf",
-        "shutdown",
-        "format",
-        "绕过",
-        "越权",
-    ]
+    # 6. 内容风险判断：从 config/policy.yaml 的 dangerous_keywords 中读取
+    prompt_injection_keywords = get_dangerous_keywords("prompt_injection")
+    matched_prompt_keywords = match_keywords(content, prompt_injection_keywords)
 
-    for word in dangerous_words:
-        if word.lower() in content_lower:
-            risk_score += 20
-            reason.append(f"内容包含危险关键词：{word}")
+    for word in matched_prompt_keywords:
+        risk_score += 30
+        reason.append(f"内容命中提示注入关键词：{word}")
 
-    # 7. 命令风险判断
-    dangerous_commands = [
-        "rm -rf",
-        "del ",
-        "format",
-        "shutdown",
-        "reboot",
-        "taskkill",
-        "curl",
-        "wget",
-        "nc ",
-        "netcat",
-        "chmod 777",
-        "powershell",
-    ]
+    sensitive_content_keywords = ["password", "secret", "token", "credential", "密钥", "密码"]
+    matched_sensitive_keywords = match_keywords(content, sensitive_content_keywords)
 
-    for cmd in dangerous_commands:
-        if cmd in command_lower:
-            risk_score += 30
-            reason.append(f"命令中包含高危操作：{cmd}")
+    for word in matched_sensitive_keywords:
+        risk_score += 20
+        reason.append(f"内容包含敏感信息关键词：{word}")
+
+    # 7. 命令风险判断：从 config/policy.yaml 的 dangerous_keywords.command 中读取
+    dangerous_commands = get_dangerous_keywords("command")
+    matched_commands = match_keywords(command, dangerous_commands)
+
+    for cmd in matched_commands:
+        risk_score += 30
+        reason.append(f"命令中包含高危操作：{cmd}")
 
     # 8. SQL 风险判断
     dangerous_sql = [
@@ -187,13 +156,34 @@ def check_tool_call(request: ToolCallRequest):
             risk_score += 30
             reason.append("当前数据库工具只建议执行 SELECT 查询")
 
-    # 9. 根据风险分做最终决策
-    if risk_score >= 70:
-        decision = "deny"
-    elif risk_score >= 40:
+    # 9. 根据风险分和角色策略做最终决策
+    threshold = get_decision_threshold()
+    allow_max = int(threshold.get("allow_max", 39))
+    confirm_max = int(threshold.get("confirm_max", 69))
+    deny_min = int(threshold.get("deny_min", 70))
+
+    # 先根据风险分得到基础决策
+    if risk_score <= allow_max:
+        decision = "allow"
+    elif risk_score <= confirm_max:
         decision = "confirm"
     else:
-        decision = "allow"
+        decision = "deny"
+
+    # 再根据角色策略进行修正
+    # deny 策略优先级最高：只要命中 deny，就必须拒绝
+    if policy_decision == "deny":
+        decision = "deny"
+
+    # confirm 策略表示该操作至少需要人工确认
+    elif policy_decision == "confirm" and decision == "allow":
+        decision = "confirm"
+
+    # allow 策略表示用户有权限执行该工具
+    # 但如果工具本身风险极高，不直接放行，而是降级为人工确认
+    elif policy_decision == "allow" and decision == "deny":
+        decision = "confirm"
+        reason.append("用户角色具备该操作权限，但操作风险较高，转入人工确认")
 
     if not reason:
         reason.append("未发现明显风险")
@@ -202,6 +192,8 @@ def check_tool_call(request: ToolCallRequest):
         "decision": decision,
         "risk_score": risk_score,
         "reason": reason,
+        "user": user,
+        "role": role,
         "normalized_tool": tool,
         "normalized_params": params,
     }

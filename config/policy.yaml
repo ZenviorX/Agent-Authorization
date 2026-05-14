@@ -1,0 +1,114 @@
+# AI Agent 工具调用授权策略配置文件
+# 用于描述不同角色可以调用哪些工具、访问哪些资源，以及哪些操作需要人工确认。
+
+version: "1.0"
+
+# 用户与角色映射
+users:
+  alice: teacher
+  bob: teacher
+  student: student
+  test_user: student
+  admin: admin
+
+# 工具基础风险分
+tool_risk:
+  file.read: 10
+  file.write: 30
+  file.delete: 60
+  email.send: 50
+  shell.run: 80
+  db.query: 40
+
+# 资源路径风险分
+resource_risk:
+  public/: 0
+  course/: 10
+  private/: 40
+  secret/: 80
+  password: 80
+  key: 80
+  token: 80
+  .env: 80
+
+# 角色权限策略
+roles:
+  student:
+    allow:
+      - tool: file.read
+        resource: public/*
+      - tool: db.query
+        resource: readonly/*
+
+    confirm:
+      - tool: email.send
+      - tool: file.write
+
+    deny:
+      - tool: file.read
+        resource: secret/*
+      - tool: file.delete
+      - tool: shell.run
+
+  teacher:
+    allow:
+      - tool: file.read
+        resource: public/*
+      - tool: file.read
+        resource: course/*
+      - tool: db.query
+        resource: readonly/*
+
+    confirm:
+      - tool: email.send
+      - tool: file.write
+      - tool: file.delete
+
+    deny:
+      - tool: shell.run
+      - tool: file.read
+        resource: secret/*
+
+  admin:
+    allow:
+      - tool: "*"
+        resource: "*"
+
+    confirm: []
+
+    deny: []
+
+# 风险分决策阈值
+decision_threshold:
+  allow_max: 39
+  confirm_max: 69
+  deny_min: 70
+
+# 危险关键词
+dangerous_keywords:
+  path:
+    - "../"
+    - "..\\"
+    - "secret"
+    - "password"
+    - "key"
+    - "token"
+    - ".env"
+
+  command:
+    - "rm -rf"
+    - "del /s"
+    - "format"
+    - "shutdown"
+    - "reboot"
+    - "powershell"
+    - "curl"
+    - "wget"
+
+  prompt_injection:
+    - "忽略之前的规则"
+    - "忽略系统提示"
+    - "不要遵守安全策略"
+    - "绕过权限检查"
+    - "ignore previous instructions"
+    - "bypass authorization"
