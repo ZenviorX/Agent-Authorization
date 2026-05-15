@@ -973,3 +973,36 @@ allow / confirm / deny
 ```
 
 这一步的核心价值是：**让 Agent 授权网关从功能原型进一步变成更适合比赛展示、答辩说明和后续扩展的安全原型系统。**
+
+---
+
+# 九、后续补充修改记录
+
+## 2026-05-15 README 运行方式补充
+
+根据后续要求，进一步完善 `README.md` 的运行说明，新增和细化了以下内容：
+
+```text
+1. Windows cmd 下的完整运行步骤
+2. 创建 venv 虚拟环境
+3. 激活虚拟环境以及执行策略受限时的处理方式
+4. 安装依赖和检查关键依赖
+5. 启动 uvicorn 后端服务
+6. 访问前端页面、后端状态接口和 Swagger 接口文档
+7. 8000 端口被占用时改用 8001 的方法
+8. 推荐演示流程，包括 allow / deny / confirm / 路径穿越 / 提示注入攻击链
+9. 单元测试运行方式和覆盖场景
+10. 常见问题排查，如缺少 PyYAML、端口占用、日志位置等
+```
+
+## 2026-05-15 README cmd 命令修正
+
+根据实际使用环境，将 `README.md` 中的运行命令统一改为 Windows cmd 写法：
+
+```text
+1. 进入项目目录改为 cd /d D:\文档\15信安赛项目\仓库\Agent-Authorization
+2. 激活虚拟环境改为 venv\Scripts\activate.bat
+3. 删除 PowerShell 专属的 Activate.ps1 和 Set-ExecutionPolicy 说明
+4. 所有命令代码块从 powershell 调整为 cmd
+5. 保留“不激活虚拟环境，直接使用 venv\Scripts\python.exe”的说明
+```
