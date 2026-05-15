@@ -1,11 +1,11 @@
 from typing import Optional, Dict, Any
 
 from backend.schemas import ToolCallRequest
-from backend.gateway import check_tool_call
-from backend.tool_executor import execute_tool
-from backend.audit_logger import write_log
+from backend.gateway.gateway import check_tool_call
+from backend.tools.tool_executor import execute_tool
+from backend.audit.audit_logger import write_log
 from backend.utils import normalize_tool_name, normalize_params
-from backend.approval_store import create_pending_request
+from backend.approval.approval_store import create_pending_request
 
 
 def handle_tool_request(

@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from uuid import uuid4
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parents[2]
 LOG_DIR = BASE_DIR / "logs"
 LOG_FILE = LOG_DIR / "audit.log"
 SENSITIVE_WORDS = ["password", "token", "secret", "key", "credential", "密钥", "密码"]

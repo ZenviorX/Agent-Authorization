@@ -3,7 +3,7 @@ from pathlib import Path
 from backend.utils import normalize_tool_name, normalize_params, get_path
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 
 

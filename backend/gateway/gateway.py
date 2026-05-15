@@ -1,5 +1,5 @@
 from backend.schemas import ToolCallRequest
-from backend.policy_loader import (
+from backend.gateway.policy_loader import (
     get_tool_risk,
     get_decision_threshold,
     get_user_role,

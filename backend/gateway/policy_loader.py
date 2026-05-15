@@ -14,7 +14,7 @@ def load_policy() -> Dict[str, Any]:
     返回值：
         Python 字典形式的策略内容
     """
-    project_root = Path(__file__).resolve().parent.parent
+    project_root = Path(__file__).resolve().parents[2]
     policy_path = project_root / "config" / "policy.yaml"
 
     if not policy_path.exists():

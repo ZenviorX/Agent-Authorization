@@ -1,10 +1,11 @@
 import re
 from typing import Dict, Any
 
+from backend.agents.base_agent import BaseAgent
 from backend.utils import clean_text_value
 
 
-class FakeAgent:
+class FakeAgent(BaseAgent):
     """
     模拟智能体模块。
     它的作用不是直接执行工具，而是根据用户输入的自然语言任务，

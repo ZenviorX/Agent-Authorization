@@ -3,14 +3,24 @@ import os
 import re
 from typing import Any, Dict, Optional
 
-from dotenv import load_dotenv
-from openai import OpenAI
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv():
+        return False
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
+
+from backend.agents.base_agent import BaseAgent
 
 
 load_dotenv()
 
 
-class LLMAgent:
+class LLMAgent(BaseAgent):
     """
     真实大模型智能体模块。
 
@@ -28,9 +38,9 @@ class LLMAgent:
         self.model = os.getenv("LLM_MODEL", "deepseek-chat")
         self.api_key = os.getenv("DEEPSEEK_API_KEY")
 
-        self.client: Optional[OpenAI] = None
+        self.client: Optional[Any] = None
 
-        if self.api_key:
+        if OpenAI and self.api_key:
             self.client = OpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url,
@@ -42,6 +52,15 @@ class LLMAgent:
         返回格式尽量和 FakeAgent 保持一致，方便后续复用现有网关。
         """
         user_input = user_input.strip()
+
+        if OpenAI is None:
+            return {
+                "agent": "LLMAgent",
+                "status": "error",
+                "message": "未安装 openai 依赖，无法调用真实大模型",
+                "original_input": user_input,
+                "tool_call": None,
+            }
 
         if not self.client:
             return {

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,12 +10,11 @@ from backend.schemas import (
     AgentTextRequest,
     ApprovalRejectRequest,
 )
-from backend.gateway import check_tool_call
-from backend.audit_logger import get_logs
-from backend.gateway_service import handle_tool_request
-from backend.fake_agent import FakeAgent
-from backend.llm_agent import LLMAgent
-from backend.approval_store import (
+from backend.agents import get_agent
+from backend.gateway import check_tool_call, handle_tool_request
+from backend.tools import execute_tool
+from backend.audit import get_logs, write_log
+from backend.approval import (
     create_pending_request,
     list_pending_requests,
     get_pending_request,
@@ -45,8 +44,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-fake_agent = FakeAgent()
-llm_agent = LLMAgent()
+def build_tool_request_from_plan(
+    request: AgentTextRequest,
+    plan_result: dict,
+) -> ToolCallRequest | None:
+    tool_call = plan_result.get("tool_call")
+
+    if plan_result.get("status") != "planned" or not tool_call:
+        return None
+
+    tool_name = tool_call.get("tool_name")
+    if not tool_name:
+        return None
+
+    return ToolCallRequest(
+        user=request.user,
+        tool=tool_name,
+        params=tool_call.get("arguments", {}),
+    )
+
+
+def plan_with_agent(request: AgentTextRequest, agent_type: str):
+    try:
+        agent = get_agent(agent_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return agent.plan(request.user_input)
 
 @app.get("/")
 def index():
@@ -82,14 +106,41 @@ def gateway_check(request: ToolCallRequest):
         "reason": result["reason"]
     }
 
-@app.post("/agent/plan", include_in_schema=False)
-def agent_plan(request: AgentTextRequest):
-    return fake_agent_plan(request)
+@app.post("/agent/plan")
+def agent_plan(request: AgentTextRequest, agent_type: str = "fake"):
+    plan_result = plan_with_agent(request, agent_type)
+
+    return {
+        "user": request.user,
+        "source": f"{agent_type}_agent",
+        "agent_type": agent_type,
+        "agent_result": plan_result,
+    }
 
 
-@app.post("/agent/simulate", include_in_schema=False)
-def agent_simulate(request: AgentTextRequest):
-    return fake_agent_simulate(request)
+@app.post("/agent/simulate")
+def agent_simulate(request: AgentTextRequest, agent_type: str = "fake"):
+    plan_result = plan_with_agent(request, agent_type)
+    tool_request = build_tool_request_from_plan(request, plan_result)
+
+    if tool_request is None:
+        return {
+            "success": False,
+            "executed": False,
+            "message": "Agent 未生成有效工具调用",
+            "source": f"{agent_type}_agent",
+            "agent_type": agent_type,
+            "agent_result": plan_result,
+            "gateway_result": None,
+            "tool_result": None,
+            "pending_id": None,
+        }
+
+    return handle_tool_request(
+        request=tool_request,
+        original_input=request.user_input,
+        agent_result=plan_result,
+    )
 
 @app.post("/demo/fake-agent/plan")
 def fake_agent_plan(request: AgentTextRequest):
@@ -97,7 +148,7 @@ def fake_agent_plan(request: AgentTextRequest):
     FakeAgent 演示接口。
     只用于模拟智能体规划，不代表真实大模型。
     """
-    plan_result = fake_agent.plan(request.user_input)
+    plan_result = plan_with_agent(request, "fake")
 
     return {
         "user": request.user,
@@ -118,7 +169,7 @@ def llm_plan(request: AgentTextRequest):
     注意：
     这里只生成计划，不执行工具，也不绕过 Gateway。
     """
-    plan_result = llm_agent.plan(request.user_input)
+    plan_result = plan_with_agent(request, "llm")
 
     return {
         "user": request.user,
@@ -138,9 +189,11 @@ def fake_agent_simulate(request: AgentTextRequest):
 
     注意：FakeAgent 不是安全核心，Gateway 才是安全核心。
     """
-    plan_result = fake_agent.plan(request.user_input)
+    plan_result = plan_with_agent(request, "fake")
 
-    if plan_result["status"] != "planned" or plan_result["tool_call"] is None:
+    tool_request = build_tool_request_from_plan(request, plan_result)
+
+    if tool_request is None:
         return {
             "success": False,
             "executed": False,
@@ -151,14 +204,6 @@ def fake_agent_simulate(request: AgentTextRequest):
             "tool_result": None,
             "pending_id": None
         }
-
-    tool_call = plan_result["tool_call"]
-
-    tool_request = ToolCallRequest(
-        user=request.user,
-        tool=tool_call["tool_name"],
-        params=tool_call["arguments"]
-    )
 
     return handle_tool_request(
         request=tool_request,
