@@ -14,6 +14,7 @@ from backend.gateway import check_tool_call
 from backend.audit_logger import get_logs
 from backend.gateway_service import handle_tool_request
 from backend.fake_agent import FakeAgent
+from backend.llm_agent import LLMAgent
 from backend.approval_store import (
     create_pending_request,
     list_pending_requests,
@@ -45,7 +46,7 @@ app.add_middleware(
 )
 
 fake_agent = FakeAgent()
-
+llm_agent = LLMAgent()
 
 @app.get("/")
 def index():
@@ -104,6 +105,26 @@ def fake_agent_plan(request: AgentTextRequest):
         "agent_result": plan_result
     }
 
+@app.post("/llm/plan")
+def llm_plan(request: AgentTextRequest):
+    """
+    真实大模型 Agent 规划接口。
+
+    作用：
+    1. 接收用户自然语言输入
+    2. 调用真实大模型
+    3. 生成结构化工具调用计划
+
+    注意：
+    这里只生成计划，不执行工具，也不绕过 Gateway。
+    """
+    plan_result = llm_agent.plan(request.user_input)
+
+    return {
+        "user": request.user,
+        "source": "llm_agent",
+        "agent_result": plan_result,
+    }
 
 @app.post("/demo/fake-agent/simulate")
 def fake_agent_simulate(request: AgentTextRequest):
