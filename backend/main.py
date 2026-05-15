@@ -11,10 +11,9 @@ from backend.schemas import (
     ApprovalRejectRequest,
 )
 from backend.gateway import check_tool_call
-from backend.tool_executor import execute_tool
-from backend.audit_logger import write_log, get_logs
+from backend.audit_logger import get_logs
+from backend.gateway_service import handle_tool_request
 from backend.fake_agent import FakeAgent
-from backend.utils import normalize_tool_name, normalize_params
 from backend.approval_store import (
     create_pending_request,
     list_pending_requests,
@@ -82,140 +81,50 @@ def gateway_check(request: ToolCallRequest):
         "reason": result["reason"]
     }
 
-
-@app.post("/agent/plan")
+@app.post("/agent/plan", include_in_schema=False)
 def agent_plan(request: AgentTextRequest):
+    return fake_agent_plan(request)
+
+
+@app.post("/agent/simulate", include_in_schema=False)
+def agent_simulate(request: AgentTextRequest):
+    return fake_agent_simulate(request)
+
+@app.post("/demo/fake-agent/plan")
+def fake_agent_plan(request: AgentTextRequest):
     """
-    模拟智能体规划接口。
-    输入自然语言任务，只生成工具调用计划，不执行工具，也不经过网关。
+    FakeAgent 演示接口。
+    只用于模拟智能体规划，不代表真实大模型。
     """
     plan_result = fake_agent.plan(request.user_input)
 
     return {
         "user": request.user,
+        "source": "fake_agent_demo",
         "agent_result": plan_result
     }
 
 
-def _handle_tool_request(
-    request: ToolCallRequest,
-    original_input: str = None,
-    agent_result: dict = None,
-):
+@app.post("/demo/fake-agent/simulate")
+def fake_agent_simulate(request: AgentTextRequest):
     """
-    统一处理工具调用：
-    1. 规范化工具名和参数
-    2. 网关检查
-    3. allow 则执行
-    4. confirm 则进入人工确认队列
-    5. deny 则拦截
-    6. 全流程写入审计日志
-    """
-    normalized_tool = normalize_tool_name(request.tool)
-    normalized_params = normalize_params(normalized_tool, request.params)
+    FakeAgent 完整演示流程。
 
-    normalized_request = ToolCallRequest(
-        user=request.user,
-        tool=normalized_tool,
-        params=normalized_params
-    )
+    这个接口用于原型演示：
+    1. FakeAgent 根据自然语言生成工具调用
+    2. 工具调用进入 Gateway
+    3. Gateway 决定 allow / confirm / deny
 
-    check_result = check_tool_call(normalized_request)
-
-    # deny：直接拦截
-    if check_result["decision"] == "deny":
-        write_log(
-            user=normalized_request.user,
-            tool=normalized_request.tool,
-            params=normalized_request.params,
-            gateway_result=check_result,
-            executed=False,
-            original_input=original_input,
-            message="工具调用已被安全网关拦截",
-        )
-
-        return {
-            "executed": False,
-            "message": "工具调用已被安全网关拦截",
-            "agent_result": agent_result,
-            "gateway_result": check_result,
-            "tool_result": None,
-            "pending_id": None
-        }
-
-    # confirm：进入人工确认队列
-    if check_result["decision"] == "confirm":
-        pending_id = create_pending_request(
-            tool_request=normalized_request,
-            gateway_result=check_result,
-            original_input=original_input,
-            agent_result=agent_result,
-        )
-
-        write_log(
-            user=normalized_request.user,
-            tool=normalized_request.tool,
-            params=normalized_request.params,
-            gateway_result=check_result,
-            executed=False,
-            original_input=original_input,
-            message="工具调用需要人工确认，已进入 pending 队列",
-            pending_id=pending_id,
-        )
-
-        return {
-            "executed": False,
-            "message": "工具调用需要人工确认，已进入 pending 队列",
-            "agent_result": agent_result,
-            "gateway_result": check_result,
-            "tool_result": None,
-            "pending_id": pending_id
-        }
-
-    # allow：直接执行
-    tool_result = execute_tool(
-        normalized_request.tool,
-        normalized_request.params
-    )
-
-    write_log(
-        user=normalized_request.user,
-        tool=normalized_request.tool,
-        params=normalized_request.params,
-        gateway_result=check_result,
-        executed=True,
-        original_input=original_input,
-        message="工具调用已通过安全检查并执行",
-        tool_result=tool_result,
-    )
-
-    return {
-        "executed": True,
-        "message": "工具调用已通过安全检查并执行",
-        "agent_result": agent_result,
-        "gateway_result": check_result,
-        "tool_result": tool_result,
-        "pending_id": None
-    }
-
-
-@app.post("/agent/simulate")
-def agent_simulate(request: AgentTextRequest):
-    """
-    模拟完整智能体调用流程。
-    流程：
-    1. 用户输入自然语言任务
-    2. FakeAgent 生成工具调用计划
-    3. 将工具调用请求交给安全网关
-    4. 根据网关结果决定执行、拦截或进入人工确认
-    5. 写入审计日志
+    注意：FakeAgent 不是安全核心，Gateway 才是安全核心。
     """
     plan_result = fake_agent.plan(request.user_input)
 
     if plan_result["status"] != "planned" or plan_result["tool_call"] is None:
         return {
+            "success": False,
             "executed": False,
-            "message": "模拟智能体未能生成有效工具调用",
+            "message": "FakeAgent 未能生成有效工具调用",
+            "source": "fake_agent_demo",
             "agent_result": plan_result,
             "gateway_result": None,
             "tool_result": None,
@@ -230,11 +139,12 @@ def agent_simulate(request: AgentTextRequest):
         params=tool_call["arguments"]
     )
 
-    return _handle_tool_request(
+    return handle_tool_request(
         request=tool_request,
         original_input=request.user_input,
         agent_result=plan_result,
     )
+
 
 @app.post("/agent/injection-demo")
 def agent_injection_demo():
@@ -375,13 +285,22 @@ def agent_injection_demo():
         "attack_chain": attack_chain
     }
 
+@app.post("/gateway/call")
+def gateway_call(request: ToolCallRequest):
+    """
+    正式网关调用接口。
+    真实大模型或其他 Agent 生成工具调用后，应调用这里。
+    """
+    return handle_tool_request(request=request)
+
+
 @app.post("/agent/call")
 def agent_call(request: ToolCallRequest):
     """
-    结构化工具调用接口。
-    这个接口不是自然语言输入，而是直接输入 tool 和 params。
+    兼容旧接口。
+    建议后续使用 /gateway/call。
     """
-    return _handle_tool_request(request=request)
+    return handle_tool_request(request=request)
 
 
 @app.get("/approval/pending")

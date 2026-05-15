@@ -674,7 +674,7 @@ function renderInjectionDemo(data) {
         setFlowStep(1);
 
         try {
-            const response = await fetch(`${API_BASE}/agent/simulate`, {
+            const response = await fetch(`${API_BASE}/demo/fake-agent/simulate`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"

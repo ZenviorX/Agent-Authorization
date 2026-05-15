@@ -361,6 +361,12 @@ logs/audit.log
 http://127.0.0.1:8000/audit/logs
 ```
 
+## FakeAgent 与 Gateway 的关系
 
+本项目中的 FakeAgent 仅用于原型阶段模拟大模型输出。它负责把自然语言任务转换为结构化工具调用请求，例如 file.read、email.send、shell.run 等。
+
+系统真正的安全核心是 Gateway。Gateway 不依赖 FakeAgent，只接收结构化 ToolCallRequest，并根据用户身份、工具类型、资源路径、危险关键词和策略配置进行风险评分，最终决定 allow、confirm 或 deny。
+
+后续接入真实大模型时，只需要让真实模型生成同样格式的 ToolCallRequest，然后调用 `/gateway/call` 接口即可。FakeAgent 可以保留为测试桩和离线演示工具。
 
 
