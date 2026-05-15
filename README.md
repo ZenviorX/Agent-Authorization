@@ -74,7 +74,7 @@ cd D:\\信安赛\\agent-authorization\\Agent-Authorization
 
 ```PowerShell
 
-..\\venv\\Scripts\\Activate.ps1
+.\\venv\\Scripts\\Activate.ps1
 
 ```
 
@@ -108,6 +108,12 @@ python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 
 http://127.0.0.1:8000/
 
+该地址会直接打开前端演示页面。
+
+后端状态接口：
+
+http://127.0.0.1:8000/api/status
+
 
 
 接口文档页面：
@@ -115,6 +121,20 @@ http://127.0.0.1:8000/
 
 
 http://127.0.0.1:8000/docs
+
+
+
+## 四、运行测试
+
+安装依赖后，可在项目根目录执行：
+
+```PowerShell
+
+python -m unittest discover -s tests
+
+```
+
+测试覆盖公开文件读取、敏感文件拦截、人工确认、路径穿越硬拒绝和管理员高风险操作确认等核心网关策略。
 
 
 

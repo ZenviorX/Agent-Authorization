@@ -1,10 +1,12 @@
 from pathlib import Path
 from typing import Any, Dict, Tuple
 from fnmatch import fnmatch
+from functools import lru_cache
 
 import yaml
 
 
+@lru_cache(maxsize=1)
 def load_policy() -> Dict[str, Any]:
     """
     读取 config/policy.yaml 策略配置文件。
@@ -25,6 +27,13 @@ def load_policy() -> Dict[str, Any]:
         raise ValueError("策略文件格式错误：policy.yaml 顶层必须是字典结构")
 
     return policy
+
+
+def clear_policy_cache():
+    """
+    清空策略缓存，便于测试或运行时手动重新加载配置。
+    """
+    load_policy.cache_clear()
 
 
 def get_user_role(user: str) -> str:

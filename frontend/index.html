@@ -458,7 +458,10 @@
 </main>
 
 <script>
-    const API_BASE = "http://127.0.0.1:8000";
+    const API_BASE = window.location.protocol === "file:"
+        ? "http://127.0.0.1:8000"
+        : window.location.origin;
+    document.getElementById("apiBaseText").textContent = API_BASE;
 
     function useScenario(user, text) {
         document.getElementById("user").value = user;
@@ -494,6 +497,15 @@
         return "";
     }
 
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+    }
+
     function clearResult() {
         document.getElementById("resultSummary").innerHTML =
             "<div class='empty'>暂无结果，请先提交一个任务。</div>";
@@ -508,7 +520,7 @@
         status.className = "status";
 
         try {
-            const response = await fetch(`${API_BASE}/`);
+            const response = await fetch(`${API_BASE}/api/status`);
             if (!response.ok) {
                 throw new Error("后端响应异常");
             }
@@ -577,14 +589,14 @@ function renderInjectionDemo(data) {
     resultDiv.innerHTML = `
         <div class="result-box">
             <p><strong>提示注入攻击链演示结果：</strong></p>
-            <p>${data.message || ""}</p>
-            <p><strong>是否成功：</strong>${data.success}</p>
+            <p>${escapeHtml(data.message || "")}</p>
+            <p><strong>是否成功：</strong>${escapeHtml(data.success)}</p>
 
             <p><strong>检测到的提示注入关键词：</strong></p>
             ${
                 detectedKeywords.length > 0
                 ? `<ul class="reason-list">
-                    ${detectedKeywords.map(keyword => `<li>${keyword}</li>`).join("")}
+                    ${detectedKeywords.map(keyword => `<li>${escapeHtml(keyword)}</li>`).join("")}
                    </ul>`
                 : `<p class="small-text">未检测到明显提示注入关键词。</p>`
             }
@@ -610,32 +622,32 @@ function renderInjectionDemo(data) {
 
         return `
             <div class="result-box">
-                <h3>Step ${step.step}：${step.description}</h3>
+                <h3>Step ${escapeHtml(step.step)}：${escapeHtml(step.description)}</h3>
 
                 <div class="result-row">
                     <strong>决策结果：</strong>
-                    <span class="decision ${cls}">${decision}</span>
+                    <span class="decision ${cls}">${escapeHtml(decision)}</span>
                 </div>
 
                 <div class="result-row">
-                    <strong>风险分数：</strong>${gateway.risk_score}
+                    <strong>风险分数：</strong>${escapeHtml(gateway.risk_score)}
                 </div>
 
                 <div class="result-row">
-                    <strong>是否执行：</strong>${step.executed}
+                    <strong>是否执行：</strong>${escapeHtml(step.executed)}
                 </div>
 
                 <div class="result-row">
-                    <strong>请求用户：</strong>${request.user || ""}
+                    <strong>请求用户：</strong>${escapeHtml(request.user || "")}
                 </div>
 
                 <div class="result-row">
-                    <strong>请求工具：</strong>${request.tool || ""}
+                    <strong>请求工具：</strong>${escapeHtml(request.tool || "")}
                 </div>
 
                 <div class="result-row">
                     <strong>请求参数：</strong>
-                    <pre>${JSON.stringify(params, null, 2)}</pre>
+                    <pre>${escapeHtml(JSON.stringify(params, null, 2))}</pre>
                 </div>
 
                 <div class="result-row">
@@ -643,7 +655,7 @@ function renderInjectionDemo(data) {
                     ${
                         reasons.length > 0
                         ? `<ul class="reason-list">
-                            ${reasons.map(reason => `<li>${reason}</li>`).join("")}
+                            ${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}
                            </ul>`
                         : `<p class="small-text">无明显风险原因。</p>`
                     }
@@ -704,7 +716,7 @@ function renderInjectionDemo(data) {
             resultDiv.innerHTML = `
                 <div class="result-box">
                     <p><strong>智能体未能生成有效工具调用。</strong></p>
-                    <p>${data.message || ""}</p>
+                    <p>${escapeHtml(data.message || "")}</p>
                 </div>
             `;
             document.getElementById("resultJson").textContent =
@@ -735,36 +747,36 @@ function renderInjectionDemo(data) {
             <div class="result-box">
                 <div class="result-row">
                     <strong>决策结果：</strong>
-                    <span class="decision ${cls}">${decision}</span>
+                    <span class="decision ${cls}">${escapeHtml(decision)}</span>
                 </div>
 
                 <div class="result-row">
-                    <strong>风险分数：</strong>${gateway.risk_score}
+                    <strong>风险分数：</strong>${escapeHtml(gateway.risk_score)}
                 </div>
 
                 <div class="result-row">
-                    <strong>是否执行：</strong>${data.executed}
+                    <strong>是否执行：</strong>${escapeHtml(data.executed)}
                 </div>
 
                 <div class="result-row">
-                    <strong>Agent 计划调用工具：</strong>${agentTool}
+                    <strong>Agent 计划调用工具：</strong>${escapeHtml(agentTool)}
                 </div>
 
                 <div class="result-row">
-                    <strong>系统说明：</strong>${decisionText}
+                    <strong>系统说明：</strong>${escapeHtml(decisionText)}
                 </div>
 
                 <div class="result-row">
                     <strong>风险原因：</strong>
                     <ul class="reason-list">
-                        ${reasons.map(reason => `<li>${reason}</li>`).join("")}
+                        ${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}
                     </ul>
                 </div>
 
                 ${
                     data.pending_id
                     ? `<div class="result-row">
-                            <strong>pending_id：</strong>${data.pending_id}
+                            <strong>pending_id：</strong>${escapeHtml(data.pending_id)}
                        </div>`
                     : ""
                 }
@@ -794,14 +806,14 @@ function renderInjectionDemo(data) {
 
                 return `
                     <div class="pending-item">
-                        <p><strong>pending_id：</strong>${item.pending_id}</p>
-                        <p><strong>用户：</strong>${item.tool_request.user}</p>
-                        <p><strong>工具：</strong>${item.tool_request.tool}</p>
-                        <p><strong>风险分：</strong>${score}</p>
-                        <p><strong>原始输入：</strong>${item.original_input || ""}</p>
+                        <p><strong>pending_id：</strong>${escapeHtml(item.pending_id)}</p>
+                        <p><strong>用户：</strong>${escapeHtml(item.tool_request.user)}</p>
+                        <p><strong>工具：</strong>${escapeHtml(item.tool_request.tool)}</p>
+                        <p><strong>风险分：</strong>${escapeHtml(score)}</p>
+                        <p><strong>原始输入：</strong>${escapeHtml(item.original_input || "")}</p>
                         <p><strong>风险原因：</strong></p>
                         <ul class="reason-list">
-                            ${reasons.map(reason => `<li>${reason}</li>`).join("")}
+                            ${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}
                         </ul>
                         <button class="btn-success" onclick="confirmRequest('${item.pending_id}')">确认执行</button>
                         <button class="btn-danger" onclick="rejectRequest('${item.pending_id}')">拒绝执行</button>
@@ -875,15 +887,15 @@ function renderInjectionDemo(data) {
                     <div class="log-item">
                         <p>
                             <strong>决策：</strong>
-                            <span class="decision ${cls}">${log.decision}</span>
-                            <strong style="margin-left:16px;">风险分：</strong>${log.risk_score}
-                            <strong style="margin-left:16px;">是否执行：</strong>${log.executed}
+                            <span class="decision ${cls}">${escapeHtml(log.decision)}</span>
+                            <strong style="margin-left:16px;">风险分：</strong>${escapeHtml(log.risk_score)}
+                            <strong style="margin-left:16px;">是否执行：</strong>${escapeHtml(log.executed)}
                         </p>
-                        <p><strong>时间：</strong>${log.time}</p>
-                        <p><strong>用户：</strong>${log.user}</p>
-                        <p><strong>工具：</strong>${log.tool}</p>
-                        <p><strong>原始输入：</strong>${log.original_input || ""}</p>
-                        <p><strong>说明：</strong>${log.message || ""}</p>
+                        <p><strong>时间：</strong>${escapeHtml(log.time)}</p>
+                        <p><strong>用户：</strong>${escapeHtml(log.user)}</p>
+                        <p><strong>工具：</strong>${escapeHtml(log.tool)}</p>
+                        <p><strong>原始输入：</strong>${escapeHtml(log.original_input || "")}</p>
+                        <p><strong>说明：</strong>${escapeHtml(log.message || "")}</p>
                     </div>
                 `;
             }).join("");

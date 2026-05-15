@@ -26,6 +26,7 @@ def check_tool_call(request: ToolCallRequest):
     """
     risk_score = 0
     reason = []
+    hard_deny = False
 
     user = request.user
     role = get_user_role(user)
@@ -72,10 +73,12 @@ def check_tool_call(request: ToolCallRequest):
     # 3. 路径穿越风险判断
     if ".." in path_lower:
         risk_score += 60
+        hard_deny = True
         reason.append("路径中包含 ..，可能存在路径穿越风险")
 
     if path_lower.startswith("/") or ":" in path_lower:
         risk_score += 40
+        hard_deny = True
         reason.append("路径疑似绝对路径，存在越权访问风险")
 
     # 4. 角色权限策略判断：从 config/policy.yaml 的 roles 中读取
@@ -86,7 +89,6 @@ def check_tool_call(request: ToolCallRequest):
         reason.append(policy_reason)
 
     elif policy_decision == "confirm":
-        risk_score += 40
         reason.append(policy_reason)
 
     elif policy_decision == "allow":
@@ -171,12 +173,12 @@ def check_tool_call(request: ToolCallRequest):
         decision = "deny"
 
     # 再根据角色策略进行修正
-    # deny 策略优先级最高：只要命中 deny，就必须拒绝
-    if policy_decision == "deny":
+    # 明确违规优先级最高：路径穿越、绝对路径、角色 deny 都必须拒绝。
+    if hard_deny or policy_decision == "deny":
         decision = "deny"
 
-    # confirm 策略表示该操作至少需要人工确认
-    elif policy_decision == "confirm" and decision == "allow":
+    # confirm 策略表示该角色允许申请执行，但必须经过人工确认。
+    elif policy_decision == "confirm":
         decision = "confirm"
 
     # allow 策略表示用户有权限执行该工具
