@@ -621,3 +621,286 @@ Gateway 负责 check
 ToolExecutor 负责 execute
 AuditLogger 负责 record
 ```
+
+---
+
+## 十三、2026-05-15 第二轮结构修正
+
+根据后续评审意见，项目继续从 8/10 的状态向更清晰的安全系统原型推进。本轮没有修改 Task1-8，只在 Task9 中继续记录。
+
+本轮重点完成 4 件事：
+
+```text
+1. 拆分 main.py 路由
+2. 给 Agent 输出增加 Pydantic 强类型约束
+3. 给 LLMAgent 增加工具白名单校验
+4. approval confirm 前增加二次 Gateway 检查
+```
+
+### 1. main.py 路由瘦身
+
+之前 `main.py` 中包含 Agent、Gateway、Demo、Approval、Audit 等大量路由逻辑，文件职责偏重。
+
+现在新增：
+
+```text
+backend/routes/
+├── __init__.py
+├── agent_routes.py
+├── gateway_routes.py
+├── approval_routes.py
+├── audit_routes.py
+└── demo_routes.py
+```
+
+`main.py` 现在只负责：
+
+```text
+创建 FastAPI app
+配置 CORS
+挂载 routes
+提供首页和 /api/status
+```
+
+核心挂载方式：
+
+```python
+app.include_router(agent_router)
+app.include_router(gateway_router)
+app.include_router(demo_router)
+app.include_router(approval_router)
+app.include_router(audit_router)
+```
+
+这让主入口更干净，后续每类接口都可以在自己的 routes 文件中维护。
+
+### 2. Agent 输出强类型约束
+
+在 `backend/schemas.py` 中新增：
+
+```python
+class ToolCallPlan(BaseModel):
+    tool_name: str
+    description: str = ""
+    arguments: Dict[str, Any] = Field(default_factory=dict)
+    need_auth: bool = True
+
+
+class AgentPlanResult(BaseModel):
+    agent: str
+    status: str
+    original_input: str
+    tool_call: Optional[ToolCallPlan] = None
+    message: Optional[str] = None
+    raw_output: Optional[str] = None
+```
+
+`BaseAgent.plan()` 的返回类型也改成：
+
+```python
+def plan(self, user_input: str) -> AgentPlanResult:
+```
+
+`FakeAgent` 会通过：
+
+```python
+AgentPlanResult.model_validate(...)
+```
+
+把原本的 dict 结果统一校验成 `AgentPlanResult`。
+
+`LLMAgent` 现在直接返回 `AgentPlanResult`。
+
+新增：
+
+```text
+backend/agents/agent_service.py
+```
+
+统一负责：
+
+```text
+调用 get_agent(agent_type)
+校验 AgentPlanResult
+将 AgentPlanResult 转成 ToolCallRequest
+```
+
+这样 Agent 输出格式不再完全依赖人工约定，而是有明确结构约束。
+
+### 3. LLMAgent 配置和工具白名单
+
+`LLMAgent` 的 API Key 读取方式从固定 DeepSeek 改为：
+
+```python
+self.api_key = os.getenv("LLM_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+```
+
+这样既兼容当前 DeepSeek 配置，也方便后续切换 OpenAI、OpenRouter、硅基流动等 OpenAI-compatible 服务。
+
+同时新增工具白名单：
+
+```python
+ALLOWED_TOOLS = {
+    "file.read",
+    "file.write",
+    "file.delete",
+    "email.send",
+    "shell.run",
+    "db.query",
+}
+```
+
+`_parse_tool_call()` 中会检查：
+
+```python
+if tool_name not in ALLOWED_TOOLS:
+    return None
+```
+
+这意味着即使 LLM 输出了未知工具名，也不会进入后续 Gateway 流程，而是被 Agent 规划阶段判定为 unsupported。
+
+这不是替代 Gateway，而是在 LLM 输出解析层增加一层格式和工具范围约束。
+
+### 4. 人工确认前二次 Gateway 检查
+
+`/approval/confirm/{pending_id}` 已移动到：
+
+```text
+backend/routes/approval_routes.py
+```
+
+确认执行前现在会重新调用：
+
+```python
+recheck_result = check_tool_call(tool_request)
+```
+
+如果二次检查结果为：
+
+```text
+deny
+```
+
+则：
+
+```text
+不执行工具
+写入审计日志
+移除 pending 请求
+返回二次检查拦截结果
+```
+
+如果二次检查不是 deny，才会执行：
+
+```text
+execute_tool(normalized_tool, normalized_params)
+```
+
+并将最终审计决策记录为：
+
+```text
+confirmed
+```
+
+这使人工确认流程更符合安全系统设计：
+
+```text
+人工确认
+  ↓
+二次 Gateway 检查
+  ↓
+非 deny 才执行
+```
+
+### 5. 小冗余清理
+
+`backend/gateway/gateway.py` 中清理了未使用变量：
+
+```text
+user_lower
+role_lower
+deny_min
+```
+
+其中 `deny_min` 仍然可以保留在 `config/policy.yaml` 的配置结构里，但代码中不再读取未使用变量。
+
+### 6. 本轮验证结果
+
+执行单元测试：
+
+```powershell
+.\venv\Scripts\python.exe -m unittest tests.test_gateway
+```
+
+结果：
+
+```text
+Ran 5 tests in 0.004s
+
+OK
+```
+
+执行 backend Python 语法解析：
+
+```text
+parsed 26 python files
+```
+
+执行 Agent 主流程验证：
+
+```text
+FakeAgent
+gateway allow True
+LLMAgent
+```
+
+执行 LLMAgent 工具白名单验证：
+
+```text
+unknown.tool -> None
+file.read -> file.read
+```
+
+执行人工确认二次检查路径验证：
+
+```text
+confirm True
+True confirmed
+```
+
+### 7. 本轮后的架构状态
+
+现在项目可以更准确地描述为：
+
+```text
+backend/main.py
+    只负责 app 创建和路由挂载
+
+backend/routes/
+    只负责 API 层
+
+backend/agents/
+    只负责自然语言到 AgentPlanResult
+
+backend/gateway/
+    只负责 ToolCallRequest 的安全检查和流程编排
+
+backend/tools/
+    只负责工具执行
+
+backend/audit/
+    只负责审计日志
+
+backend/approval/
+    只负责人工确认队列
+```
+
+最终安全边界进一步清晰：
+
+```text
+LLM 输出不是执行许可
+AgentPlanResult 只是候选计划
+ToolCallRequest 必须进入 Gateway
+人工确认后仍需二次 Gateway 检查
+ToolExecutor 只能位于 Gateway 之后
+```

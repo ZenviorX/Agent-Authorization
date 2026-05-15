@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+
+from backend.schemas import AgentPlanResult
 
 
 class BaseAgent(ABC):
@@ -11,5 +12,5 @@ class BaseAgent(ABC):
     """
 
     @abstractmethod
-    def plan(self, user_input: str) -> Dict[str, Any]:
+    def plan(self, user_input: str) -> AgentPlanResult:
         pass

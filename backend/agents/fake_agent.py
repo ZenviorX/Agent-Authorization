@@ -2,6 +2,7 @@ import re
 from typing import Dict, Any
 
 from backend.agents.base_agent import BaseAgent
+from backend.schemas import AgentPlanResult
 from backend.utils import clean_text_value
 
 
@@ -12,34 +13,34 @@ class FakeAgent(BaseAgent):
     生成一个结构化的工具调用请求。
     """
 
-    def plan(self, user_input: str) -> Dict[str, Any]:
+    def plan(self, user_input: str) -> AgentPlanResult:
         """
         根据用户输入生成工具调用计划。
         """
         user_input = user_input.strip()
 
         if self._is_send_email_task(user_input):
-            return self._build_send_email_call(user_input)
+            return AgentPlanResult.model_validate(self._build_send_email_call(user_input))
 
         if self._is_delete_file_task(user_input):
-            return self._build_delete_file_call(user_input)
+            return AgentPlanResult.model_validate(self._build_delete_file_call(user_input))
 
         if self._is_read_file_task(user_input):
-            return self._build_read_file_call(user_input)
+            return AgentPlanResult.model_validate(self._build_read_file_call(user_input))
 
         if self._is_shell_task(user_input):
-            return self._build_shell_call(user_input)
+            return AgentPlanResult.model_validate(self._build_shell_call(user_input))
 
         if self._is_db_query_task(user_input):
-            return self._build_db_query_call(user_input)
+            return AgentPlanResult.model_validate(self._build_db_query_call(user_input))
 
-        return {
+        return AgentPlanResult.model_validate({
             "agent": "FakeAgent",
             "status": "unsupported",
             "message": "当前模拟智能体暂时无法识别该任务",
             "original_input": user_input,
             "tool_call": None
-        }
+        })
 
     def _is_send_email_task(self, text: str) -> bool:
         return (

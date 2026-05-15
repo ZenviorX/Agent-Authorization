@@ -42,8 +42,6 @@ def check_tool_call(request: ToolCallRequest):
     content_lower = content.lower()
     command_lower = command.lower()
     sql_lower = sql.lower()
-    user_lower = user.lower()
-    role_lower = role.lower()
 
     # 1. 工具自身风险判断：从 config/policy.yaml 读取基础风险分
     tool_base_risk = get_tool_risk(tool)
@@ -162,7 +160,6 @@ def check_tool_call(request: ToolCallRequest):
     threshold = get_decision_threshold()
     allow_max = int(threshold.get("allow_max", 39))
     confirm_max = int(threshold.get("confirm_max", 69))
-    deny_min = int(threshold.get("deny_min", 70))
 
     # 先根据风险分得到基础决策
     if risk_score <= allow_max:
