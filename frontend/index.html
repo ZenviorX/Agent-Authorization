@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>GuardAgent 智能体授权网关演示系统</title>
+    <title>AgentGuard：AI Agent 工具调用安全控制台</title>
     <style>
         body {
             font-family: "Microsoft YaHei", Arial, sans-serif;
@@ -228,13 +228,33 @@
             font-size: 14px;
         }
 
-        .allow { background: #27ae60; }
-        .confirm { background: #f39c12; }
-        .deny { background: #c0392b; }
-        .confirmed { background: #2980b9; }
-        .rejected { background: #7f8c8d; }
-        .agent-fake { background: #1f3c88; }
-        .agent-llm { background: #8e44ad; }
+        .allow {
+            background: #27ae60;
+        }
+
+        .confirm {
+            background: #f39c12;
+        }
+
+        .deny {
+            background: #c0392b;
+        }
+
+        .confirmed {
+            background: #2980b9;
+        }
+
+        .rejected {
+            background: #7f8c8d;
+        }
+
+        .agent-fake {
+            background: #1f3c88;
+        }
+
+        .agent-llm {
+            background: #8e44ad;
+        }
 
         .result-box {
             background: #f7f9fc;
@@ -277,8 +297,9 @@
             border-radius: 10px;
             overflow-x: auto;
             white-space: pre-wrap;
-            word-break: break-all;
+            word-break: break-word;
             font-size: 13px;
+            line-height: 1.5;
         }
 
         details {
@@ -306,6 +327,94 @@
             border-radius: 8px;
         }
 
+        .decision-summary {
+            margin-bottom: 16px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            font-weight: 700;
+            border: 1px solid #d0d7de;
+            background: #f6f8fa;
+        }
+
+        .decision-summary.empty {
+            color: #6e7781;
+        }
+
+        .decision-summary.allow {
+            color: #116329;
+            background: #dafbe1;
+            border-color: #4ac26b;
+        }
+
+        .decision-summary.confirm {
+            color: #7a4b00;
+            background: #fff8c5;
+            border-color: #d4a72c;
+        }
+
+        .decision-summary.deny {
+            color: #82071e;
+            background: #ffebe9;
+            border-color: #ff8182;
+        }
+
+        .decision-summary.confirmed {
+            color: #0550ae;
+            background: #ddf4ff;
+            border-color: #54aeef;
+        }
+
+        .decision-summary.rejected {
+            color: #57606a;
+            background: #f6f8fa;
+            border-color: #8c959f;
+        }
+
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-top: 12px;
+        }
+
+        .result-card {
+            border: 1px solid #d0d7de;
+            border-radius: 14px;
+            padding: 14px;
+            background: #ffffff;
+            box-shadow: 0 8px 20px rgba(27, 31, 36, 0.06);
+        }
+
+        .result-card-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .result-card-desc {
+            font-size: 13px;
+            color: #57606a;
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+
+        .result-card pre,
+        .raw-json pre {
+            color: #24292f;
+            background: #f6f8fa;
+            margin: 0;
+        }
+
+        .raw-json {
+            margin-top: 16px;
+        }
+
+        .raw-json summary {
+            cursor: pointer;
+            color: #0969da;
+            font-weight: 600;
+        }
+
         @media (max-width: 900px) {
             main {
                 padding: 20px;
@@ -322,13 +431,18 @@
             .scenario-grid {
                 grid-template-columns: 1fr;
             }
+
+            .result-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
+
 <body>
 <header>
-    <h1>GuardAgent 智能体工具调用授权网关</h1>
-    <p>面向 AI Agent 工具调用过程的权限判断、风险评分、人工确认与审计记录演示系统</p>
+    <h1>AgentGuard：AI Agent 工具调用安全控制台</h1>
+    <p>面向 AI Agent 工具调用过程的动态授权、风险评分、人工确认与审计追踪演示系统</p>
 </header>
 
 <main>
@@ -347,7 +461,7 @@
         <section class="card">
             <h2>1. 一键演示场景</h2>
             <div class="tip">
-                建议演示时先使用 FakeAgent，保证结果稳定；需要展示真实大模型接入时，再在右侧切换到 LLM 模式。
+                建议比赛演示时优先使用 FakeAgent，保证每个场景输出稳定；当需要展示真实大模型接入能力时，再切换到 LLM 模式。无论 Agent 类型如何变化，所有工具调用最终都会进入 Gateway 进行统一风险评估。
             </div>
 
             <div class="scenario-grid">
@@ -424,13 +538,36 @@
             </div>
         </section>
 
-        <section class="card">
+        <section class="card full-width">
             <h2>3. 网关判断结果</h2>
-            <div id="resultSummary" class="empty">暂无结果，请先提交一个任务。</div>
-            <div id="injectionResult"></div>
-            <details>
+
+            <div id="decisionSummary" class="decision-summary empty">
+                暂无结果，请先提交一个任务。
+            </div>
+
+            <div class="result-grid">
+                <div class="result-card">
+                    <div class="result-card-title">Agent 工具调用</div>
+                    <div class="result-card-desc">展示 Agent 准备执行的工具和参数。</div>
+                    <pre id="toolCallView">暂无数据</pre>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-card-title">Gateway 风险判断</div>
+                    <div class="result-card-desc">展示风险评分、决策结果和主要原因。</div>
+                    <pre id="riskView">暂无数据</pre>
+                </div>
+
+                <div class="result-card">
+                    <div class="result-card-title">最终处置结果</div>
+                    <div class="result-card-desc">展示本次调用是否执行、拦截或进入人工确认。</div>
+                    <pre id="actionView">暂无数据</pre>
+                </div>
+            </div>
+
+            <details class="raw-json">
                 <summary>查看原始 JSON 返回结果</summary>
-                <pre id="resultJson"></pre>
+                <pre id="rawResult">暂无数据</pre>
             </details>
         </section>
 
@@ -441,7 +578,7 @@
             <div id="pendingList" class="empty">暂无数据</div>
         </section>
 
-        <section class="card full-width">
+        <section class="card">
             <h2>5. 审计日志</h2>
             <p class="small-text">审计日志记录每一次工具调用的用户、工具、风险分、决策结果和执行状态。</p>
             <button class="btn-light" onclick="loadLogs()">刷新审计日志</button>
@@ -452,7 +589,7 @@
             <h2>6. 当前前端功能说明</h2>
             <p>
                 当前页面支持在前端切换 FakeAgent 与 LLM。FakeAgent 适合稳定演示，LLM 用于展示真实大模型接入。
-                无论选择哪种 Agent，最终都会统一调用 <code>/agent/simulate?agent_type=...</code>，并进入 Gateway 完成风险判断、人工确认和审计记录。
+                无论选择哪种 Agent，最终都会统一调用/agent/simulate?agent_type=...，并进入 Gateway 完成风险判断、人工确认和审计记录。
             </p>
         </section>
     </div>
@@ -462,6 +599,7 @@
     const API_BASE = window.location.protocol === "file:"
         ? "http://127.0.0.1:8000"
         : window.location.origin;
+
     document.getElementById("apiBaseText").textContent = API_BASE;
 
     function getAgentType() {
@@ -487,8 +625,10 @@
 
     function setFlowStep(activeIndex) {
         const steps = ["stepInput", "stepAgent", "stepGateway", "stepDecision", "stepAudit"];
+
         steps.forEach((id, index) => {
             const item = document.getElementById(id);
+
             if (index <= activeIndex) {
                 item.classList.add("active");
             } else {
@@ -498,12 +638,17 @@
     }
 
     function getDecisionClass(decision) {
-        if (decision === "allow") return "allow";
-        if (decision === "confirm") return "confirm";
-        if (decision === "deny") return "deny";
-        if (decision === "confirmed") return "confirmed";
-        if (decision === "rejected") return "rejected";
-        return "";
+        if (!decision) return "empty";
+
+        const normalized = String(decision).toLowerCase();
+
+        if (normalized.includes("confirmed")) return "confirmed";
+        if (normalized.includes("rejected")) return "rejected";
+        if (normalized.includes("allow")) return "allow";
+        if (normalized.includes("confirm")) return "confirm";
+        if (normalized.includes("deny")) return "deny";
+
+        return "empty";
     }
 
     function getAgentClass(agentName) {
@@ -520,10 +665,106 @@
             .replaceAll("'", "&#39;");
     }
 
+    function formatJson(data) {
+        if (data === undefined || data === null || data === "") {
+            return "暂无数据";
+        }
+
+        if (typeof data === "string") {
+            return data;
+        }
+
+        return JSON.stringify(data, null, 2);
+    }
+
+    function buildActionMessage(decision, executed, pendingId) {
+        const d = String(decision).toLowerCase();
+
+        if (d.includes("allow") && executed) {
+            return "低风险操作已自动放行并执行。";
+        }
+
+        if (d.includes("confirm")) {
+            return pendingId
+                ? "该操作已进入人工确认队列，等待管理员确认。"
+                : "该操作需要人工确认。";
+        }
+
+        if (d.includes("deny")) {
+            return "该操作被 Gateway 拦截，未被执行。";
+        }
+
+        if (d.includes("confirmed")) {
+            return "人工确认后，该操作已被执行。";
+        }
+
+        if (d.includes("rejected")) {
+            return "人工审核后，该操作已被拒绝。";
+        }
+
+        return "系统已完成本次工具调用判断。";
+    }
+
+    function renderGatewayResult(data) {
+        const decisionSummary = document.getElementById("decisionSummary");
+        const toolCallView = document.getElementById("toolCallView");
+        const riskView = document.getElementById("riskView");
+        const actionView = document.getElementById("actionView");
+        const rawResult = document.getElementById("rawResult");
+
+        if (!data) {
+            decisionSummary.className = "decision-summary empty";
+            decisionSummary.textContent = "暂无结果，请先提交一个任务。";
+            toolCallView.textContent = "暂无数据";
+            riskView.textContent = "暂无数据";
+            actionView.textContent = "暂无数据";
+            rawResult.textContent = "暂无数据";
+            return;
+        }
+
+        const agentResult = data.agent_result || {};
+        const gateway = data.gateway_result || data.result || data;
+
+        const toolCall =
+            data.tool_call ||
+            data.call ||
+            agentResult.tool_call ||
+            gateway.tool_call ||
+            gateway.request ||
+            {};
+
+        const decision = gateway.decision || data.decision || "unknown";
+        const riskScore = gateway.risk_score ?? data.risk_score ?? "unknown";
+        const reasons = gateway.reason || gateway.reasons || data.reason || data.reasons || [];
+        const executed = data.executed ?? gateway.executed ?? false;
+        const pendingId = data.pending_id || gateway.pending_id || data.approval_id || gateway.approval_id || null;
+        const message = data.message || gateway.message || "";
+
+        decisionSummary.className = "decision-summary " + getDecisionClass(decision);
+        decisionSummary.textContent = `当前决策：${decision} ｜ 风险评分：${riskScore}`;
+
+        toolCallView.textContent = formatJson({
+            agent: agentResult.agent || data.agent_type || getAgentType(),
+            tool_call: toolCall
+        });
+
+        riskView.textContent = formatJson({
+            decision: decision,
+            risk_score: riskScore,
+            reasons: reasons
+        });
+
+        actionView.textContent = formatJson({
+            executed: executed,
+            pending_id: pendingId,
+            message: message || buildActionMessage(decision, executed, pendingId)
+        });
+
+        rawResult.textContent = formatJson(data);
+    }
+
     function clearResult() {
-        document.getElementById("resultSummary").innerHTML = "<div class='empty'>暂无结果，请先提交一个任务。</div>";
-        document.getElementById("injectionResult").innerHTML = "";
-        document.getElementById("resultJson").textContent = "";
+        renderGatewayResult(null);
         setFlowStep(0);
     }
 
@@ -534,6 +775,7 @@
 
         try {
             const response = await fetch(`${API_BASE}/api/status`);
+
             if (!response.ok) {
                 throw new Error("后端响应异常");
             }
@@ -554,8 +796,7 @@
 
         submitBtn.disabled = true;
         submitBtn.textContent = agentType === "llm" ? "正在调用 LLM..." : "正在提交...";
-        document.getElementById("injectionResult").innerHTML = "";
-        document.getElementById("resultJson").textContent = "";
+        renderGatewayResult(null);
         setFlowStep(1);
 
         try {
@@ -569,187 +810,82 @@
             });
 
             const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || data.message || "后端响应异常");
+            }
+
             setFlowStep(4);
-            renderResult(data);
+            renderGatewayResult(data);
             await loadPending();
             await loadLogs();
         } catch (error) {
-            document.getElementById("resultSummary").innerHTML = `
-                <div class="result-box">
-                    <p style="color:#c0392b;"><strong>请求失败。</strong></p>
-                    <p>请检查后端是否已经启动，或 LLM 模式是否已经配置 API Key。</p>
-                    <pre>uvicorn backend.main:app --reload</pre>
-                </div>
-            `;
-            document.getElementById("resultJson").textContent = String(error);
+            setFlowStep(4);
+            renderGatewayResult({
+                decision: "deny",
+                risk_score: "error",
+                executed: false,
+                message: "请求失败。请检查后端是否已经启动，或 LLM 模式是否已经配置 API Key。",
+                error: String(error)
+            });
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = "提交任务";
         }
     }
 
-    function renderResult(data) {
-        const gateway = data.gateway_result;
-        const resultDiv = document.getElementById("resultSummary");
-        const agentResult = data.agent_result || {};
-        const agentName = agentResult.agent || data.agent_type || getAgentType();
-        const agentClass = getAgentClass(agentName);
-
-        if (!gateway) {
-            resultDiv.innerHTML = `
-                <div class="result-box">
-                    <div class="result-row">
-                        <strong>使用 Agent：</strong>
-                        <span class="agent-badge ${agentClass}">${escapeHtml(agentName)}</span>
-                    </div>
-                    <p><strong>Agent 未生成有效工具调用。</strong></p>
-                    <p>${escapeHtml(data.message || agentResult.message || "")}</p>
-                    ${agentResult.raw_output ? `<p><strong>模型原始输出：</strong></p><pre>${escapeHtml(agentResult.raw_output)}</pre>` : ""}
-                </div>
-            `;
-            document.getElementById("resultJson").textContent = JSON.stringify(data, null, 2);
-            return;
-        }
-
-        const decision = gateway.decision;
-        const cls = getDecisionClass(decision);
-        const reasons = gateway.reason || [];
-        const toolCall = agentResult.tool_call || {};
-        const agentTool = toolCall.tool_name || "未知";
-        const agentArgs = toolCall.arguments || {};
-
-        let decisionText = "系统已完成判断。";
-        if (decision === "allow") {
-            decisionText = "低风险操作，系统已自动放行并执行工具。";
-        } else if (decision === "confirm") {
-            decisionText = "中风险操作，系统已加入人工确认队列，暂不执行。";
-        } else if (decision === "deny") {
-            decisionText = "高风险操作，系统已直接拦截。";
-        }
-
-        resultDiv.innerHTML = `
-            <div class="result-box">
-                <div class="result-row">
-                    <strong>使用 Agent：</strong>
-                    <span class="agent-badge ${agentClass}">${escapeHtml(agentName)}</span>
-                </div>
-
-                <div class="result-row">
-                    <strong>Agent 计划调用工具：</strong>${escapeHtml(agentTool)}
-                </div>
-
-                <div class="result-row">
-                    <strong>Agent 计划参数：</strong>
-                    <pre>${escapeHtml(JSON.stringify(agentArgs, null, 2))}</pre>
-                </div>
-
-                <div class="result-row">
-                    <strong>决策结果：</strong>
-                    <span class="decision ${cls}">${escapeHtml(decision)}</span>
-                </div>
-
-                <div class="result-row"><strong>风险分数：</strong>${escapeHtml(gateway.risk_score)}</div>
-                <div class="result-row"><strong>是否执行：</strong>${escapeHtml(data.executed)}</div>
-                <div class="result-row"><strong>系统说明：</strong>${escapeHtml(decisionText)}</div>
-
-                <div class="result-row">
-                    <strong>风险原因：</strong>
-                    ${reasons.length > 0
-                        ? `<ul class="reason-list">${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>`
-                        : `<p class="small-text">无明显风险原因。</p>`
-                    }
-                </div>
-
-                ${data.pending_id ? `<div class="result-row"><strong>pending_id：</strong>${escapeHtml(data.pending_id)}</div>` : ""}
-                ${agentResult.raw_output ? `<details><summary>查看 LLM 原始输出</summary><pre>${escapeHtml(agentResult.raw_output)}</pre></details>` : ""}
-            </div>
-        `;
-
-        document.getElementById("resultJson").textContent = JSON.stringify(data, null, 2);
-    }
-
     async function runInjectionDemo() {
-        document.getElementById("resultSummary").innerHTML = `
-            <div class="result-box">
-                <p><strong>正在执行提示注入攻击链演示...</strong></p>
-                <p>该演示使用固定攻击链，重点展示 Gateway 如何拦截提示注入诱导出的危险工具调用。</p>
-            </div>
-        `;
-        document.getElementById("injectionResult").innerHTML = "";
-        document.getElementById("resultJson").textContent = "";
+        renderGatewayResult({
+            decision: "confirm",
+            risk_score: "running",
+            executed: false,
+            message: "正在执行提示注入攻击链演示..."
+        });
+
         setFlowStep(1);
 
         try {
-            const response = await fetch(`${API_BASE}/agent/injection-demo`, { method: "POST" });
+            const response = await fetch(`${API_BASE}/agent/injection-demo`, {
+                method: "POST"
+            });
+
             const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || data.message || "后端响应异常");
+            }
+
             setFlowStep(4);
-            renderInjectionDemo(data);
-            document.getElementById("resultJson").textContent = JSON.stringify(data, null, 2);
+
+            const attackChain = data.attack_chain || [];
+            const lastStep = attackChain.length > 0 ? attackChain[attackChain.length - 1] : null;
+
+            if (lastStep) {
+                renderGatewayResult({
+                    tool_call: lastStep.request || {},
+                    gateway_result: lastStep.gateway_result || {},
+                    executed: lastStep.executed,
+                    message: data.message || "提示注入攻击链演示完成。",
+                    attack_chain: attackChain,
+                    detected_keywords: data.detected_keywords || [],
+                    success: data.success
+                });
+            } else {
+                renderGatewayResult(data);
+            }
+
             await loadPending();
             await loadLogs();
         } catch (error) {
-            document.getElementById("resultSummary").innerHTML = `
-                <div class="result-box">
-                    <p style="color:#c0392b;"><strong>提示注入攻击链演示请求失败。</strong></p>
-                    <p>请检查后端是否已经启动。</p>
-                    <pre>uvicorn backend.main:app --reload</pre>
-                </div>
-            `;
-            document.getElementById("resultJson").textContent = String(error);
+            setFlowStep(4);
+            renderGatewayResult({
+                decision: "deny",
+                risk_score: "error",
+                executed: false,
+                message: "提示注入攻击链演示请求失败，请检查后端是否已经启动。",
+                error: String(error)
+            });
         }
-    }
-
-    function renderInjectionDemo(data) {
-        const resultDiv = document.getElementById("resultSummary");
-        const injectionDiv = document.getElementById("injectionResult");
-        const detectedKeywords = data.detected_keywords || [];
-        const attackChain = data.attack_chain || [];
-
-        resultDiv.innerHTML = `
-            <div class="result-box">
-                <p><strong>提示注入攻击链演示结果：</strong></p>
-                <p>${escapeHtml(data.message || "")}</p>
-                <p><strong>是否成功：</strong>${escapeHtml(data.success)}</p>
-                <p><strong>检测到的提示注入关键词：</strong></p>
-                ${detectedKeywords.length > 0
-                    ? `<ul class="reason-list">${detectedKeywords.map(keyword => `<li>${escapeHtml(keyword)}</li>`).join("")}</ul>`
-                    : `<p class="small-text">未检测到明显提示注入关键词。</p>`
-                }
-            </div>
-        `;
-
-        if (attackChain.length === 0) {
-            injectionDiv.innerHTML = `<div class="result-box"><p>暂无攻击链步骤。</p></div>`;
-            return;
-        }
-
-        injectionDiv.innerHTML = attackChain.map(step => {
-            const gateway = step.gateway_result || {};
-            const decision = gateway.decision || "unknown";
-            const cls = getDecisionClass(decision);
-            const reasons = gateway.reason || [];
-            const request = step.request || {};
-            const params = request.params || {};
-
-            return `
-                <div class="result-box">
-                    <h3>Step ${escapeHtml(step.step)}：${escapeHtml(step.description)}</h3>
-                    <div class="result-row"><strong>决策结果：</strong><span class="decision ${cls}">${escapeHtml(decision)}</span></div>
-                    <div class="result-row"><strong>风险分数：</strong>${escapeHtml(gateway.risk_score)}</div>
-                    <div class="result-row"><strong>是否执行：</strong>${escapeHtml(step.executed)}</div>
-                    <div class="result-row"><strong>请求用户：</strong>${escapeHtml(request.user || "")}</div>
-                    <div class="result-row"><strong>请求工具：</strong>${escapeHtml(request.tool || "")}</div>
-                    <div class="result-row"><strong>请求参数：</strong><pre>${escapeHtml(JSON.stringify(params, null, 2))}</pre></div>
-                    <div class="result-row">
-                        <strong>风险原因：</strong>
-                        ${reasons.length > 0
-                            ? `<ul class="reason-list">${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>`
-                            : `<p class="small-text">无明显风险原因。</p>`
-                        }
-                    </div>
-                </div>
-            `;
-        }).join("");
     }
 
     async function loadPending() {
@@ -765,23 +901,30 @@
             }
 
             pendingList.innerHTML = pending.map(item => {
-                const score = item.gateway_result.risk_score;
-                const reasons = item.gateway_result.reason || [];
+                const gatewayResult = item.gateway_result || {};
+                const toolRequest = item.tool_request || {};
+                const score = gatewayResult.risk_score ?? "unknown";
+                const reasons = gatewayResult.reason || gatewayResult.reasons || [];
                 const agent = item.agent_result && item.agent_result.agent ? item.agent_result.agent : "未知 Agent";
                 const agentClass = getAgentClass(agent);
+                const pendingId = item.pending_id || "";
 
                 return `
                     <div class="pending-item">
-                        <p><strong>pending_id：</strong>${escapeHtml(item.pending_id)}</p>
+                        <p><strong>pending_id：</strong>${escapeHtml(pendingId)}</p>
                         <p><strong>来源 Agent：</strong><span class="agent-badge ${agentClass}">${escapeHtml(agent)}</span></p>
-                        <p><strong>用户：</strong>${escapeHtml(item.tool_request.user)}</p>
-                        <p><strong>工具：</strong>${escapeHtml(item.tool_request.tool)}</p>
+                        <p><strong>用户：</strong>${escapeHtml(toolRequest.user || "")}</p>
+                        <p><strong>工具：</strong>${escapeHtml(toolRequest.tool || "")}</p>
                         <p><strong>风险分：</strong>${escapeHtml(score)}</p>
                         <p><strong>原始输入：</strong>${escapeHtml(item.original_input || "")}</p>
                         <p><strong>风险原因：</strong></p>
-                        <ul class="reason-list">${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>
-                        <button class="btn-success" onclick="confirmRequest('${item.pending_id}')">确认执行</button>
-                        <button class="btn-danger" onclick="rejectRequest('${item.pending_id}')">拒绝执行</button>
+                        ${
+                            reasons.length > 0
+                                ? `<ul class="reason-list">${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>`
+                                : `<p class="small-text">无明显风险原因。</p>`
+                        }
+                        <button class="btn-success" onclick="confirmRequest('${escapeHtml(pendingId)}')">确认执行</button>
+                        <button class="btn-danger" onclick="rejectRequest('${escapeHtml(pendingId)}')">拒绝执行</button>
                     </div>
                 `;
             }).join("");
@@ -792,9 +935,22 @@
 
     async function confirmRequest(pendingId) {
         try {
-            const response = await fetch(`${API_BASE}/approval/confirm/${pendingId}`, { method: "POST" });
+            const response = await fetch(`${API_BASE}/approval/confirm/${encodeURIComponent(pendingId)}`, {
+                method: "POST"
+            });
+
             const data = await response.json();
+
             alert(data.message || "已确认执行");
+
+            renderGatewayResult({
+                decision: data.decision || "confirmed",
+                risk_score: data.risk_score ?? "manual",
+                executed: data.executed ?? true,
+                message: data.message || "人工确认后，该操作已被执行。",
+                result: data
+            });
+
             await loadPending();
             await loadLogs();
         } catch (error) {
@@ -804,13 +960,26 @@
 
     async function rejectRequest(pendingId) {
         try {
-            const response = await fetch(`${API_BASE}/approval/reject/${pendingId}`, {
+            const response = await fetch(`${API_BASE}/approval/reject/${encodeURIComponent(pendingId)}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ reason: "人工拒绝执行该工具调用" })
+                body: JSON.stringify({
+                    reason: "人工拒绝执行该工具调用"
+                })
             });
+
             const data = await response.json();
+
             alert(data.message || "已拒绝执行");
+
+            renderGatewayResult({
+                decision: data.decision || "rejected",
+                risk_score: data.risk_score ?? "manual",
+                executed: false,
+                message: data.message || "人工审核后，该操作已被拒绝。",
+                result: data
+            });
+
             await loadPending();
             await loadLogs();
         } catch (error) {
@@ -832,6 +1001,7 @@
 
             logsDiv.innerHTML = logs.map(log => {
                 const cls = getDecisionClass(log.decision);
+
                 return `
                     <div class="log-item">
                         <p>

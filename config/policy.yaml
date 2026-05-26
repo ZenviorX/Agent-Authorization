@@ -89,6 +89,8 @@ dangerous_keywords:
   path:
     - "../"
     - "..\\"
+    - "%2e%2e"
+    - "public/../"
     - "secret"
     - "password"
     - "key"
@@ -104,6 +106,7 @@ dangerous_keywords:
     - "powershell"
     - "curl"
     - "wget"
+    - "chmod 777"
 
   prompt_injection:
     - "忽略之前的规则"
@@ -111,4 +114,151 @@ dangerous_keywords:
     - "不要遵守安全策略"
     - "绕过权限检查"
     - "ignore previous instructions"
+    - "ignore all previous instructions"
+    - "disregard previous instructions"
     - "bypass authorization"
+    - "读取 secret"
+    - "读取敏感文件"
+
+  sql:
+    - "drop table"
+    - "delete from"
+    - "truncate"
+    - "union select"
+    - "update "
+    - "insert into"
+    - "alter table"
+    - "create table"
+
+    # 攻击特征风险分
+pattern_risk:
+  path_traversal:
+    keywords:
+      - "../"
+      - "..\\"
+      - "%2e%2e"
+      - "public/../"
+    risk: 100
+
+  command_danger:
+    keywords:
+      - "rm -rf"
+      - "del /s"
+      - "format"
+      - "shutdown"
+      - "reboot"
+    risk: 100
+
+  prompt_injection:
+    keywords:
+      - "ignore previous instructions"
+      - "ignore all previous instructions"
+      - "disregard previous instructions"
+      - "忽略之前的指令"
+      - "忽略以上规则"
+      - "读取 secret"
+      - "读取敏感文件"
+    risk: 60
+
+  sql_danger:
+    keywords:
+      - "drop table"
+      - "delete from"
+      - "truncate"
+      - "union select"
+    risk: 80
+
+# 决策阈值
+decision_threshold:
+  allow_max: 30
+  confirm_max: 69
+  deny_min: 70
+  # 决策阈值
+decision_threshold:
+  allow_max: 39
+  confirm_max: 69
+  deny_min: 70
+
+# 危险关键词配置
+dangerous_keywords:
+  path:
+    - "../"
+    - "..\\"
+    - "%2e%2e"
+    - "public/../"
+    - "secret/"
+
+  command:
+    - "rm -rf"
+    - "del /s"
+    - "format"
+    - "shutdown"
+    - "reboot"
+    - "chmod 777"
+
+  prompt_injection:
+    - "ignore previous instructions"
+    - "ignore all previous instructions"
+    - "disregard previous instructions"
+    - "忽略之前的指令"
+    - "忽略以上规则"
+    - "不要遵守之前的要求"
+    - "读取 secret"
+    - "读取敏感文件"
+
+  sql:
+    - "drop table"
+    - "delete from"
+    - "truncate"
+    - "union select"
+
+# 角色权限策略
+roles:
+  student:
+    allow:
+      - tool: "file.read"
+        resource: "public/*"
+      - tool: "file.read"
+        resource: "course/*"
+    confirm: []
+    deny:
+      - tool: "*"
+        resource: "secret/*"
+      - tool: "file.delete"
+        resource: "*"
+      - tool: "shell.run"
+        resource: "*"
+
+  teacher:
+    allow:
+      - tool: "file.read"
+        resource: "public/*"
+      - tool: "file.read"
+        resource: "course/*"
+      - tool: "email.send"
+        resource: "*"
+    confirm:
+      - tool: "file.delete"
+        resource: "public/*"
+      - tool: "file.delete"
+        resource: "course/*"
+    deny:
+      - tool: "*"
+        resource: "secret/*"
+      - tool: "shell.run"
+        resource: "*"
+
+  admin:
+    allow:
+      - tool: "file.read"
+        resource: "*"
+      - tool: "email.send"
+        resource: "*"
+    confirm:
+      - tool: "file.delete"
+        resource: "*"
+      - tool: "shell.run"
+        resource: "*"
+      - tool: "db.query"
+        resource: "*"
+    deny: []
