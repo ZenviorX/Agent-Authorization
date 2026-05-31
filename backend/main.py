@@ -9,7 +9,7 @@ from backend.routes.approval_routes import router as approval_router
 from backend.routes.audit_routes import router as audit_router
 from backend.routes.demo_routes import router as demo_router
 from backend.routes.gateway_routes import router as gateway_router
-
+from backend.routes.task_routes import router as task_router
 
 app = FastAPI(
     title="AI Agent Auth Gateway",
@@ -19,6 +19,7 @@ app = FastAPI(
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_INDEX = BASE_DIR / "frontend" / "index.html"
+FRONTEND_TASK_CHAIN = BASE_DIR / "frontend" / "task_chain.html"
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,7 +39,7 @@ app.include_router(gateway_router)
 app.include_router(demo_router)
 app.include_router(approval_router)
 app.include_router(audit_router)
-
+app.include_router(task_router)
 
 @app.get("/")
 def index():
@@ -50,6 +51,14 @@ def index():
         "expected_path": str(FRONTEND_INDEX),
     }
 
+@app.get("/task-chain")
+def task_chain_page():
+    if FRONTEND_TASK_CHAIN.exists():
+        return FileResponse(FRONTEND_TASK_CHAIN)
+    return {
+        "message": "Task chain frontend file is missing",
+        "expected_path": str(FRONTEND_TASK_CHAIN),
+    }
 
 @app.get("/api/status")
 def api_status():

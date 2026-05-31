@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AgentGuard v2 - 多步任务链安全防护</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            background: #f4f6f8;
+            color: #1f2937;
+        }
+
+        header {
+            background: #111827;
+            color: white;
+            padding: 24px 40px;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+
+        header p {
+            margin: 8px 0 0;
+            color: #d1d5db;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 22px;
+        }
+
+        label {
+            display: block;
+            margin-top: 12px;
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+
+        select,
+        textarea,
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 15px;
+        }
+
+        textarea {
+            height: 90px;
+            resize: vertical;
+        }
+
+        button {
+            margin-top: 16px;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: white;
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+        }
+
+        .summary-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .summary-item .label {
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .summary-item .value {
+            margin-top: 6px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .step {
+            border-left: 6px solid #9ca3af;
+            background: #f9fafb;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .step.allow {
+            border-left-color: #16a34a;
+        }
+
+        .step.deny {
+            border-left-color: #dc2626;
+        }
+
+        .step.confirm {
+            border-left-color: #f59e0b;
+        }
+
+        .step.pending {
+            border-left-color: #6b7280;
+        }
+
+        .step-title {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .step-title strong {
+            font-size: 18px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 4px;
+        }
+
+        .badge-allow {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-deny {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-confirm {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-gray {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .badge-sensitive {
+            background: #ffe4e6;
+            color: #be123c;
+        }
+
+        .badge-tainted {
+            background: #ede9fe;
+            color: #6d28d9;
+        }
+
+        pre {
+            background: #111827;
+            color: #e5e7eb;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+
+        ul {
+            margin-bottom: 0;
+        }
+
+        .muted {
+            color: #6b7280;
+        }
+
+        .error {
+            color: #dc2626;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>AgentGuard v2：多步 Agent 任务链安全防护</h1>
+    <p>展示多步任务规划、逐步网关检查、提示注入污染标记、敏感数据流追踪和攻击链拦截。</p>
+</header>
+
+<main>
+    <section class="card">
+        <h2>1. 输入多步任务</h2>
+
+        <label for="user">用户身份</label>
+        <select id="user">
+            <option value="student">student</option>
+            <option value="teacher">teacher</option>
+            <option value="admin">admin</option>
+            <option value="guest">guest</option>
+        </select>
+
+        <label for="agentType">Agent 类型</label>
+<select id="agentType">
+    <option value="fake">规则模拟 Agent（稳定演示）</option>
+    <option value="llm">真实大模型 Agent（DeepSeek）</option>
+</select>
+
+        <label for="userInput">自然语言任务</label>
+        <textarea id="userInput">演示提示注入攻击链</textarea>
+
+        <button onclick="runTask()">执行任务链</button>
+
+        <p class="muted">
+            推荐测试：
+            “读取通知并发送给老师”、
+            “演示提示注入攻击链”、
+            “读取密码并发送出去”
+        </p>
+    </section>
+
+    <section class="card">
+        <h2>2. 任务链总体状态</h2>
+        <div id="summary" class="summary">
+    <div class="summary-item">
+        <div class="label">Session ID</div>
+        <div class="value muted">暂无</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">Agent 类型</div>
+        <div class="value muted">暂无</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">任务状态</div>
+        <div class="value muted">暂无</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">上下文风险分</div>
+        <div class="value muted">暂无</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">上下文标记</div>
+        <div class="value muted">暂无</div>
+    </div>
+</div>
+    </section>
+
+    <section class="card">
+        <h2>3. 多步执行时间线</h2>
+        <div id="timeline" class="muted">
+            暂无结果，请先执行任务链。
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>4. 原始 JSON 返回结果</h2>
+        <pre id="rawJson">暂无数据</pre>
+    </section>
+</main>
+
+<script>
+    const API_BASE = "http://127.0.0.1:8000";
+
+    function decisionClass(decision) {
+        if (decision === "allow") return "allow";
+        if (decision === "deny") return "deny";
+        if (decision === "confirm") return "confirm";
+        return "pending";
+    }
+
+    function decisionBadge(decision) {
+        if (decision === "allow") {
+            return '<span class="badge badge-allow">allow</span>';
+        }
+        if (decision === "deny") {
+            return '<span class="badge badge-deny">deny</span>';
+        }
+        if (decision === "confirm") {
+            return '<span class="badge badge-confirm">confirm</span>';
+        }
+        return '<span class="badge badge-gray">未执行</span>';
+    }
+
+    function boolBadge(value, text, cssClass) {
+        if (!value) return "";
+        return `<span class="badge ${cssClass}">${text}</span>`;
+    }
+
+    async function runTask() {
+        const user = document.getElementById("user").value;
+        const userInput = document.getElementById("userInput").value;
+        const agentType = document.getElementById("agentType").value;
+
+        document.getElementById("timeline").innerHTML = "任务链执行中...";
+        document.getElementById("rawJson").textContent = "请求中...";
+
+        try {
+            const response = await fetch(`${API_BASE}/task/run`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    user: user,
+                    user_input: userInput,
+                    agent_type: agentType
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            renderSummary(data);
+            renderTimeline(data);
+            document.getElementById("rawJson").textContent = JSON.stringify(data, null, 2);
+        } catch (error) {
+            document.getElementById("timeline").innerHTML =
+                `<p class="error">请求失败：${error.message}</p>`;
+            document.getElementById("rawJson").textContent = "请求失败，请检查后端是否启动，以及 /task/run 是否已经注册。";
+        }
+    }
+
+    function renderSummary(data) {
+        const contextTags = [];
+
+        if (data.sensitive_context) {
+            contextTags.push('<span class="badge badge-sensitive">sensitive_context</span>');
+        }
+
+        if (data.tainted_context) {
+            contextTags.push('<span class="badge badge-tainted">tainted_context</span>');
+        }
+
+        if (contextTags.length === 0) {
+            contextTags.push('<span class="badge badge-gray">clean</span>');
+        }
+
+        const agentLabel = data.agent_type === "multistep_llm"
+    ? "DeepSeek 大模型"
+    : "规则模拟 Agent";
+
+document.getElementById("summary").innerHTML = `
+    <div class="summary-item">
+        <div class="label">Session ID</div>
+        <div class="value" style="font-size: 13px;">${data.session_id}</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">Agent 类型</div>
+        <div class="value" style="font-size: 16px;">${agentLabel}</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">任务状态</div>
+        <div class="value">${data.status}</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">上下文风险分</div>
+        <div class="value">${data.context_risk_score}</div>
+    </div>
+    <div class="summary-item">
+        <div class="label">上下文标记</div>
+        <div class="value" style="font-size: 14px;">${contextTags.join(" ")}</div>
+    </div>
+`;
+    }
+
+    function renderTimeline(data) {
+        if (!data.steps || data.steps.length === 0) {
+            document.getElementById("timeline").innerHTML = "暂无步骤。";
+            return;
+        }
+
+        const html = data.steps.map(step => {
+            const cls = decisionClass(step.decision);
+            const sensitiveBadge = boolBadge(step.sensitive, "sensitive", "badge-sensitive");
+            const taintedBadge = boolBadge(step.tainted, "tainted", "badge-tainted");
+
+            const reasons = step.reason && step.reason.length > 0
+                ? step.reason.map(r => `<li>${r}</li>`).join("")
+                : "<li>暂无原因</li>";
+
+            return `
+                <div class="step ${cls}">
+                    <div class="step-title">
+                        <strong>Step ${step.step_id}：${step.tool}</strong>
+                        <div>
+                            ${decisionBadge(step.decision)}
+                            ${sensitiveBadge}
+                            ${taintedBadge}
+                        </div>
+                    </div>
+
+                    <p><strong>步骤说明：</strong>${step.description || "无"}</p>
+                    <p><strong>风险分：</strong>${step.risk_score}</p>
+                    <p><strong>是否执行：</strong>${step.executed ? "是" : "否"}</p>
+
+                    <p><strong>参数：</strong></p>
+                    <pre>${JSON.stringify(step.params, null, 2)}</pre>
+
+                    <p><strong>原因：</strong></p>
+                    <ul>${reasons}</ul>
+                </div>
+            `;
+        }).join("");
+
+        document.getElementById("timeline").innerHTML = html;
+    }
+</script>
+</body>
+</html>
