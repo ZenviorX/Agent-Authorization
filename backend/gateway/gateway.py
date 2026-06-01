@@ -16,6 +16,24 @@ from backend.utils import (
     get_command,
 )
 
+SUPPORTED_TOOLS = {
+    "file.read",
+    "file.write",
+    "file.delete",
+    "email.send",
+    "shell.run",
+    "db.query",
+}
+
+REQUIRED_PARAMS = {
+    "file.read": ["path"],
+    "file.write": ["path", "content"],
+    "file.delete": ["path"],
+    "email.send": ["to", "content"],
+    "shell.run": ["command"],
+    "db.query": ["sql"],
+}
+
 def check_tool_call(request: ToolCallRequest):
     """
     授权网关核心逻辑：
@@ -37,6 +55,69 @@ def check_tool_call(request: ToolCallRequest):
     content = get_content(params)
     command = get_command(params)
     sql = str(params.get("sql", ""))
+
+    if tool not in SUPPORTED_TOOLS:
+        return {
+            "decision": "deny",
+            "risk_score": 100,
+            "reason": [
+                f"工具 {tool} 不在系统支持列表中。",
+                "未知工具不能自动执行，已按失败关闭原则拒绝。",
+            ],
+            "user": user,
+            "role": role,
+            "normalized_tool": tool,
+            "normalized_params": params,
+        }
+    
+    low_confidence_force_confirm = False
+
+    if request.agent_confidence is not None:
+        confidence = float(request.agent_confidence)
+
+        if confidence < 0.55:
+            return {
+                "decision": "deny",
+                "risk_score": 100,
+                "reason": [
+                    f"Agent 计划置信度过低：{confidence}",
+                    "系统无法可靠确认用户意图，拒绝自动执行。",
+                ],
+                "user": user,
+                "role": role,
+                "normalized_tool": tool,
+                "normalized_params": params,
+            }
+
+        if confidence < 0.85:
+            risk_score += 45
+            low_confidence_force_confirm = True
+            reason.append(
+                f"Agent 计划置信度较低：{confidence}，提高风险分并至少要求人工确认。"
+            )
+    
+    missing_params = []
+
+    for name in REQUIRED_PARAMS.get(tool, []):
+        value = str(params.get(name, "")).strip()
+        if not value or value == "unknown":
+            missing_params.append(name)
+
+    if missing_params:
+        risk_score += 60
+        reason.append(f"工具调用缺少必要参数：{', '.join(missing_params)}")
+
+        return {
+            "decision": "confirm",
+            "risk_score": risk_score,
+            "reason": reason + [
+                "参数不完整，不能自动执行，需要用户补充信息或人工确认。"
+            ],
+            "user": user,
+            "role": role,
+            "normalized_tool": tool,
+            "normalized_params": params,
+        }
 
     path_lower = path.lower().replace("\\", "/")
     content_lower = content.lower()
@@ -183,6 +264,10 @@ def check_tool_call(request: ToolCallRequest):
     elif policy_decision == "allow" and decision == "deny":
         decision = "confirm"
         reason.append("用户角色具备该操作权限，但操作风险较高，转入人工确认")
+
+    if low_confidence_force_confirm and decision == "allow":
+        decision = "confirm"
+        reason.append("由于 Agent 计划置信度不足，本次操作不能自动放行，转入人工确认。")
 
     if not reason:
         reason.append("未发现明显风险")
