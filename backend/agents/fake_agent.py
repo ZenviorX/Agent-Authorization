@@ -37,9 +37,12 @@ class FakeAgent(BaseAgent):
         return AgentPlanResult.model_validate({
             "agent": "FakeAgent",
             "status": "unsupported",
+            "confidence": 0.0,
             "message": "当前模拟智能体暂时无法识别该任务",
+            "unsupported_reason": "用户输入无法映射到系统支持的工具类型",
+            "clarification_question": "请明确说明要读取文件、发送邮件、删除文件、执行命令还是查询数据库。",
             "original_input": user_input,
-            "tool_call": None
+            "tool_call": None,
         })
 
     def _is_send_email_task(self, text: str) -> bool:
@@ -117,37 +120,59 @@ class FakeAgent(BaseAgent):
         if content_match:
             content = clean_text_value(content_match.group(1))
 
+        missing_params = []
+
+        if not receiver or receiver == "unknown":
+            missing_params.append("to")
+
+        if not content or content == "未提取到邮件正文":
+            missing_params.append("content")
+
         return {
             "agent": "FakeAgent",
-            "status": "planned",
+            "status": "need_clarification" if missing_params else "planned",
+            "confidence": 0.65 if missing_params else 0.92,
+            "missing_params": missing_params,
+            "clarification_question": (
+                "请补充邮件收件人和正文内容。" if missing_params else None
+            ),
             "original_input": text,
-            "tool_call": {
+            "tool_call": None if missing_params else {
                 "tool_name": "email.send",
                 "description": "发送邮件",
                 "arguments": {
                     "to": receiver,
                     "subject": "模拟智能体邮件",
-                    "content": content
+                    "content": content,
                 },
-                "need_auth": True
-            }
+                "need_auth": True,
+            },
         }
 
     def _build_read_file_call(self, text: str) -> Dict[str, Any]:
         file_path = self._extract_file_path(text)
+        missing_params = []
+
+        if not file_path or file_path == "unknown":
+            missing_params.append("path")
 
         return {
             "agent": "FakeAgent",
-            "status": "planned",
+            "status": "need_clarification" if missing_params else "planned",
+            "confidence": 0.65 if missing_params else 0.95,
+            "missing_params": missing_params,
+            "clarification_question": (
+                "请补充要读取的文件路径。" if missing_params else None
+            ),
             "original_input": text,
-            "tool_call": {
+            "tool_call": None if missing_params else {
                 "tool_name": "file.read",
                 "description": "读取文件内容",
                 "arguments": {
-                    "file_path": file_path
+                    "file_path": file_path,
                 },
-                "need_auth": True
-            }
+                "need_auth": True,
+            },
         }
 
     def _build_delete_file_call(self, text: str) -> Dict[str, Any]:
@@ -156,6 +181,9 @@ class FakeAgent(BaseAgent):
         return {
             "agent": "FakeAgent",
             "status": "planned",
+            "confidence": 0.9,
+            "missing_params": [],
+            "clarification_question": None,
             "original_input": text,
             "tool_call": {
                 "tool_name": "file.delete",
@@ -177,6 +205,9 @@ class FakeAgent(BaseAgent):
         return {
             "agent": "FakeAgent",
             "status": "planned",
+            "confidence": 0.9,
+            "missing_params": [],
+            "clarification_question": None,
             "original_input": text,
             "tool_call": {
                 "tool_name": "shell.run",
@@ -198,6 +229,9 @@ class FakeAgent(BaseAgent):
         return {
             "agent": "FakeAgent",
             "status": "planned",
+            "confidence": 0.9,
+            "missing_params": [],
+            "clarification_question": None,
             "original_input": text,
             "tool_call": {
                 "tool_name": "db.query",
