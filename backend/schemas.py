@@ -3,15 +3,10 @@ from typing import Dict, Any, List, Optional
 
 
 class ToolCallRequest(BaseModel):
-    """
-    结构化工具调用请求。
-    user：发起工具调用的用户
-    tool：工具名称
-    params：工具参数
-    """
     user: str = "test_user"
     tool: str
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = {}
+    task_contract: Optional[Dict[str, Any]] = None
 
 
 class ToolCallPlan(BaseModel):

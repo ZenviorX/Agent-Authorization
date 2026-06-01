@@ -1,4 +1,4 @@
-from backend.schemas import ToolCallRequest
+from backend.schemas import ToolCallRequest, GatewayResponse
 from backend.gateway.policy_loader import (
     get_tool_risk,
     get_decision_threshold,
@@ -15,6 +15,9 @@ from backend.utils import (
     get_content,
     get_command,
 )
+
+from backend.task_contract.contract_models import TaskAuthContract
+from backend.task_contract.contract_enforcer import check_call_against_contract
 
 def check_tool_call(request: ToolCallRequest):
     """
@@ -42,6 +45,46 @@ def check_tool_call(request: ToolCallRequest):
     content_lower = content.lower()
     command_lower = command.lower()
     sql_lower = sql.lower()
+
+    # 0. 任务授权合约检查：如果请求中携带 task_contract，则先判断本次工具调用是否偏离任务目标
+    if request.task_contract is not None:
+        try:
+            task_contract = TaskAuthContract(**request.task_contract)
+            contract_result = check_call_against_contract(
+                contract=task_contract,
+                tool=tool,
+                params=params
+            )
+
+            risk_score += contract_result.risk_score
+
+            reason.append("已启用任务授权合约检查。")
+            reason.extend(contract_result.reason)
+
+            if contract_result.decision == "deny":
+                return{
+                            "decision": "deny",
+        "risk_score": risk_score,
+        "reason": reason,
+        "user": user,
+        "role": role,
+        "normalized_tool": tool,
+        "normalized_params": params
+                }
+        except Exception as e:
+            risk_score += 100
+            reason.append("任务授权合约解析失败，拒绝本次工具调用。")
+            reason.append(str(e))
+
+            return{
+                       "decision": "deny",
+        "risk_score": risk_score,
+        "reason": reason,
+        "user": user,
+        "role": role,
+        "normalized_tool": tool,
+        "normalized_params": params
+            }
 
     # 1. 工具自身风险判断：从 config/policy.yaml 读取基础风险分
     tool_base_risk = get_tool_risk(tool)
