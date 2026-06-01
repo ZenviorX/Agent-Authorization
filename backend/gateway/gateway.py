@@ -15,8 +15,10 @@ from backend.utils import (
     get_content,
     get_command,
 )
+from backend.task_contract.contract_models import TaskAuthContract
+from backend.task_contract.contract_enforcer import check_call_against_contract
 
-<<<<<<< HEAD
+
 SUPPORTED_TOOLS = {
     "file.read",
     "file.write",
@@ -34,10 +36,7 @@ REQUIRED_PARAMS = {
     "shell.run": ["command"],
     "db.query": ["sql"],
 }
-=======
-from backend.task_contract.contract_models import TaskAuthContract
-from backend.task_contract.contract_enforcer import check_call_against_contract
->>>>>>> e9ccbc9bc675b06c259aef1c406a8f74a460dff7
+
 
 def check_tool_call(request: ToolCallRequest):
     """
@@ -74,7 +73,7 @@ def check_tool_call(request: ToolCallRequest):
             "normalized_tool": tool,
             "normalized_params": params,
         }
-    
+
     low_confidence_force_confirm = False
 
     if request.agent_confidence is not None:
@@ -100,7 +99,7 @@ def check_tool_call(request: ToolCallRequest):
             reason.append(
                 f"Agent 计划置信度较低：{confidence}，提高风险分并至少要求人工确认。"
             )
-    
+
     missing_params = []
 
     for name in REQUIRED_PARAMS.get(tool, []):
@@ -136,7 +135,7 @@ def check_tool_call(request: ToolCallRequest):
             contract_result = check_call_against_contract(
                 contract=task_contract,
                 tool=tool,
-                params=params
+                params=params,
             )
 
             risk_score += contract_result.risk_score
@@ -145,28 +144,28 @@ def check_tool_call(request: ToolCallRequest):
             reason.extend(contract_result.reason)
 
             if contract_result.decision == "deny":
-                return{
-                            "decision": "deny",
-        "risk_score": risk_score,
-        "reason": reason,
-        "user": user,
-        "role": role,
-        "normalized_tool": tool,
-        "normalized_params": params
+                return {
+                    "decision": "deny",
+                    "risk_score": risk_score,
+                    "reason": reason,
+                    "user": user,
+                    "role": role,
+                    "normalized_tool": tool,
+                    "normalized_params": params,
                 }
         except Exception as e:
             risk_score += 100
             reason.append("任务授权合约解析失败，拒绝本次工具调用。")
             reason.append(str(e))
 
-            return{
-                       "decision": "deny",
-        "risk_score": risk_score,
-        "reason": reason,
-        "user": user,
-        "role": role,
-        "normalized_tool": tool,
-        "normalized_params": params
+            return {
+                "decision": "deny",
+                "risk_score": risk_score,
+                "reason": reason,
+                "user": user,
+                "role": role,
+                "normalized_tool": tool,
+                "normalized_params": params,
             }
 
     # 1. 工具自身风险判断：从 config/policy.yaml 读取基础风险分
@@ -185,9 +184,10 @@ def check_tool_call(request: ToolCallRequest):
     reason.append(
         tool_reason_map.get(
             tool,
-            f"未知工具类型，使用默认基础风险分：{tool_base_risk}"
+            f"未知工具类型，使用默认基础风险分：{tool_base_risk}",
         )
     )
+
     # 2. 文件路径风险判断：从 config/policy.yaml 的 resource_risk 中读取
     resource_risk_score, resource_reasons = get_resource_risk(path)
 
