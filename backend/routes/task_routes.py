@@ -5,7 +5,7 @@ from backend.agents.multistep_fake_agent import MultiStepFakeAgent
 from backend.agents.multistep_llm_agent import MultiStepLLMAgent
 from backend.task_session.session_executor import execute_task_session
 from backend.task_session.session_models import TaskSession
-from backend.task_session.task_audit_logger import write_task_session_log
+from backend.task_session.task_audit_logger import write_task_session_log, read_task_session_logs
 
 
 router = APIRouter(
@@ -70,3 +70,22 @@ def run_task(request: TaskRunRequest):
             status_code=500,
             detail=f"多步任务执行失败：{str(e)}",
         )
+
+@router.get("/logs")
+def get_task_logs(limit: int = 50):
+    """
+    读取最近的多步任务链审计日志。
+
+    参数：
+    - limit: 最多返回多少条日志，默认 50 条
+
+    返回：
+    - logs: 任务链日志列表
+    - count: 实际返回数量
+    """
+    logs = read_task_session_logs(limit=limit)
+
+    return {
+        "count": len(logs),
+        "logs": logs,
+    }

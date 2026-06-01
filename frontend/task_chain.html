@@ -204,6 +204,63 @@
             color: #dc2626;
             font-weight: bold;
         }
+    
+    .log-card {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid #d0d7de;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.log-card h3 {
+    margin-top: 0;
+    color: #1f2937;
+}
+
+.log-card p {
+    margin: 6px 0;
+    line-height: 1.6;
+}
+
+.log-card h4 {
+    margin-top: 12px;
+    color: #374151;
+}
+
+.step-list {
+    margin-top: 10px;
+}
+
+.step-card {
+    margin-top: 10px;
+    padding: 12px;
+    border-left: 4px solid #6b7280;
+    background: #f9fafb;
+    border-radius: 8px;
+}
+
+.step-card p {
+    margin: 5px 0;
+    line-height: 1.5;
+}
+
+.step-card.allow {
+    border-left-color: #16a34a;
+}
+
+.step-card.deny {
+    border-left-color: #dc2626;
+}
+
+.step-card.confirm {
+    border-left-color: #f59e0b;
+}
+
+.step-card.pending {
+    border-left-color: #6b7280;
+}
     </style>
 </head>
 <body>
@@ -280,6 +337,20 @@
         <h2>4. 原始 JSON 返回结果</h2>
         <pre id="rawJson">暂无数据</pre>
     </section>
+
+    <section class="card">
+    <h2>5. 任务链审计日志查看区</h2>
+
+    <button onclick="loadTaskLogs()">刷新审计日志</button>
+
+    <div id="taskLogsSummary" class="muted">
+        暂未加载审计日志。
+    </div>
+
+    <div id="taskLogsContainer" class="muted">
+        暂无日志，请点击“刷新审计日志”。
+    </div>
+</section>
 </main>
 
 <script>
@@ -419,18 +490,92 @@ document.getElementById("summary").innerHTML = `
                     <p><strong>步骤说明：</strong>${step.description || "无"}</p>
                     <p><strong>风险分：</strong>${step.risk_score}</p>
                     <p><strong>是否执行：</strong>${step.executed ? "是" : "否"}</p>
+                    
 
                     <p><strong>参数：</strong></p>
                     <pre>${JSON.stringify(step.params, null, 2)}</pre>
 
-                    <p><strong>原因：</strong></p>
-                    <ul>${reasons}</ul>
+                    <p><strong>风险原因：</strong></p>
+<ul>${reasons}</ul>
                 </div>
             `;
         }).join("");
 
         document.getElementById("timeline").innerHTML = html;
     }
+async function loadTaskLogs() {
+    const summaryDiv = document.getElementById("taskLogsSummary");
+    const containerDiv = document.getElementById("taskLogsContainer");
+
+    summaryDiv.innerText = "正在加载审计日志...";
+    containerDiv.innerHTML = "";
+
+    try {
+        const response = await fetch("http://127.0.0.1:8000/task/logs?limit=20");
+
+        if (!response.ok) {
+            throw new Error("HTTP 状态码：" + response.status);
+        }
+
+        const data = await response.json();
+
+        summaryDiv.innerText = "已读取到 " + data.count + " 条任务链审计日志。";
+
+        if (data.count === 0) {
+            containerDiv.innerHTML = "暂无审计日志。";
+            return;
+        }
+
+        containerDiv.innerHTML = data.logs.map((log, index) => {
+            const session = log.session || {};
+            const steps = session.steps || [];
+
+            return `
+                <div class="log-card">
+                    <h3>日志 ${index + 1}：${session.original_input || "未知任务"}</h3>
+
+                    <p><strong>执行用户：</strong>${session.user || "-"}</p>
+                    <p><strong>Agent 类型：</strong>${session.agent_type || "-"}</p>
+                    <p><strong>任务状态：</strong>${session.status || "-"}</p>
+                    <p><strong>上下文风险分：</strong>${session.context_risk_score ?? "-"}</p>
+                    <p><strong>是否存在敏感上下文：</strong>${session.sensitive_context ? "是" : "否"}</p>
+                    <p><strong>是否存在提示注入污染：</strong>${session.tainted_context ? "是" : "否"}</p>
+                    <p><strong>记录时间：</strong>${log.logged_at || "-"}</p>
+
+                    <h4>步骤详情：</h4>
+
+<div class="step-list">
+${steps.map(step => {
+    const reasons = step.reason && step.reason.length > 0
+        ? step.reason.map(r => `<li>${r}</li>`).join("")
+        : "<li>暂无原因</li>";
+
+    return `
+        <div class="step-card ${decisionClass(step.decision)}">
+            <p><strong>Step ${step.step_id}：</strong>${step.description || "-"}</p>
+            <p><strong>工具：</strong>${step.tool || "-"}</p>
+            <p><strong>决策：</strong>${decisionBadge(step.decision)}</p>
+            <p><strong>风险分：</strong>${step.risk_score ?? 0}</p>
+            <p><strong>是否执行：</strong>${step.executed ? "是" : "否"}</p>
+
+            <p><strong>风险原因：</strong></p>
+            <ul>${reasons}</ul>
+        </div>
+    `;
+}).join("")}
+</div>
+                </div>
+            `;
+        }).join("");
+
+    } catch (error) {
+        summaryDiv.innerText = "审计日志加载失败。";
+        containerDiv.innerHTML = `
+            <pre>${error}</pre>
+        `;
+    }
+
+}
 </script>
 </body>
 </html>
