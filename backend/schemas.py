@@ -5,7 +5,8 @@ from typing import Dict, Any, List, Optional
 class ToolCallRequest(BaseModel):
     user: str = "test_user"
     tool: str
-    params: Dict[str, Any] = Field(default_factory=dict)
+    params: Dict[str, Any] = {}
+    task_contract: Optional[Dict[str, Any]] = None
 
     # Task13：任务授权合约
     task_contract: Optional[Dict[str, Any]] = None

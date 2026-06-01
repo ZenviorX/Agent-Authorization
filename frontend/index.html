@@ -534,7 +534,10 @@
                 </div>
 
                 <label>自然语言任务</label>
-                <textarea id="userInput">读取文件：public/notice.txt</textarea>
+                <textarea
+                    id="userInput"
+                    placeholder="请输入任意自然语言任务，例如：读取 public/notice.txt 并发送给 teacher@sdu.edu.cn"
+                ></textarea>
 
                 <div id="agentModeTip" class="tip">
                     FakeAgent：基于规则生成工具调用，适合比赛稳定演示。
@@ -546,15 +549,6 @@
                     <button class="btn-light" onclick="location.href='/task-chain'">打开任务链</button>
                 </div>
 
-                <div class="scenario-title">快捷场景</div>
-                <div class="scenario-list">
-                    <span class="chip" onclick="useScenario('alice', '读取文件：public/notice.txt')">正常读取</span>
-                    <span class="chip" onclick="useScenario('student', '读取文件：secret/password.txt')">敏感文件</span>
-                    <span class="chip" onclick="useScenario('alice', '给张三发邮件，内容是明天下午三点开会')">邮件确认</span>
-                    <span class="chip" onclick="useScenario('alice', '删除文件：public/notice.txt')">删除拦截</span>
-                    <span class="chip" onclick="useScenario('student', '执行命令：rm -rf /')">危险命令</span>
-                    <span class="chip" onclick="useScenario('alice', '读取文件：../../secret/password.txt')">路径穿越</span>
-                </div>
             </div>
         </section>
 
@@ -655,12 +649,6 @@
         }
     }
 
-    function useScenario(user, text) {
-        document.getElementById("user").value = user;
-        document.getElementById("userInput").value = text;
-        clearResult();
-    }
-
     function getDecisionClass(decision) {
         if (!decision) return "empty";
         const normalized = String(decision).toLowerCase();
@@ -751,10 +739,21 @@
             tool_call: toolCall
         });
 
+        const planGuard =
+            agentResult.plan_guard ||
+            gateway.plan_guard ||
+            data.plan_guard ||
+            null;
+
         riskView.textContent = formatJson({
             decision: decision,
             risk_score: riskScore,
-            reasons: reasons
+            reasons: reasons,
+            agent_status: agentResult.status,
+            confidence: agentResult.confidence,
+            missing_params: agentResult.missing_params,
+            clarification_question: agentResult.clarification_question,
+            plan_guard: planGuard   
         });
 
         actionView.textContent = formatJson({
