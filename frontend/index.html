@@ -2,437 +2,482 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>AgentGuard：AI Agent 工具调用安全控制台</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentGuard 控制台</title>
     <style>
+        :root {
+            --bg: #f3f6fb;
+            --panel: #ffffff;
+            --panel-soft: #f8fafc;
+            --text: #172033;
+            --muted: #64748b;
+            --line: #dbe3ef;
+            --primary: #2854c5;
+            --primary-soft: #eaf0ff;
+            --green: #16a34a;
+            --red: #dc2626;
+            --amber: #d97706;
+            --purple: #7c3aed;
+            --shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: "Microsoft YaHei", Arial, sans-serif;
-            background: #eef2f7;
             margin: 0;
-            padding: 0;
-            color: #222;
+            font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(40, 84, 197, 0.12), transparent 34%),
+                linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+            font-size: 14px;
         }
 
-        header {
-            background: linear-gradient(135deg, #1f3c88, #2f5597);
-            color: white;
-            padding: 24px 42px;
+        .shell {
+            width: min(1180px, calc(100% - 32px));
+            margin: 18px auto 26px;
         }
 
-        header h1 {
-            margin: 0;
-            font-size: 28px;
-            letter-spacing: 1px;
-        }
-
-        header p {
-            margin: 10px 0 0;
-            font-size: 15px;
-            opacity: 0.92;
-        }
-
-        main {
-            padding: 28px 40px;
-        }
-
-        .top-bar {
+        .hero {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            background: white;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 18px 22px;
+            border: 1px solid rgba(40, 84, 197, 0.16);
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(12px);
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 22px;
+            letter-spacing: 0.2px;
+        }
+
+        .brand p {
+            margin: 6px 0 0;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .page-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .page-tab {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 13px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--muted);
+            background: #fff;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .page-tab.active {
+            color: #fff;
+            border-color: var(--primary);
+            background: var(--primary);
+        }
+
+        .status-strip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 14px 0;
+            padding: 10px 14px;
+            border: 1px solid var(--line);
             border-radius: 14px;
-            padding: 16px 20px;
-            margin-bottom: 24px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+            background: var(--panel);
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            color: var(--muted);
+            font-size: 13px;
         }
 
         .status {
-            font-weight: bold;
+            font-weight: 800;
         }
 
         .status-ok {
-            color: #27ae60;
+            color: var(--green);
         }
 
         .status-bad {
-            color: #c0392b;
+            color: var(--red);
         }
 
-        .container {
+        .workspace {
             display: grid;
-            grid-template-columns: 1.05fr 1fr;
-            gap: 22px;
+            grid-template-columns: 390px 1fr;
+            gap: 14px;
+            align-items: start;
         }
 
         .card {
-            background: white;
-            border-radius: 14px;
-            padding: 20px;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
         }
 
-        .card h2 {
-            margin-top: 0;
-            font-size: 20px;
-            color: #1f3c88;
-            border-bottom: 1px solid #e5e7eb;
-            padding-bottom: 10px;
+        .card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--line);
         }
 
-        .card h3 {
-            font-size: 16px;
-            margin-top: 18px;
-            color: #333;
+        .card-head h2 {
+            margin: 0;
+            font-size: 17px;
         }
 
-        .full-width {
-            grid-column: 1 / 3;
+        .card-body {
+            padding: 14px 16px 16px;
         }
 
         label {
             display: block;
-            margin-top: 12px;
-            font-weight: bold;
+            margin: 10px 0 6px;
+            color: #334155;
+            font-weight: 700;
+            font-size: 13px;
         }
 
         select,
         textarea,
         input {
             width: 100%;
-            box-sizing: border-box;
-            padding: 10px;
-            margin-top: 6px;
-            border: 1px solid #cfd6e0;
-            border-radius: 8px;
+            padding: 9px 10px;
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            outline: none;
+            background: #fff;
+            color: var(--text);
             font-size: 14px;
         }
 
         textarea {
-            min-height: 90px;
+            min-height: 86px;
+            max-height: 130px;
             resize: vertical;
+            line-height: 1.5;
         }
 
-        button {
-            margin-top: 12px;
-            padding: 9px 15px;
-            border: none;
-            border-radius: 8px;
-            background: #1f3c88;
-            color: white;
-            cursor: pointer;
-            font-size: 14px;
+        select:focus,
+        textarea:focus,
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(40, 84, 197, 0.10);
         }
 
-        button:hover {
-            background: #162d66;
-        }
-
-        button:disabled {
-            background: #9aa4b2;
-            cursor: not-allowed;
-        }
-
-        .btn-light {
-            background: #e8eef9;
-            color: #1f3c88;
-        }
-
-        .btn-light:hover {
-            background: #d6e1f5;
-        }
-
-        .btn-danger {
-            background: #c0392b;
-        }
-
-        .btn-danger:hover {
-            background: #922b21;
-        }
-
-        .btn-success {
-            background: #27ae60;
-        }
-
-        .btn-success:hover {
-            background: #1e8449;
-        }
-
-        .scenario-grid {
+        .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-top: 10px;
-        }
-
-        .scenario {
-            border: 1px solid #d8dee9;
-            border-radius: 10px;
-            padding: 12px;
-            background: #f9fbff;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-
-        .scenario:hover {
-            border-color: #1f3c88;
-            background: #eef4ff;
-        }
-
-        .scenario-title {
-            font-weight: bold;
-            color: #1f3c88;
-            margin-bottom: 6px;
-        }
-
-        .scenario-desc {
-            font-size: 13px;
-            color: #555;
-            line-height: 1.5;
-        }
-
-        .mode-tip {
-            margin-top: 8px;
-            padding: 10px;
-            border-radius: 8px;
-            background: #f7f9fc;
-            color: #555;
-            font-size: 13px;
-            line-height: 1.6;
-        }
-
-        .flow {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .flow-step {
-            background: #edf2f7;
-            border-radius: 20px;
-            padding: 7px 12px;
-            font-size: 13px;
-        }
-
-        .flow-step.active {
-            background: #1f3c88;
-            color: white;
-        }
-
-        .decision,
-        .agent-badge {
-            display: inline-block;
-            padding: 6px 14px;
-            border-radius: 20px;
-            color: white;
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .allow {
-            background: #27ae60;
-        }
-
-        .confirm {
-            background: #f39c12;
-        }
-
-        .deny {
-            background: #c0392b;
-        }
-
-        .confirmed {
-            background: #2980b9;
-        }
-
-        .rejected {
-            background: #7f8c8d;
-        }
-
-        .agent-fake {
-            background: #1f3c88;
-        }
-
-        .agent-llm {
-            background: #8e44ad;
-        }
-
-        .result-box {
-            background: #f7f9fc;
-            border-radius: 10px;
-            padding: 14px;
-            margin-top: 12px;
-        }
-
-        .result-row {
-            margin: 8px 0;
-        }
-
-        .reason-list {
-            margin-top: 8px;
-            padding-left: 20px;
-        }
-
-        .reason-list li {
-            margin-bottom: 6px;
-        }
-
-        .pending-item,
-        .log-item {
-            border: 1px solid #e1e6ef;
-            background: #f9fbff;
-            border-radius: 10px;
-            padding: 12px;
-            margin-top: 10px;
-        }
-
-        .small-text {
-            font-size: 13px;
-            color: #666;
-        }
-
-        pre {
-            background: #1f2937;
-            color: #e5e7eb;
-            padding: 14px;
-            border-radius: 10px;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-break: break-word;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-
-        details {
-            margin-top: 14px;
-        }
-
-        summary {
-            cursor: pointer;
-            color: #1f3c88;
-            font-weight: bold;
         }
 
         .tip {
-            background: #fff8e1;
-            border-left: 4px solid #f39c12;
-            padding: 12px;
-            border-radius: 8px;
-            line-height: 1.6;
+            margin-top: 10px;
+            padding: 10px 11px;
+            border: 1px solid #d8e2f6;
+            border-radius: 12px;
+            color: #475569;
+            background: var(--primary-soft);
+            line-height: 1.55;
+            font-size: 12.5px;
         }
 
-        .empty {
-            color: #777;
-            background: #f7f7f7;
-            padding: 12px;
-            border-radius: 8px;
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 11px;
+            padding: 9px 13px;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 800;
+            cursor: pointer;
+            transition: transform 0.12s ease, opacity 0.12s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-light {
+            border: 1px solid var(--line);
+            color: var(--primary);
+            background: #fff;
+        }
+
+        .btn-danger {
+            background: var(--red);
+        }
+
+        .btn-success {
+            background: var(--green);
+        }
+
+        .scenario-title {
+            margin: 14px 0 8px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .scenario-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 7px 10px;
+            background: var(--panel-soft);
+            color: #334155;
+            cursor: pointer;
+            font-size: 12.5px;
+            font-weight: 700;
+        }
+
+        .chip:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-soft);
         }
 
         .decision-summary {
-            margin-bottom: 16px;
-            padding: 14px 16px;
-            border-radius: 12px;
-            font-weight: 700;
-            border: 1px solid #d0d7de;
-            background: #f6f8fa;
-        }
-
-        .decision-summary.empty {
-            color: #6e7781;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: var(--panel-soft);
+            font-weight: 800;
         }
 
         .decision-summary.allow {
-            color: #116329;
-            background: #dafbe1;
-            border-color: #4ac26b;
+            color: #166534;
+            border-color: #86efac;
+            background: #ecfdf5;
         }
 
         .decision-summary.confirm {
-            color: #7a4b00;
-            background: #fff8c5;
-            border-color: #d4a72c;
+            color: #92400e;
+            border-color: #fcd34d;
+            background: #fffbeb;
         }
 
         .decision-summary.deny {
-            color: #82071e;
-            background: #ffebe9;
-            border-color: #ff8182;
+            color: #991b1b;
+            border-color: #fecaca;
+            background: #fef2f2;
         }
 
         .decision-summary.confirmed {
-            color: #0550ae;
-            background: #ddf4ff;
-            border-color: #54aeef;
+            color: #1d4ed8;
+            border-color: #bfdbfe;
+            background: #eff6ff;
         }
 
-        .decision-summary.rejected {
-            color: #57606a;
-            background: #f6f8fa;
-            border-color: #8c959f;
+        .decision-summary.rejected,
+        .decision-summary.empty {
+            color: var(--muted);
         }
 
         .result-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 14px;
-            margin-top: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
         }
 
         .result-card {
-            border: 1px solid #d0d7de;
+            min-width: 0;
+            border: 1px solid var(--line);
             border-radius: 14px;
-            padding: 14px;
-            background: #ffffff;
-            box-shadow: 0 8px 20px rgba(27, 31, 36, 0.06);
+            overflow: hidden;
+            background: #fff;
         }
 
-        .result-card-title {
-            font-size: 16px;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-
-        .result-card-desc {
-            font-size: 13px;
-            color: #57606a;
-            margin-bottom: 10px;
-            line-height: 1.5;
-        }
-
-        .result-card pre,
-        .raw-json pre {
-            color: #24292f;
-            background: #f6f8fa;
+        .result-card h3 {
             margin: 0;
+            padding: 10px 11px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel-soft);
+            font-size: 14px;
         }
 
-        .raw-json {
-            margin-top: 16px;
+        pre {
+            margin: 0;
+            padding: 11px;
+            overflow: auto;
+            max-height: 170px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #1e293b;
+            background: #f8fafc;
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            font-size: 12.5px;
+            line-height: 1.55;
         }
 
-        .raw-json summary {
+        details {
+            margin-top: 10px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        summary {
+            padding: 10px 12px;
             cursor: pointer;
-            color: #0969da;
-            font-weight: 600;
+            color: var(--primary);
+            background: #fff;
+            font-weight: 800;
         }
 
-        @media (max-width: 900px) {
-            main {
-                padding: 20px;
+        .panel {
+            margin-top: 14px;
+            overflow: hidden;
+        }
+
+        .tabbar {
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            border-bottom: 1px solid var(--line);
+            background: var(--panel-soft);
+        }
+
+        .tab {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 7px 12px;
+            background: #fff;
+            color: var(--muted);
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .tab.active {
+            border-color: var(--primary);
+            color: #fff;
+            background: var(--primary);
+        }
+
+        .panel-body {
+            display: none;
+            padding: 12px 14px;
+            max-height: 320px;
+            overflow: auto;
+        }
+
+        .panel-body.active {
+            display: block;
+        }
+
+        .empty {
+            padding: 12px;
+            border-radius: 12px;
+            color: var(--muted);
+            background: var(--panel-soft);
+        }
+
+        .item {
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 13px;
+            background: #fff;
+            margin-bottom: 10px;
+        }
+
+        .item p {
+            margin: 6px 0;
+            line-height: 1.55;
+        }
+
+        .badge,
+        .decision,
+        .agent-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 9px;
+            border-radius: 999px;
+            color: #fff;
+            font-weight: 800;
+            font-size: 12px;
+        }
+
+        .allow { background: var(--green); }
+        .confirm { background: var(--amber); }
+        .deny { background: var(--red); }
+        .confirmed { background: #2563eb; }
+        .rejected { background: #64748b; }
+        .agent-fake { background: var(--primary); }
+        .agent-llm { background: var(--purple); }
+
+        .reason-list {
+            margin: 6px 0 0;
+            padding-left: 20px;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        @media (max-width: 980px) {
+            .hero,
+            .status-strip {
+                align-items: flex-start;
+                flex-direction: column;
             }
 
-            .container {
-                grid-template-columns: 1fr;
-            }
-
-            .full-width {
-                grid-column: 1;
-            }
-
-            .scenario-grid {
+            .workspace {
                 grid-template-columns: 1fr;
             }
 
             .result-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-row {
                 grid-template-columns: 1fr;
             }
         }
@@ -440,160 +485,141 @@
 </head>
 
 <body>
-<header>
-    <h1>AgentGuard：AI Agent 工具调用安全控制台</h1>
-    <p>面向 AI Agent 工具调用过程的动态授权、风险评分、人工确认与审计追踪演示系统</p>
-</header>
-
-<main>
-    <div class="top-bar">
-        <div>
-            <strong>当前后端地址：</strong>
-            <span id="apiBaseText">http://127.0.0.1:8000</span>
+<div class="shell">
+    <header class="hero">
+        <div class="brand">
+            <h1>AgentGuard 控制台</h1>
+            <p>AI Agent 工具调用的授权、风险评分、人工确认与审计追踪。</p>
         </div>
-        <div>
+        <nav class="page-tabs">
+            <a class="page-tab active" href="/">单步网关</a>
+            <a class="page-tab" href="/task-chain">多步任务链</a>
+        </nav>
+    </header>
+
+    <section class="status-strip">
+        <div class="status-left">
+            <strong>后端地址</strong>
+            <span id="apiBaseText">检测中...</span>
+            <span>·</span>
             <span id="serverStatus" class="status">正在检测后端状态...</span>
-            <button class="btn-light" onclick="checkServerStatus()">重新检测</button>
         </div>
-    </div>
+        <button class="btn-light" onclick="checkServerStatus()">重新检测</button>
+    </section>
 
-    <div class="container">
+    <main class="workspace">
         <section class="card">
-            <h2>1. 一键演示场景</h2>
-            <div class="tip">
-                建议比赛演示时优先使用 FakeAgent，保证每个场景输出稳定；当需要展示真实大模型接入能力时，再切换到 LLM 模式。无论 Agent 类型如何变化，所有工具调用最终都会进入 Gateway 进行统一风险评估。
+            <div class="card-head">
+                <h2>任务输入</h2>
+                <span class="badge agent-fake" id="agentBadge">FakeAgent</span>
             </div>
-
-            <div class="scenario-grid">
-                <div class="scenario" onclick="useScenario('alice', '读取文件：public/notice.txt')">
-                    <div class="scenario-title">正常文件读取</div>
-                    <div class="scenario-desc">低风险操作，预期结果：allow，并正常读取公开文件。</div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div>
+                        <label>Agent 类型</label>
+                        <select id="agentType" onchange="updateAgentTip()">
+                            <option value="fake">FakeAgent 稳定演示</option>
+                            <option value="llm">LLM 真实大模型</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>用户身份</label>
+                        <select id="user">
+                            <option value="alice">alice</option>
+                            <option value="student">student</option>
+                            <option value="guest">guest</option>
+                            <option value="admin">admin</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div class="scenario" onclick="useScenario('student', '读取文件：secret/password.txt')">
-                    <div class="scenario-title">敏感文件读取</div>
-                    <div class="scenario-desc">访问 secret/password.txt，预期结果：deny，直接拦截。</div>
+                <label>自然语言任务</label>
+                <textarea id="userInput">读取文件：public/notice.txt</textarea>
+
+                <div id="agentModeTip" class="tip">
+                    FakeAgent：基于规则生成工具调用，适合比赛稳定演示。
                 </div>
 
-                <div class="scenario" onclick="useScenario('alice', '给张三发邮件，内容是明天下午三点开会')">
-                    <div class="scenario-title">邮件发送确认</div>
-                    <div class="scenario-desc">邮件属于中风险外部动作，预期结果：confirm，进入人工确认。</div>
+                <div class="actions">
+                    <button id="submitBtn" onclick="simulateAgent()">提交检测</button>
+                    <button class="btn-light" onclick="clearResult()">清空</button>
+                    <button class="btn-light" onclick="location.href='/task-chain'">打开任务链</button>
                 </div>
 
-                <div class="scenario" onclick="useScenario('alice', '删除文件：public/notice.txt')">
-                    <div class="scenario-title">文件删除拦截</div>
-                    <div class="scenario-desc">删除文件属于高风险操作，预期结果：deny。</div>
-                </div>
-
-                <div class="scenario" onclick="useScenario('student', '执行命令：rm -rf /')">
-                    <div class="scenario-title">危险命令执行</div>
-                    <div class="scenario-desc">系统命令执行风险极高，预期结果：deny。</div>
-                </div>
-
-                <div class="scenario" onclick="useScenario('alice', '读取文件：../../secret/password.txt')">
-                    <div class="scenario-title">路径穿越攻击</div>
-                    <div class="scenario-desc">尝试跳出 data 目录，预期结果：deny。</div>
-                </div>
-
-                <div class="scenario" onclick="runInjectionDemo()">
-                    <div class="scenario-title">提示注入攻击链演示</div>
-                    <div class="scenario-desc">读取公开文件后，模拟恶意提示诱导读取 secret/password.txt，预期第二步 deny。</div>
+                <div class="scenario-title">快捷场景</div>
+                <div class="scenario-list">
+                    <span class="chip" onclick="useScenario('alice', '读取文件：public/notice.txt')">正常读取</span>
+                    <span class="chip" onclick="useScenario('student', '读取文件：secret/password.txt')">敏感文件</span>
+                    <span class="chip" onclick="useScenario('alice', '给张三发邮件，内容是明天下午三点开会')">邮件确认</span>
+                    <span class="chip" onclick="useScenario('alice', '删除文件：public/notice.txt')">删除拦截</span>
+                    <span class="chip" onclick="useScenario('student', '执行命令：rm -rf /')">危险命令</span>
+                    <span class="chip" onclick="useScenario('alice', '读取文件：../../secret/password.txt')">路径穿越</span>
                 </div>
             </div>
         </section>
 
         <section class="card">
-            <h2>2. 智能体任务输入</h2>
-
-            <label>Agent 类型</label>
-            <select id="agentType" onchange="updateAgentTip()">
-                <option value="fake">FakeAgent 稳定演示模式</option>
-                <option value="llm">LLM 真实大模型模式</option>
-            </select>
-            <div id="agentModeTip" class="mode-tip">
-                当前使用 FakeAgent：基于规则生成工具调用，适合比赛稳定演示，不依赖 API Key。
+            <div class="card-head">
+                <h2>网关判断结果</h2>
+                <span class="muted">Agent → Gateway → ToolExecutor</span>
             </div>
+            <div class="card-body">
+                <div id="decisionSummary" class="decision-summary empty">
+                    <span>暂无结果，请先提交任务。</span>
+                    <span>risk: -</span>
+                </div>
 
-            <label>用户身份</label>
-            <select id="user">
-                <option value="alice">alice</option>
-                <option value="student">student</option>
-                <option value="guest">guest</option>
-                <option value="admin">admin</option>
-            </select>
+                <div class="result-grid">
+                    <div class="result-card">
+                        <h3>Agent 工具调用</h3>
+                        <pre id="toolCallView">暂无数据</pre>
+                    </div>
+                    <div class="result-card">
+                        <h3>Gateway 风险判断</h3>
+                        <pre id="riskView">暂无数据</pre>
+                    </div>
+                    <div class="result-card">
+                        <h3>最终处置</h3>
+                        <pre id="actionView">暂无数据</pre>
+                    </div>
+                </div>
 
-            <label>自然语言任务</label>
-            <textarea id="userInput">读取文件：public/notice.txt</textarea>
-
-            <button id="submitBtn" onclick="simulateAgent()">提交任务</button>
-            <button class="btn-light" onclick="clearResult()">清空结果</button>
-
-            <h3>当前流程</h3>
-            <div class="flow">
-                <span id="stepInput" class="flow-step active">1. 输入任务</span>
-                <span id="stepAgent" class="flow-step">2. Agent 规划</span>
-                <span id="stepGateway" class="flow-step">3. 网关判断</span>
-                <span id="stepDecision" class="flow-step">4. 执行/拦截/确认</span>
-                <span id="stepAudit" class="flow-step">5. 审计记录</span>
+                <details>
+                    <summary>原始 JSON</summary>
+                    <pre id="rawResult">暂无数据</pre>
+                </details>
             </div>
         </section>
+    </main>
 
-        <section class="card full-width">
-            <h2>3. 网关判断结果</h2>
+    <section class="card panel">
+        <div class="tabbar">
+            <button class="tab active" onclick="switchPanel('pending', this)">人工确认</button>
+            <button class="tab" onclick="switchPanel('audit', this)">审计日志</button>
+            <button class="tab" onclick="switchPanel('help', this)">页面说明</button>
+        </div>
 
-            <div id="decisionSummary" class="decision-summary empty">
-                暂无结果，请先提交一个任务。
+        <div id="panel-pending" class="panel-body active">
+            <div class="actions" style="margin-top:0">
+                <button class="btn-light" onclick="loadPending()">刷新待确认列表</button>
             </div>
-
-            <div class="result-grid">
-                <div class="result-card">
-                    <div class="result-card-title">Agent 工具调用</div>
-                    <div class="result-card-desc">展示 Agent 准备执行的工具和参数。</div>
-                    <pre id="toolCallView">暂无数据</pre>
-                </div>
-
-                <div class="result-card">
-                    <div class="result-card-title">Gateway 风险判断</div>
-                    <div class="result-card-desc">展示风险评分、决策结果和主要原因。</div>
-                    <pre id="riskView">暂无数据</pre>
-                </div>
-
-                <div class="result-card">
-                    <div class="result-card-title">最终处置结果</div>
-                    <div class="result-card-desc">展示本次调用是否执行、拦截或进入人工确认。</div>
-                    <pre id="actionView">暂无数据</pre>
-                </div>
-            </div>
-
-            <details class="raw-json">
-                <summary>查看原始 JSON 返回结果</summary>
-                <pre id="rawResult">暂无数据</pre>
-            </details>
-        </section>
-
-        <section class="card">
-            <h2>4. 人工确认队列</h2>
-            <p class="small-text">当网关返回 confirm 时，请求会进入这里。点击“确认执行”后，会再次经过 Gateway 二次检查。</p>
-            <button class="btn-light" onclick="loadPending()">刷新待确认列表</button>
             <div id="pendingList" class="empty">暂无数据</div>
-        </section>
+        </div>
 
-        <section class="card">
-            <h2>5. 审计日志</h2>
-            <p class="small-text">审计日志记录每一次工具调用的用户、工具、风险分、决策结果和执行状态。</p>
-            <button class="btn-light" onclick="loadLogs()">刷新审计日志</button>
+        <div id="panel-audit" class="panel-body">
+            <div class="actions" style="margin-top:0">
+                <button class="btn-light" onclick="loadLogs()">刷新审计日志</button>
+            </div>
             <div id="logs" class="empty">暂无数据</div>
-        </section>
+        </div>
 
-        <section class="card full-width">
-            <h2>6. 当前前端功能说明</h2>
-            <p>
-                当前页面支持在前端切换 FakeAgent 与 LLM。FakeAgent 适合稳定演示，LLM 用于展示真实大模型接入。
-                无论选择哪种 Agent，最终都会统一调用/agent/simulate?agent_type=...，并进入 Gateway 完成风险判断、人工确认和审计记录。
-            </p>
-        </section>
-    </div>
-</main>
+        <div id="panel-help" class="panel-body">
+            <div class="empty">
+                <strong>设计说明：</strong>当前页面只负责单步工具调用演示；多步提示注入攻击链、敏感数据传播和上下文风险累计，请切换到“多步任务链”标签页。
+            </div>
+        </div>
+    </section>
+</div>
 
 <script>
     const API_BASE = window.location.protocol === "file:"
@@ -606,14 +632,26 @@
         return document.getElementById("agentType").value;
     }
 
+    function switchPanel(name, button) {
+        document.querySelectorAll(".panel-body").forEach(panel => panel.classList.remove("active"));
+        document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+        document.getElementById(`panel-${name}`).classList.add("active");
+        button.classList.add("active");
+    }
+
     function updateAgentTip() {
         const agentType = getAgentType();
         const tip = document.getElementById("agentModeTip");
+        const badge = document.getElementById("agentBadge");
 
         if (agentType === "llm") {
-            tip.innerHTML = "当前使用 LLM：调用真实大模型生成工具调用计划。后端需要配置 <code>LLM_API_KEY</code> 或 <code>DEEPSEEK_API_KEY</code>，然后仍由 Gateway 决定是否允许执行。";
+            tip.innerHTML = "LLM：调用真实大模型生成工具调用计划；后端需要配置 <code>LLM_API_KEY</code> 或 <code>DEEPSEEK_API_KEY</code>。";
+            badge.textContent = "LLM";
+            badge.className = "badge agent-llm";
         } else {
-            tip.textContent = "当前使用 FakeAgent：基于规则生成工具调用，适合比赛稳定演示，不依赖 API Key。";
+            tip.textContent = "FakeAgent：基于规则生成工具调用，适合比赛稳定演示。";
+            badge.textContent = "FakeAgent";
+            badge.className = "badge agent-fake";
         }
     }
 
@@ -623,31 +661,14 @@
         clearResult();
     }
 
-    function setFlowStep(activeIndex) {
-        const steps = ["stepInput", "stepAgent", "stepGateway", "stepDecision", "stepAudit"];
-
-        steps.forEach((id, index) => {
-            const item = document.getElementById(id);
-
-            if (index <= activeIndex) {
-                item.classList.add("active");
-            } else {
-                item.classList.remove("active");
-            }
-        });
-    }
-
     function getDecisionClass(decision) {
         if (!decision) return "empty";
-
         const normalized = String(decision).toLowerCase();
-
         if (normalized.includes("confirmed")) return "confirmed";
         if (normalized.includes("rejected")) return "rejected";
         if (normalized.includes("allow")) return "allow";
         if (normalized.includes("confirm")) return "confirm";
         if (normalized.includes("deny")) return "deny";
-
         return "empty";
     }
 
@@ -669,38 +690,20 @@
         if (data === undefined || data === null || data === "") {
             return "暂无数据";
         }
-
         if (typeof data === "string") {
             return data;
         }
-
         return JSON.stringify(data, null, 2);
     }
 
     function buildActionMessage(decision, executed, pendingId) {
         const d = String(decision).toLowerCase();
 
-        if (d.includes("allow") && executed) {
-            return "低风险操作已自动放行并执行。";
-        }
-
-        if (d.includes("confirm")) {
-            return pendingId
-                ? "该操作已进入人工确认队列，等待管理员确认。"
-                : "该操作需要人工确认。";
-        }
-
-        if (d.includes("deny")) {
-            return "该操作被 Gateway 拦截，未被执行。";
-        }
-
-        if (d.includes("confirmed")) {
-            return "人工确认后，该操作已被执行。";
-        }
-
-        if (d.includes("rejected")) {
-            return "人工审核后，该操作已被拒绝。";
-        }
+        if (d.includes("allow") && executed) return "低风险操作已自动放行并执行。";
+        if (d.includes("confirm")) return pendingId ? "该操作已进入人工确认队列。" : "该操作需要人工确认。";
+        if (d.includes("deny")) return "该操作被 Gateway 拦截，未被执行。";
+        if (d.includes("confirmed")) return "人工确认后，该操作已被执行。";
+        if (d.includes("rejected")) return "人工审核后，该操作已被拒绝。";
 
         return "系统已完成本次工具调用判断。";
     }
@@ -714,7 +717,7 @@
 
         if (!data) {
             decisionSummary.className = "decision-summary empty";
-            decisionSummary.textContent = "暂无结果，请先提交一个任务。";
+            decisionSummary.innerHTML = "<span>暂无结果，请先提交任务。</span><span>risk: -</span>";
             toolCallView.textContent = "暂无数据";
             riskView.textContent = "暂无数据";
             actionView.textContent = "暂无数据";
@@ -741,7 +744,7 @@
         const message = data.message || gateway.message || "";
 
         decisionSummary.className = "decision-summary " + getDecisionClass(decision);
-        decisionSummary.textContent = `当前决策：${decision} ｜ 风险评分：${riskScore}`;
+        decisionSummary.innerHTML = `<span>决策：${escapeHtml(decision)}</span><span>risk: ${escapeHtml(riskScore)}</span>`;
 
         toolCallView.textContent = formatJson({
             agent: agentResult.agent || data.agent_type || getAgentType(),
@@ -765,7 +768,6 @@
 
     function clearResult() {
         renderGatewayResult(null);
-        setFlowStep(0);
     }
 
     async function checkServerStatus() {
@@ -775,11 +777,7 @@
 
         try {
             const response = await fetch(`${API_BASE}/api/status`);
-
-            if (!response.ok) {
-                throw new Error("后端响应异常");
-            }
-
+            if (!response.ok) throw new Error("后端响应异常");
             status.textContent = "后端运行正常";
             status.className = "status status-ok";
         } catch (error) {
@@ -795,9 +793,13 @@
         const submitBtn = document.getElementById("submitBtn");
 
         submitBtn.disabled = true;
-        submitBtn.textContent = agentType === "llm" ? "正在调用 LLM..." : "正在提交...";
-        renderGatewayResult(null);
-        setFlowStep(1);
+        submitBtn.textContent = agentType === "llm" ? "调用 LLM 中..." : "检测中...";
+        renderGatewayResult({
+            decision: "confirm",
+            risk_score: "running",
+            executed: false,
+            message: "请求已提交，等待 Gateway 返回判断。"
+        });
 
         try {
             const response = await fetch(`${API_BASE}/agent/simulate?agent_type=${encodeURIComponent(agentType)}`, {
@@ -815,76 +817,20 @@
                 throw new Error(data.detail || data.message || "后端响应异常");
             }
 
-            setFlowStep(4);
             renderGatewayResult(data);
             await loadPending();
             await loadLogs();
         } catch (error) {
-            setFlowStep(4);
             renderGatewayResult({
                 decision: "deny",
                 risk_score: "error",
                 executed: false,
-                message: "请求失败。请检查后端是否已经启动，或 LLM 模式是否已经配置 API Key。",
+                message: "请求失败。请检查后端是否已启动，或 LLM 模式是否配置 API Key。",
                 error: String(error)
             });
         } finally {
             submitBtn.disabled = false;
-            submitBtn.textContent = "提交任务";
-        }
-    }
-
-    async function runInjectionDemo() {
-        renderGatewayResult({
-            decision: "confirm",
-            risk_score: "running",
-            executed: false,
-            message: "正在执行提示注入攻击链演示..."
-        });
-
-        setFlowStep(1);
-
-        try {
-            const response = await fetch(`${API_BASE}/agent/injection-demo`, {
-                method: "POST"
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.detail || data.message || "后端响应异常");
-            }
-
-            setFlowStep(4);
-
-            const attackChain = data.attack_chain || [];
-            const lastStep = attackChain.length > 0 ? attackChain[attackChain.length - 1] : null;
-
-            if (lastStep) {
-                renderGatewayResult({
-                    tool_call: lastStep.request || {},
-                    gateway_result: lastStep.gateway_result || {},
-                    executed: lastStep.executed,
-                    message: data.message || "提示注入攻击链演示完成。",
-                    attack_chain: attackChain,
-                    detected_keywords: data.detected_keywords || [],
-                    success: data.success
-                });
-            } else {
-                renderGatewayResult(data);
-            }
-
-            await loadPending();
-            await loadLogs();
-        } catch (error) {
-            setFlowStep(4);
-            renderGatewayResult({
-                decision: "deny",
-                risk_score: "error",
-                executed: false,
-                message: "提示注入攻击链演示请求失败，请检查后端是否已经启动。",
-                error: String(error)
-            });
+            submitBtn.textContent = "提交检测";
         }
     }
 
@@ -910,21 +856,20 @@
                 const pendingId = item.pending_id || "";
 
                 return `
-                    <div class="pending-item">
+                    <div class="item">
                         <p><strong>pending_id：</strong>${escapeHtml(pendingId)}</p>
-                        <p><strong>来源 Agent：</strong><span class="agent-badge ${agentClass}">${escapeHtml(agent)}</span></p>
-                        <p><strong>用户：</strong>${escapeHtml(toolRequest.user || "")}</p>
-                        <p><strong>工具：</strong>${escapeHtml(toolRequest.tool || "")}</p>
-                        <p><strong>风险分：</strong>${escapeHtml(score)}</p>
+                        <p><strong>Agent：</strong><span class="agent-badge ${agentClass}">${escapeHtml(agent)}</span></p>
+                        <p><strong>用户：</strong>${escapeHtml(toolRequest.user || "")} ｜ <strong>工具：</strong>${escapeHtml(toolRequest.tool || "")} ｜ <strong>风险分：</strong>${escapeHtml(score)}</p>
                         <p><strong>原始输入：</strong>${escapeHtml(item.original_input || "")}</p>
-                        <p><strong>风险原因：</strong></p>
                         ${
                             reasons.length > 0
                                 ? `<ul class="reason-list">${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>`
-                                : `<p class="small-text">无明显风险原因。</p>`
+                                : `<p class="muted">无明显风险原因。</p>`
                         }
-                        <button class="btn-success" onclick="confirmRequest('${escapeHtml(pendingId)}')">确认执行</button>
-                        <button class="btn-danger" onclick="rejectRequest('${escapeHtml(pendingId)}')">拒绝执行</button>
+                        <div class="actions">
+                            <button class="btn-success" onclick="confirmRequest('${escapeHtml(pendingId)}')">确认执行</button>
+                            <button class="btn-danger" onclick="rejectRequest('${escapeHtml(pendingId)}')">拒绝执行</button>
+                        </div>
                     </div>
                 `;
             }).join("");
@@ -938,10 +883,7 @@
             const response = await fetch(`${API_BASE}/approval/confirm/${encodeURIComponent(pendingId)}`, {
                 method: "POST"
             });
-
             const data = await response.json();
-
-            alert(data.message || "已确认执行");
 
             renderGatewayResult({
                 decision: data.decision || "confirmed",
@@ -963,14 +905,9 @@
             const response = await fetch(`${API_BASE}/approval/reject/${encodeURIComponent(pendingId)}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    reason: "人工拒绝执行该工具调用"
-                })
+                body: JSON.stringify({ reason: "人工拒绝执行该工具调用" })
             });
-
             const data = await response.json();
-
-            alert(data.message || "已拒绝执行");
 
             renderGatewayResult({
                 decision: data.decision || "rejected",
@@ -1001,17 +938,15 @@
 
             logsDiv.innerHTML = logs.map(log => {
                 const cls = getDecisionClass(log.decision);
-
                 return `
-                    <div class="log-item">
+                    <div class="item">
                         <p>
                             <strong>决策：</strong><span class="decision ${cls}">${escapeHtml(log.decision)}</span>
-                            <strong style="margin-left:16px;">风险分：</strong>${escapeHtml(log.risk_score)}
-                            <strong style="margin-left:16px;">是否执行：</strong>${escapeHtml(log.executed)}
+                            <strong style="margin-left:12px;">风险分：</strong>${escapeHtml(log.risk_score)}
+                            <strong style="margin-left:12px;">执行：</strong>${escapeHtml(log.executed)}
                         </p>
                         <p><strong>时间：</strong>${escapeHtml(log.time)}</p>
-                        <p><strong>用户：</strong>${escapeHtml(log.user)}</p>
-                        <p><strong>工具：</strong>${escapeHtml(log.tool)}</p>
+                        <p><strong>用户：</strong>${escapeHtml(log.user)} ｜ <strong>工具：</strong>${escapeHtml(log.tool)}</p>
                         <p><strong>原始输入：</strong>${escapeHtml(log.original_input || "")}</p>
                         <p><strong>说明：</strong>${escapeHtml(log.message || "")}</p>
                     </div>
