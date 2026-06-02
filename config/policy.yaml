@@ -1,7 +1,7 @@
 # AI Agent 工具调用授权策略配置文件
-# 用于描述不同角色可以调用哪些工具、访问哪些资源，以及哪些操作需要人工确认。
+# 修改安全策略时优先修改本文件，尽量不要改业务代码。
 
-version: "1.0"
+version: "2.0"
 
 # 用户与角色映射
 users:
@@ -9,7 +9,44 @@ users:
   bob: teacher
   student: student
   test_user: student
+  guest: student
+  teacher: teacher
   admin: admin
+
+# 系统支持的标准工具。Agent 或 LLM 不能临时创造未登记工具。
+supported_tools:
+  - file.read
+  - file.write
+  - file.delete
+  - email.send
+  - shell.run
+  - db.query
+
+# 每种工具执行前必须具备的参数。缺少参数时不允许自动执行。
+required_params:
+  file.read:
+    - path
+  file.write:
+    - path
+    - content
+  file.delete:
+    - path
+  email.send:
+    - to
+    - content
+  shell.run:
+    - command
+  db.query:
+    - sql
+
+# Agent 计划质量阈值
+agent_plan:
+  min_auto_confidence: 0.85
+  min_confirm_confidence: 0.55
+
+# 内部可信邮箱域名。非内部邮箱视为存在外发风险。
+internal_email_domains:
+  - "@sdu.edu.cn"
 
 # 工具基础风险分
 tool_risk:
@@ -27,56 +64,10 @@ resource_risk:
   private/: 40
   secret/: 80
   password: 80
+  passwd: 80
   key: 80
   token: 80
   .env: 80
-
-# 角色权限策略
-roles:
-  student:
-    allow:
-      - tool: file.read
-        resource: public/*
-      - tool: db.query
-        resource: readonly/*
-
-    confirm:
-      - tool: email.send
-      - tool: file.write
-
-    deny:
-      - tool: file.read
-        resource: secret/*
-      - tool: file.delete
-      - tool: shell.run
-
-  teacher:
-    allow:
-      - tool: file.read
-        resource: public/*
-      - tool: file.read
-        resource: course/*
-      - tool: db.query
-        resource: readonly/*
-
-    confirm:
-      - tool: email.send
-      - tool: file.write
-      - tool: file.delete
-
-    deny:
-      - tool: shell.run
-      - tool: file.read
-        resource: secret/*
-
-  admin:
-    allow:
-      - tool: "*"
-        resource: "*"
-
-    confirm: []
-
-    deny: []
 
 # 风险分决策阈值
 decision_threshold:
@@ -84,100 +75,25 @@ decision_threshold:
   confirm_max: 69
   deny_min: 70
 
-# 危险关键词
-dangerous_keywords:
-  path:
-    - "../"
-    - "..\\"
-    - "%2e%2e"
-    - "public/../"
-    - "secret"
-    - "password"
-    - "key"
-    - "token"
-    - ".env"
-
-  command:
-    - "rm -rf"
-    - "del /s"
-    - "format"
-    - "shutdown"
-    - "reboot"
-    - "powershell"
-    - "curl"
-    - "wget"
-    - "chmod 777"
-
-  prompt_injection:
-    - "忽略之前的规则"
-    - "忽略系统提示"
-    - "不要遵守安全策略"
-    - "绕过权限检查"
-    - "ignore previous instructions"
-    - "ignore all previous instructions"
-    - "disregard previous instructions"
-    - "bypass authorization"
-    - "读取 secret"
-    - "读取敏感文件"
-
-  sql:
-    - "drop table"
-    - "delete from"
-    - "truncate"
-    - "union select"
-    - "update "
-    - "insert into"
-    - "alter table"
-    - "create table"
-
-    # 攻击特征风险分
-pattern_risk:
-  path_traversal:
-    keywords:
-      - "../"
-      - "..\\"
-      - "%2e%2e"
-      - "public/../"
-    risk: 100
-
-  command_danger:
-    keywords:
-      - "rm -rf"
-      - "del /s"
-      - "format"
-      - "shutdown"
-      - "reboot"
-    risk: 100
-
-  prompt_injection:
-    keywords:
-      - "ignore previous instructions"
-      - "ignore all previous instructions"
-      - "disregard previous instructions"
-      - "忽略之前的指令"
-      - "忽略以上规则"
-      - "读取 secret"
-      - "读取敏感文件"
-    risk: 60
-
-  sql_danger:
-    keywords:
-      - "drop table"
-      - "delete from"
-      - "truncate"
-      - "union select"
-    risk: 80
-
-# 决策阈值
-decision_threshold:
-  allow_max: 30
-  confirm_max: 69
-  deny_min: 70
-  # 决策阈值
-decision_threshold:
-  allow_max: 39
-  confirm_max: 69
-  deny_min: 70
+# 细粒度风险加分。Gateway、PlanGuard、ContextAnalyzer 尽量从这里取值。
+risk_scores:
+  unknown_tool: 100
+  low_confidence_deny: 100
+  low_confidence_confirm: 45
+  missing_params: 60
+  path_traversal: 60
+  absolute_path: 40
+  role_deny: 70
+  no_role_policy: 20
+  missing_email_to: 20
+  external_email: 25
+  sensitive_email_content: 30
+  prompt_injection_keyword: 30
+  sensitive_content_keyword: 20
+  command_keyword: 30
+  sql_keyword: 50
+  non_select_sql: 30
+  contract_parse_error: 100
 
 # 危险关键词配置
 dangerous_keywords:
@@ -194,71 +110,156 @@ dangerous_keywords:
     - "format"
     - "shutdown"
     - "reboot"
+    - "powershell"
+    - "curl"
+    - "wget"
     - "chmod 777"
 
   prompt_injection:
+    - "忽略之前的规则"
+    - "忽略以上规则"
+    - "忽略所有规则"
+    - "忽略之前的指令"
+    - "忽略系统提示"
+    - "不要遵守安全策略"
+    - "不要遵守"
+    - "绕过权限检查"
+    - "绕过"
+    - "请读取"
+    - "读取 secret"
+    - "读取敏感文件"
+    - "发送给 attacker"
+    - "attacker@example.com"
+    - "ignore previous"
     - "ignore previous instructions"
     - "ignore all previous instructions"
     - "disregard previous instructions"
-    - "忽略之前的指令"
-    - "忽略以上规则"
-    - "不要遵守之前的要求"
-    - "读取 secret"
-    - "读取敏感文件"
+    - "bypass authorization"
+    - "bypass"
+
+  sensitive_content:
+    - "password"
+    - "passwd"
+    - "secret"
+    - "token"
+    - "credential"
+    - "api_key"
+    - "apikey"
+    - "private_key"
+    - "密钥"
+    - "密码"
+    - "口令"
+    - "令牌"
+
+  sensitive_path:
+    - "secret"
+    - "password"
+    - "passwd"
+    - "private"
+    - "key"
+    - ".env"
+    - "token"
 
   sql:
     - "drop table"
     - "delete from"
     - "truncate"
     - "union select"
+    - "update "
+    - "insert into"
+    - "alter table"
+    - "create table"
+
+# 可能造成数据外发或副作用的工具
+external_output_tools:
+  - email.send
+  - shell.run
+  - db.query
+  - file.write
 
 # 角色权限策略
 roles:
   student:
     allow:
-      - tool: "file.read"
-        resource: "public/*"
-      - tool: "file.read"
-        resource: "course/*"
-    confirm: []
+      - tool: file.read
+        resource: public/*
+      - tool: file.read
+        resource: course/*
+      - tool: db.query
+        resource: readonly/*
+
+    confirm:
+      - tool: email.send
+        resource: "*"
+      - tool: file.write
+        resource: public/*
+
     deny:
       - tool: "*"
-        resource: "secret/*"
-      - tool: "file.delete"
+        resource: secret/*
+      - tool: file.delete
         resource: "*"
-      - tool: "shell.run"
+      - tool: shell.run
         resource: "*"
 
   teacher:
     allow:
-      - tool: "file.read"
-        resource: "public/*"
-      - tool: "file.read"
-        resource: "course/*"
-      - tool: "email.send"
+      - tool: file.read
+        resource: public/*
+      - tool: file.read
+        resource: course/*
+      - tool: db.query
+        resource: readonly/*
+      - tool: email.send
         resource: "*"
+
     confirm:
-      - tool: "file.delete"
-        resource: "public/*"
-      - tool: "file.delete"
-        resource: "course/*"
+      - tool: file.write
+        resource: "*"
+      - tool: file.delete
+        resource: public/*
+      - tool: file.delete
+        resource: course/*
+
     deny:
       - tool: "*"
-        resource: "secret/*"
-      - tool: "shell.run"
+        resource: secret/*
+      - tool: shell.run
         resource: "*"
 
   admin:
     allow:
-      - tool: "file.read"
+      - tool: file.read
         resource: "*"
-      - tool: "email.send"
+      - tool: file.write
         resource: "*"
+      - tool: email.send
+        resource: "*"
+      - tool: db.query
+        resource: "*"
+
     confirm:
-      - tool: "file.delete"
+      - tool: file.delete
         resource: "*"
-      - tool: "shell.run"
+      - tool: shell.run
         resource: "*"
-      - tool: "db.query"
-        resource: "*"
+
     deny: []
+
+# 任务授权合约默认策略
+task_contract:
+  extract_file_path_pattern: "(public/[a-zA-Z0-9_.\-/]+|data/[a-zA-Z0-9_.\-/]+|logs/[a-zA-Z0-9_.\-/]+|course/[a-zA-Z0-9_.\-/]+)"
+
+  default_denied_tools:
+    - shell.run
+    - code.exec
+    - db.query
+
+  default_denied_paths:
+    - secret/*
+    - private/*
+    - ../*
+
+  default_risk_budget: 80
+  default_allow_external_send: false
+  default_require_human_confirm: false
