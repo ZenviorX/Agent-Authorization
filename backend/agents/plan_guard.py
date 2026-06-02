@@ -2,28 +2,12 @@ from typing import Dict, Any, List, Optional
 
 from backend.schemas import AgentPlanResult, ToolCallRequest
 from backend.utils import normalize_tool_name, normalize_params
-
-
-SUPPORTED_TOOLS = {
-    "file.read",
-    "file.write",
-    "file.delete",
-    "email.send",
-    "shell.run",
-    "db.query",
-}
-
-REQUIRED_PARAMS = {
-    "file.read": ["path"],
-    "file.write": ["path", "content"],
-    "file.delete": ["path"],
-    "email.send": ["to", "content"],
-    "shell.run": ["command"],
-    "db.query": ["sql"],
-}
-
-MIN_AUTO_CONFIDENCE = 0.85
-MIN_CONFIRM_CONFIDENCE = 0.55
+from backend.gateway.policy_loader import (
+    get_supported_tools,
+    get_required_params,
+    get_agent_plan_policy,
+    get_risk_score,
+)
 
 
 def _is_empty_value(value: Any) -> bool:
@@ -35,7 +19,8 @@ def _is_empty_value(value: Any) -> bool:
 
 
 def find_missing_params(tool: str, params: Dict[str, Any]) -> List[str]:
-    required = REQUIRED_PARAMS.get(tool, [])
+    required_params = get_required_params()
+    required = required_params.get(tool, [])
     missing = []
 
     for name in required:
@@ -49,13 +34,17 @@ def inspect_agent_plan(plan: AgentPlanResult) -> Dict[str, Any]:
     """
     检查 Agent 生成的计划是否可以进入 Gateway。
     """
+    plan_policy = get_agent_plan_policy()
+    min_auto_confidence = plan_policy["min_auto_confidence"]
+    min_confirm_confidence = plan_policy["min_confirm_confidence"]
+    supported_tools = set(get_supported_tools())
 
     if plan.status == "error":
         return {
             "pass_to_gateway": False,
             "force_confirm": False,
             "decision": "deny",
-            "risk_score": 100,
+            "risk_score": get_risk_score("unknown_tool", 100),
             "reason": [
                 "Agent 规划阶段发生错误，系统无法确认用户真实意图，拒绝自动执行。",
                 plan.message or "未知错误",
@@ -69,7 +58,7 @@ def inspect_agent_plan(plan: AgentPlanResult) -> Dict[str, Any]:
             "pass_to_gateway": False,
             "force_confirm": False,
             "decision": "confirm",
-            "risk_score": 60,
+            "risk_score": get_risk_score("missing_params", 60),
             "reason": [
                 "Agent 能识别部分用户意图，但缺少必要参数。",
                 "该请求不能自动执行，需要用户补充信息或人工确认。",
@@ -85,7 +74,7 @@ def inspect_agent_plan(plan: AgentPlanResult) -> Dict[str, Any]:
             "pass_to_gateway": False,
             "force_confirm": False,
             "decision": "deny",
-            "risk_score": 100,
+            "risk_score": get_risk_score("unknown_tool", 100),
             "reason": [
                 "Agent 未能将用户输入转换为受支持的工具调用。",
                 plan.unsupported_reason or plan.message or "当前系统不支持该任务类型。",
@@ -98,12 +87,12 @@ def inspect_agent_plan(plan: AgentPlanResult) -> Dict[str, Any]:
     tool = normalize_tool_name(plan.tool_call.tool_name)
     params = normalize_params(tool, plan.tool_call.arguments)
 
-    if tool not in SUPPORTED_TOOLS:
+    if tool not in supported_tools:
         return {
             "pass_to_gateway": False,
             "force_confirm": False,
             "decision": "deny",
-            "risk_score": 100,
+            "risk_score": get_risk_score("unknown_tool", 100),
             "reason": [
                 f"工具 {tool} 不在系统支持列表中，未知工具不能自动执行。"
             ],
@@ -118,7 +107,7 @@ def inspect_agent_plan(plan: AgentPlanResult) -> Dict[str, Any]:
             "pass_to_gateway": False,
             "force_confirm": False,
             "decision": "confirm",
-            "risk_score": 60,
+            "risk_score": get_risk_score("missing_params", 60),
             "reason": [
                 f"Agent 已识别出工具 {tool}，但缺少必要参数：{', '.join(missing_params)}。",
                 "该请求不能自动执行，需要用户补充信息或人工确认。",
@@ -131,12 +120,12 @@ def inspect_agent_plan(plan: AgentPlanResult) -> Dict[str, Any]:
 
     confidence = float(plan.confidence or 0.0)
 
-    if confidence < MIN_CONFIRM_CONFIDENCE:
+    if confidence < min_confirm_confidence:
         return {
             "pass_to_gateway": False,
             "force_confirm": False,
             "decision": "deny",
-            "risk_score": 90,
+            "risk_score": get_risk_score("low_confidence_deny", 100),
             "reason": [
                 f"Agent 对当前计划的置信度过低：{confidence}。",
                 "低置信度工具调用不能自动执行。",
@@ -145,12 +134,12 @@ def inspect_agent_plan(plan: AgentPlanResult) -> Dict[str, Any]:
             "params": params,
         }
 
-    if confidence < MIN_AUTO_CONFIDENCE:
+    if confidence < min_auto_confidence:
         return {
             "pass_to_gateway": True,
             "force_confirm": True,
             "decision": "confirm",
-            "risk_score": 40,
+            "risk_score": get_risk_score("low_confidence_confirm", 45),
             "reason": [
                 f"Agent 计划置信度为 {confidence}，低于自动执行阈值。",
                 "该请求可以进入 Gateway，但最终应至少要求人工确认。",
