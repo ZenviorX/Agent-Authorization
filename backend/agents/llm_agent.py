@@ -15,19 +15,11 @@ except ImportError:
     OpenAI = None
 
 from backend.agents.base_agent import BaseAgent
+from backend.gateway.policy_loader import get_supported_tools, get_required_params
 from backend.schemas import AgentPlanResult, ToolCallPlan
 
 
 load_dotenv()
-
-ALLOWED_TOOLS = {
-    "file.read",
-    "file.write",
-    "file.delete",
-    "email.send",
-    "shell.run",
-    "db.query",
-}
 
 
 class LLMAgent(BaseAgent):
@@ -93,7 +85,7 @@ class LLMAgent(BaseAgent):
 
             content = completion.choices[0].message.content
             return self._parse_plan_result(user_input, content)
-        
+
         except Exception as exc:
             return AgentPlanResult(
                 agent="LLMAgent",
@@ -103,60 +95,71 @@ class LLMAgent(BaseAgent):
                 tool_call=None,
             )
 
+    def _build_tool_description(self) -> str:
+        supported_tools = get_supported_tools()
+        required_params = get_required_params()
+        lines = []
+
+        for index, tool in enumerate(supported_tools, start=1):
+            params = required_params.get(tool, [])
+            arguments_example = {name: "..." for name in params}
+            lines.append(
+                f"{index}. {tool} arguments: {json.dumps(arguments_example, ensure_ascii=False)}"
+            )
+
+        return "\n".join(lines)
+
     def _build_system_prompt(self) -> str:
-        return """
+        tool_description = self._build_tool_description()
+
+        return f"""
 You are a tool-call planner, not a tool executor.
 
 Your task is to convert the user's natural-language request into a structured tool-call plan.
 
 You must not execute tools, decide authorization, or bypass the Gateway.
 
-Allowed tools:
-1. file.read    arguments: {"file_path": "..."}
-2. file.write   arguments: {"file_path": "...", "content": "..."}
-3. file.delete  arguments: {"file_path": "..."}
-4. email.send   arguments: {"to": "...", "subject": "...", "content": "..."}
-5. shell.run    arguments: {"command": "..."}
-6. db.query     arguments: {"sql": "..."}
+Allowed tools are loaded from the server policy file:
+{tool_description}
 
 Output raw JSON only.
 
 If the request can be safely mapped to a complete supported tool call, output:
-{
+{{
   "status": "planned",
   "confidence": 0.9,
-  "tool_call": {
+  "tool_call": {{
     "tool_name": "file.read",
     "description": "short description",
-    "arguments": {
+    "arguments": {{
       "file_path": "public/notice.txt"
-    },
+    }},
     "need_auth": true
-  },
+  }},
   "missing_params": [],
   "unsupported_reason": null,
   "clarification_question": null
-}
+}}
 
 If the user intent is recognizable but required parameters are missing, output:
-{
+{{
   "status": "need_clarification",
   "confidence": 0.5,
   "tool_call": null,
   "missing_params": ["path"],
   "unsupported_reason": null,
   "clarification_question": "Please provide the file path."
-}
+}}
 
 If no supported tool call can be generated, output:
-{
+{{
   "status": "unsupported",
   "confidence": 0.0,
   "tool_call": null,
   "missing_params": [],
   "unsupported_reason": "unsupported request type",
   "clarification_question": "Please restate the task using supported operations."
-}
+}}
 
 Rules:
 - Output raw JSON only.
@@ -186,7 +189,7 @@ Rules:
             return None
 
         tool_name = str(tool_name).strip().lower()
-        if tool_name not in ALLOWED_TOOLS:
+        if tool_name not in set(get_supported_tools()):
             return None
 
         arguments = data.get("arguments", {})
@@ -208,8 +211,8 @@ Rules:
                 confidence=0.0,
                 message="LLM returned empty output",
                 original_input=user_input,
-            tool_call=None,
-        )
+                tool_call=None,
+            )
 
         text = content.strip()
         text = re.sub(r"^```json\s*", "", text, flags=re.IGNORECASE)
@@ -220,15 +223,15 @@ Rules:
             data = json.loads(text)
         except json.JSONDecodeError:
             return AgentPlanResult(
-            agent="LLMAgent",
-            status="unsupported",
-            confidence=0.0,
-            message="LLM output is not valid JSON",
-            raw_output=content,
-            original_input=user_input,
-            tool_call=None,
-            unsupported_reason="invalid_json",
-        )
+                agent="LLMAgent",
+                status="unsupported",
+                confidence=0.0,
+                message="LLM output is not valid JSON",
+                raw_output=content,
+                original_input=user_input,
+                tool_call=None,
+                unsupported_reason="invalid_json",
+            )
 
         status = data.get("status", "unsupported")
         confidence = float(data.get("confidence", 0.0) or 0.0)
@@ -239,7 +242,7 @@ Rules:
         if raw_tool_call:
             tool_name = str(raw_tool_call.get("tool_name", "")).strip().lower()
 
-            if tool_name in ALLOWED_TOOLS:
+            if tool_name in set(get_supported_tools()):
                 arguments = raw_tool_call.get("arguments", {})
                 if not isinstance(arguments, dict):
                     arguments = {}
