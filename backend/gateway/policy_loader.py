@@ -46,6 +46,55 @@ def get_user_role(user: str) -> str:
     return users.get(user, "student")
 
 
+def get_supported_tools() -> list[str]:
+    """
+    获取系统支持的标准工具列表。
+    """
+    policy = load_policy()
+    return [str(item) for item in policy.get("supported_tools", [])]
+
+
+def get_required_params() -> Dict[str, list[str]]:
+    """
+    获取每个工具的必要参数配置。
+    """
+    policy = load_policy()
+    required_params = policy.get("required_params", {})
+    return {
+        str(tool): [str(item) for item in params]
+        for tool, params in required_params.items()
+    }
+
+
+def get_agent_plan_policy() -> Dict[str, float]:
+    """
+    获取 Agent 计划质量阈值。
+    """
+    policy = load_policy()
+    agent_plan = policy.get("agent_plan", {})
+    return {
+        "min_auto_confidence": float(agent_plan.get("min_auto_confidence", 0.85)),
+        "min_confirm_confidence": float(agent_plan.get("min_confirm_confidence", 0.55)),
+    }
+
+
+def get_internal_email_domains() -> list[str]:
+    """
+    获取内部可信邮箱域名后缀。
+    """
+    policy = load_policy()
+    return [str(item).lower() for item in policy.get("internal_email_domains", [])]
+
+
+def get_risk_score(name: str, default: int = 0) -> int:
+    """
+    获取某个风险项的分值。
+    """
+    policy = load_policy()
+    risk_scores = policy.get("risk_scores", {})
+    return int(risk_scores.get(name, default))
+
+
 def get_tool_risk(tool: str) -> int:
     """
     获取工具基础风险分。
@@ -69,6 +118,7 @@ def get_decision_threshold() -> Dict[str, int]:
             "deny_min": 70,
         },
     )
+
 
 def get_role_policy(role: str) -> Dict[str, Any]:
     """
@@ -145,14 +195,10 @@ def match_role_policy(role: str, tool: str, resource: str) -> Tuple[str, str]:
 
     return "none", f"未命中 {role} 角色的显式权限策略"
 
+
 def get_resource_risk_rules() -> Dict[str, int]:
     """
     获取资源路径风险规则。
-
-    例如：
-        public/: 0
-        secret/: 80
-        password: 80
     """
     policy = load_policy()
     resource_risk = policy.get("resource_risk", {})
@@ -185,6 +231,7 @@ def get_resource_risk(path: str) -> tuple[int, list[str]]:
 
     return risk_score, reasons
 
+
 def get_dangerous_keywords(category: str) -> list[str]:
     """
     获取指定类别的危险关键词。
@@ -193,12 +240,52 @@ def get_dangerous_keywords(category: str) -> list[str]:
         path              路径风险关键词
         command           命令风险关键词
         prompt_injection  提示注入关键词
+        sensitive_content 敏感内容关键词
+        sensitive_path    敏感路径关键词
+        sql               SQL 高危关键词
     """
     policy = load_policy()
     dangerous_keywords = policy.get("dangerous_keywords", {})
     keywords = dangerous_keywords.get(category, [])
 
     return [str(item).lower() for item in keywords]
+
+
+def get_external_output_tools() -> set[str]:
+    """
+    获取可能造成数据外发或副作用的工具列表。
+    """
+    policy = load_policy()
+    return {str(item) for item in policy.get("external_output_tools", [])}
+
+
+def get_task_contract_policy() -> Dict[str, Any]:
+    """
+    获取任务授权合约默认策略。
+    """
+    policy = load_policy()
+    contract_policy = policy.get("task_contract", {})
+    return {
+        "extract_file_path_pattern": str(
+            contract_policy.get(
+                "extract_file_path_pattern",
+                r"(public/[a-zA-Z0-9_.\-/]+|data/[a-zA-Z0-9_.\-/]+|logs/[a-zA-Z0-9_.\-/]+)",
+            )
+        ),
+        "default_denied_tools": [
+            str(item) for item in contract_policy.get("default_denied_tools", [])
+        ],
+        "default_denied_paths": [
+            str(item) for item in contract_policy.get("default_denied_paths", [])
+        ],
+        "default_risk_budget": int(contract_policy.get("default_risk_budget", 80)),
+        "default_allow_external_send": bool(
+            contract_policy.get("default_allow_external_send", False)
+        ),
+        "default_require_human_confirm": bool(
+            contract_policy.get("default_require_human_confirm", False)
+        ),
+    }
 
 
 def match_keywords(text: str, keywords: list[str]) -> list[str]:
