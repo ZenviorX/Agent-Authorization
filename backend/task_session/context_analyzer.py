@@ -1,35 +1,9 @@
 from typing import Dict, List
 
-
-SENSITIVE_KEYWORDS = [
-    "password",
-    "passwd",
-    "secret",
-    "token",
-    "api_key",
-    "apikey",
-    "private_key",
-    "密钥",
-    "密码",
-    "口令",
-    "令牌",
-]
-
-PROMPT_INJECTION_KEYWORDS = [
-    "忽略之前的规则",
-    "忽略以上规则",
-    "忽略所有规则",
-    "忽略之前的指令",
-    "不要遵守",
-    "绕过",
-    "请读取",
-    "发送给 attacker",
-    "attacker@example.com",
-    "ignore previous",
-    "ignore all previous",
-    "disregard previous",
-    "bypass",
-]
+from backend.gateway.policy_loader import (
+    get_dangerous_keywords,
+    get_external_output_tools,
+)
 
 
 def analyze_text_security(text: str) -> Dict[str, object]:
@@ -55,12 +29,15 @@ def analyze_text_security(text: str) -> Dict[str, object]:
     lower_text = text.lower()
     reasons: List[str] = []
 
-    for keyword in SENSITIVE_KEYWORDS:
+    sensitive_keywords = get_dangerous_keywords("sensitive_content")
+    prompt_injection_keywords = get_dangerous_keywords("prompt_injection")
+
+    for keyword in sensitive_keywords:
         if keyword.lower() in lower_text:
             result["sensitive"] = True
             reasons.append(f"工具输出内容命中敏感关键词：{keyword}")
 
-    for keyword in PROMPT_INJECTION_KEYWORDS:
+    for keyword in prompt_injection_keywords:
         if keyword.lower() in lower_text:
             result["tainted"] = True
             reasons.append(f"工具输出内容疑似包含提示注入关键词：{keyword}")
@@ -73,12 +50,7 @@ def is_external_output_tool(tool: str) -> bool:
     """
     判断某个工具是否可能造成数据外发。
     """
-    return tool in {
-        "email.send",
-        "shell.run",
-        "db.query",
-        "file.write",
-    }
+    return tool in get_external_output_tools()
 
 
 def is_sensitive_path(path: str) -> bool:
@@ -89,15 +61,6 @@ def is_sensitive_path(path: str) -> bool:
         return False
 
     lower_path = path.lower()
-
-    sensitive_path_keywords = [
-        "secret",
-        "password",
-        "passwd",
-        "private",
-        "key",
-        ".env",
-        "token",
-    ]
+    sensitive_path_keywords = get_dangerous_keywords("sensitive_path")
 
     return any(keyword in lower_path for keyword in sensitive_path_keywords)
