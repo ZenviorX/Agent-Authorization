@@ -7,6 +7,11 @@ from backend.gateway.policy_loader import (
     get_resource_risk,
     get_dangerous_keywords,
     match_keywords,
+    get_supported_tools,
+    get_required_params,
+    get_agent_plan_policy,
+    get_risk_score,
+    get_internal_email_domains,
 )
 from backend.utils import (
     normalize_tool_name,
@@ -19,22 +24,13 @@ from backend.task_contract.contract_models import TaskAuthContract
 from backend.task_contract.contract_enforcer import check_call_against_contract
 
 
-SUPPORTED_TOOLS = {
-    "file.read",
-    "file.write",
-    "file.delete",
-    "email.send",
-    "shell.run",
-    "db.query",
-}
-
-REQUIRED_PARAMS = {
-    "file.read": ["path"],
-    "file.write": ["path", "content"],
-    "file.delete": ["path"],
-    "email.send": ["to", "content"],
-    "shell.run": ["command"],
-    "db.query": ["sql"],
+TOOL_REASON_MAP = {
+    "shell.run": "系统命令或代码执行工具风险极高",
+    "file.delete": "文件删除操作风险极高",
+    "email.send": "邮件发送工具存在数据外发风险，需要用户确认",
+    "file.write": "文件写入操作可能修改本地数据",
+    "file.read": "文件读取操作存在一定信息泄露风险",
+    "db.query": "数据库查询操作存在一定数据泄露风险",
 }
 
 
@@ -60,10 +56,14 @@ def check_tool_call(request: ToolCallRequest):
     command = get_command(params)
     sql = str(params.get("sql", ""))
 
-    if tool not in SUPPORTED_TOOLS:
+    supported_tools = set(get_supported_tools())
+    required_params = get_required_params()
+    agent_plan_policy = get_agent_plan_policy()
+
+    if tool not in supported_tools:
         return {
             "decision": "deny",
-            "risk_score": 100,
+            "risk_score": get_risk_score("unknown_tool", 100),
             "reason": [
                 f"工具 {tool} 不在系统支持列表中。",
                 "未知工具不能自动执行，已按失败关闭原则拒绝。",
@@ -78,11 +78,13 @@ def check_tool_call(request: ToolCallRequest):
 
     if request.agent_confidence is not None:
         confidence = float(request.agent_confidence)
+        min_confirm_confidence = agent_plan_policy["min_confirm_confidence"]
+        min_auto_confidence = agent_plan_policy["min_auto_confidence"]
 
-        if confidence < 0.55:
+        if confidence < min_confirm_confidence:
             return {
                 "decision": "deny",
-                "risk_score": 100,
+                "risk_score": get_risk_score("low_confidence_deny", 100),
                 "reason": [
                     f"Agent 计划置信度过低：{confidence}",
                     "系统无法可靠确认用户意图，拒绝自动执行。",
@@ -93,8 +95,8 @@ def check_tool_call(request: ToolCallRequest):
                 "normalized_params": params,
             }
 
-        if confidence < 0.85:
-            risk_score += 45
+        if confidence < min_auto_confidence:
+            risk_score += get_risk_score("low_confidence_confirm", 45)
             low_confidence_force_confirm = True
             reason.append(
                 f"Agent 计划置信度较低：{confidence}，提高风险分并至少要求人工确认。"
@@ -102,13 +104,13 @@ def check_tool_call(request: ToolCallRequest):
 
     missing_params = []
 
-    for name in REQUIRED_PARAMS.get(tool, []):
+    for name in required_params.get(tool, []):
         value = str(params.get(name, "")).strip()
         if not value or value == "unknown":
             missing_params.append(name)
 
     if missing_params:
-        risk_score += 60
+        risk_score += get_risk_score("missing_params", 60)
         reason.append(f"工具调用缺少必要参数：{', '.join(missing_params)}")
 
         return {
@@ -154,7 +156,7 @@ def check_tool_call(request: ToolCallRequest):
                     "normalized_params": params,
                 }
         except Exception as e:
-            risk_score += 100
+            risk_score += get_risk_score("contract_parse_error", 100)
             reason.append("任务授权合约解析失败，拒绝本次工具调用。")
             reason.append(str(e))
 
@@ -172,17 +174,8 @@ def check_tool_call(request: ToolCallRequest):
     tool_base_risk = get_tool_risk(tool)
     risk_score += tool_base_risk
 
-    tool_reason_map = {
-        "shell.run": "系统命令或代码执行工具风险极高",
-        "file.delete": "文件删除操作风险极高",
-        "email.send": "邮件发送工具存在数据外发风险，需要用户确认",
-        "file.write": "文件写入操作可能修改本地数据",
-        "file.read": "文件读取操作存在一定信息泄露风险",
-        "db.query": "数据库查询操作存在一定数据泄露风险",
-    }
-
     reason.append(
-        tool_reason_map.get(
+        TOOL_REASON_MAP.get(
             tool,
             f"未知工具类型，使用默认基础风险分：{tool_base_risk}",
         )
@@ -196,12 +189,12 @@ def check_tool_call(request: ToolCallRequest):
 
     # 3. 路径穿越风险判断
     if ".." in path_lower:
-        risk_score += 60
+        risk_score += get_risk_score("path_traversal", 60)
         hard_deny = True
         reason.append("路径中包含 ..，可能存在路径穿越风险")
 
     if path_lower.startswith("/") or ":" in path_lower:
-        risk_score += 40
+        risk_score += get_risk_score("absolute_path", 40)
         hard_deny = True
         reason.append("路径疑似绝对路径，存在越权访问风险")
 
@@ -209,7 +202,7 @@ def check_tool_call(request: ToolCallRequest):
     policy_decision, policy_reason = match_role_policy(role, tool, path_lower)
 
     if policy_decision == "deny":
-        risk_score += 70
+        risk_score += get_risk_score("role_deny", 70)
         reason.append(policy_reason)
 
     elif policy_decision == "confirm":
@@ -219,23 +212,25 @@ def check_tool_call(request: ToolCallRequest):
         reason.append(policy_reason)
 
     else:
-        risk_score += 20
+        risk_score += get_risk_score("no_role_policy", 20)
         reason.append(policy_reason)
 
     # 5. 邮件外发风险判断
     if tool == "email.send":
         to = str(params.get("to", "")).strip()
+        internal_domains = get_internal_email_domains()
 
         if not to or to == "unknown":
-            risk_score += 20
+            risk_score += get_risk_score("missing_email_to", 20)
             reason.append("邮件接收人为空或无法识别，存在误发风险")
 
-        elif not to.endswith("@sdu.edu.cn"):
-            risk_score += 25
-            reason.append("邮件发送目标不是校内邮箱，存在数据外发风险")
+        elif internal_domains and not any(to.lower().endswith(domain) for domain in internal_domains):
+            risk_score += get_risk_score("external_email", 25)
+            reason.append("邮件发送目标不是内部可信邮箱，存在数据外发风险")
 
-        if any(word in content_lower for word in ["password", "secret", "token", "密钥", "密码"]):
-            risk_score += 30
+        sensitive_content_keywords = get_dangerous_keywords("sensitive_content")
+        if any(word in content_lower for word in sensitive_content_keywords):
+            risk_score += get_risk_score("sensitive_email_content", 30)
             reason.append("邮件内容包含敏感信息关键词")
 
     # 6. 内容风险判断：从 config/policy.yaml 的 dangerous_keywords 中读取
@@ -243,14 +238,14 @@ def check_tool_call(request: ToolCallRequest):
     matched_prompt_keywords = match_keywords(content, prompt_injection_keywords)
 
     for word in matched_prompt_keywords:
-        risk_score += 30
+        risk_score += get_risk_score("prompt_injection_keyword", 30)
         reason.append(f"内容命中提示注入关键词：{word}")
 
-    sensitive_content_keywords = ["password", "secret", "token", "credential", "密钥", "密码"]
+    sensitive_content_keywords = get_dangerous_keywords("sensitive_content")
     matched_sensitive_keywords = match_keywords(content, sensitive_content_keywords)
 
     for word in matched_sensitive_keywords:
-        risk_score += 20
+        risk_score += get_risk_score("sensitive_content_keyword", 20)
         reason.append(f"内容包含敏感信息关键词：{word}")
 
     # 7. 命令风险判断：从 config/policy.yaml 的 dangerous_keywords.command 中读取
@@ -258,28 +253,20 @@ def check_tool_call(request: ToolCallRequest):
     matched_commands = match_keywords(command, dangerous_commands)
 
     for cmd in matched_commands:
-        risk_score += 30
+        risk_score += get_risk_score("command_keyword", 30)
         reason.append(f"命令中包含高危操作：{cmd}")
 
-    # 8. SQL 风险判断
-    dangerous_sql = [
-        "drop table",
-        "delete from",
-        "truncate",
-        "update ",
-        "insert into",
-        "alter table",
-        "create table",
-    ]
+    # 8. SQL 风险判断：从 config/policy.yaml 的 dangerous_keywords.sql 中读取
+    dangerous_sql = get_dangerous_keywords("sql")
 
     if tool == "db.query":
         for keyword in dangerous_sql:
             if keyword in sql_lower:
-                risk_score += 50
+                risk_score += get_risk_score("sql_keyword", 50)
                 reason.append(f"SQL 语句包含高危操作：{keyword}")
 
         if sql_lower and not sql_lower.strip().startswith("select"):
-            risk_score += 30
+            risk_score += get_risk_score("non_select_sql", 30)
             reason.append("当前数据库工具只建议执行 SELECT 查询")
 
     # 9. 根据风险分和角色策略做最终决策
