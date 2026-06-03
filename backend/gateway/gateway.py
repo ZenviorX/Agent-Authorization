@@ -36,6 +36,87 @@ TOOL_REASON_MAP = {
 }
 
 
+def get_risk_level(score: int) -> str:
+    """
+    将风险分转换为风险等级，便于前端展示、人工确认和审计分析。
+    """
+    if score >= 80:
+        return "critical"
+    if score >= 60:
+        return "high"
+    if score >= 30:
+        return "medium"
+    return "low"
+
+
+def build_explanations(reason: list[str]) -> list[dict]:
+    """
+    将原有 reason 文本转换为结构化解释。
+    这样既保留原有判断逻辑，又能让前端和审计模块展示风险来源。
+    """
+    explanations = []
+
+    for item in reason:
+        text = str(item)
+
+        if "路径" in text or "secret" in text or "资源风险" in text or "访问路径" in text:
+            factor = "resource_path"
+        elif "角色" in text or "权限" in text or "student" in text or "admin" in text:
+            factor = "role_policy"
+        elif "邮件" in text or "外发" in text or "接收人" in text:
+            factor = "external_output"
+        elif "提示注入" in text or "ignore previous" in text or "忽略" in text:
+            factor = "prompt_injection"
+        elif "命令" in text or "shell" in text or "高危操作" in text:
+            factor = "command"
+        elif "SQL" in text or "数据库" in text or "SELECT" in text:
+            factor = "database"
+        elif "Agent" in text or "置信度" in text or "计划" in text:
+            factor = "agent_plan"
+        elif "任务授权合约" in text or "Capability Contract" in text or "合约" in text:
+            factor = "task_contract"
+        elif "工具" in text:
+            factor = "tool"
+        elif "参数" in text:
+            factor = "params"
+        else:
+            factor = "general"
+
+        explanations.append(
+            {
+                "factor": factor,
+                "reason": text,
+            }
+        )
+
+    return explanations
+
+
+def build_gateway_result(
+    decision: str,
+    risk_score: int,
+    reason: list[str],
+    user: str,
+    role: str,
+    tool: str,
+    params: dict,
+) -> dict:
+    """
+    统一构造 Gateway 返回值，保证所有提前 return 和最终 return 字段一致。
+    """
+    return {
+        "decision": decision,
+        "risk_score": risk_score,
+        "risk_level": get_risk_level(risk_score),
+        "reason": reason,
+        "explanations": build_explanations(reason),
+        "user": user,
+        "role": role,
+        "normalized_tool": tool,
+        "normalized_params": params,
+    }
+
+
 def check_tool_call(request: ToolCallRequest):
     """
     授权网关核心逻辑：
@@ -53,6 +134,7 @@ def check_tool_call(request: ToolCallRequest):
 
     tool = normalize_tool_name(request.tool)
     params = normalize_params(tool, request.params)
+
     path = get_path(params)
     content = get_content(params)
     command = get_command(params)
@@ -63,18 +145,21 @@ def check_tool_call(request: ToolCallRequest):
     agent_plan_policy = get_agent_plan_policy()
 
     if tool not in supported_tools:
-        return {
-            "decision": "deny",
-            "risk_score": get_risk_score("unknown_tool", 100),
-            "reason": [
-                f"工具 {tool} 不在系统支持列表中。",
-                "未知工具不能自动执行，已按失败关闭原则拒绝。",
-            ],
-            "user": user,
-            "role": role,
-            "normalized_tool": tool,
-            "normalized_params": params,
-        }
+        unknown_tool_score = get_risk_score("unknown_tool", 100)
+        unknown_tool_reason = [
+            f"工具 {tool} 不在系统支持列表中。",
+            "未知工具不能自动执行，已按失败关闭原则拒绝。",
+        ]
+
+        return build_gateway_result(
+            decision="deny",
+            risk_score=unknown_tool_score,
+            reason=unknown_tool_reason,
+            user=user,
+            role=role,
+            tool=tool,
+            params=params,
+        )
 
     low_confidence_force_confirm = False
     capability_force_confirm = False
@@ -85,18 +170,21 @@ def check_tool_call(request: ToolCallRequest):
         min_auto_confidence = agent_plan_policy["min_auto_confidence"]
 
         if confidence < min_confirm_confidence:
-            return {
-                "decision": "deny",
-                "risk_score": get_risk_score("low_confidence_deny", 100),
-                "reason": [
-                    f"Agent 计划置信度过低：{confidence}",
-                    "系统无法可靠确认用户意图，拒绝自动执行。",
-                ],
-                "user": user,
-                "role": role,
-                "normalized_tool": tool,
-                "normalized_params": params,
-            }
+            low_confidence_score = get_risk_score("low_confidence_deny", 100)
+            low_confidence_reason = [
+                f"Agent 计划置信度过低：{confidence}",
+                "系统无法可靠确认用户意图，拒绝自动执行。",
+            ]
+
+            return build_gateway_result(
+                decision="deny",
+                risk_score=low_confidence_score,
+                reason=low_confidence_reason,
+                user=user,
+                role=role,
+                tool=tool,
+                params=params,
+            )
 
         if confidence < min_auto_confidence:
             risk_score += get_risk_score("low_confidence_confirm", 45)
@@ -106,7 +194,6 @@ def check_tool_call(request: ToolCallRequest):
             )
 
     missing_params = []
-
     for name in required_params.get(tool, []):
         value = str(params.get(name, "")).strip()
         if not value or value == "unknown":
@@ -116,17 +203,18 @@ def check_tool_call(request: ToolCallRequest):
         risk_score += get_risk_score("missing_params", 60)
         reason.append(f"工具调用缺少必要参数：{', '.join(missing_params)}")
 
-        return {
-            "decision": "confirm",
-            "risk_score": risk_score,
-            "reason": reason + [
+        return build_gateway_result(
+            decision="confirm",
+            risk_score=risk_score,
+            reason=reason
+            + [
                 "参数不完整，不能自动执行，需要用户补充信息或人工确认。"
             ],
-            "user": user,
-            "role": role,
-            "normalized_tool": tool,
-            "normalized_params": params,
-        }
+            user=user,
+            role=role,
+            tool=tool,
+            params=params,
+        )
 
     path_lower = path.lower().replace("\\", "/")
     content_lower = content.lower()
@@ -164,15 +252,15 @@ def check_tool_call(request: ToolCallRequest):
                 reason.extend(contract_result.reason)
 
                 if contract_result.decision == "deny":
-                    return {
-                        "decision": "deny",
-                        "risk_score": risk_score,
-                        "reason": reason,
-                        "user": user,
-                        "role": role,
-                        "normalized_tool": tool,
-                        "normalized_params": params,
-                    }
+                    return build_gateway_result(
+                        decision="deny",
+                        risk_score=risk_score,
+                        reason=reason,
+                        user=user,
+                        role=role,
+                        tool=tool,
+                        params=params,
+                    )
 
                 if contract_result.decision == "confirm":
                     capability_force_confirm = True
@@ -187,38 +275,39 @@ def check_tool_call(request: ToolCallRequest):
                 )
 
                 risk_score += contract_result.risk_score
-                reason.append("已启用任务授权合约 v1 检查。")
+                reason.append("已启用任务授权合约检查。")
                 reason.extend(contract_result.reason)
 
                 if contract_result.decision == "deny":
-                    return {
-                        "decision": "deny",
-                        "risk_score": risk_score,
-                        "reason": reason,
-                        "user": user,
-                        "role": role,
-                        "normalized_tool": tool,
-                        "normalized_params": params,
-                    }
+                    return build_gateway_result(
+                        decision="deny",
+                        risk_score=risk_score,
+                        reason=reason,
+                        user=user,
+                        role=role,
+                        tool=tool,
+                        params=params,
+                    )
 
         except Exception as e:
             risk_score += get_risk_score("contract_parse_error", 100)
             reason.append("任务授权合约解析失败，拒绝本次工具调用。")
             reason.append(str(e))
-            return {
-                "decision": "deny",
-                "risk_score": risk_score,
-                "reason": reason,
-                "user": user,
-                "role": role,
-                "normalized_tool": tool,
-                "normalized_params": params,
-            }
 
-    # 1. 工具自身风险判断：从 config/policy.yaml 读取基础风险分
+            return build_gateway_result(
+                decision="deny",
+                risk_score=risk_score,
+                reason=reason,
+                user=user,
+                role=role,
+                tool=tool,
+                params=params,
+            )
+
+    # 1. 工具自身风险判断：
+    # 从 config/policy.yaml 读取基础风险分
     tool_base_risk = get_tool_risk(tool)
     risk_score += tool_base_risk
-
     reason.append(
         TOOL_REASON_MAP.get(
             tool,
@@ -226,9 +315,9 @@ def check_tool_call(request: ToolCallRequest):
         )
     )
 
-    # 2. 文件路径风险判断：从 config/policy.yaml 的 resource_risk 中读取
+    # 2. 文件路径风险判断：
+    # 从 config/policy.yaml 的 resource_risk 中读取
     resource_risk_score, resource_reasons = get_resource_risk(path)
-
     risk_score += resource_risk_score
     reason.extend(resource_reasons)
 
@@ -243,19 +332,17 @@ def check_tool_call(request: ToolCallRequest):
         hard_deny = True
         reason.append("路径疑似绝对路径，存在越权访问风险")
 
-    # 4. 角色权限策略判断：从 config/policy.yaml 的 roles 中读取
+    # 4. 角色权限策略判断：
+    # 从 config/policy.yaml 的 roles 中读取
     policy_decision, policy_reason = match_role_policy(role, tool, path_lower)
 
     if policy_decision == "deny":
         risk_score += get_risk_score("role_deny", 70)
         reason.append(policy_reason)
-
     elif policy_decision == "confirm":
         reason.append(policy_reason)
-
     elif policy_decision == "allow":
         reason.append(policy_reason)
-
     else:
         risk_score += get_risk_score("no_role_policy", 20)
         reason.append(policy_reason)
@@ -268,8 +355,9 @@ def check_tool_call(request: ToolCallRequest):
         if not to or to == "unknown":
             risk_score += get_risk_score("missing_email_to", 20)
             reason.append("邮件接收人为空或无法识别，存在误发风险")
-
-        elif internal_domains and not any(to.lower().endswith(domain) for domain in internal_domains):
+        elif internal_domains and not any(
+            to.lower().endswith(domain) for domain in internal_domains
+        ):
             risk_score += get_risk_score("external_email", 25)
             reason.append("邮件发送目标不是内部可信邮箱，存在数据外发风险")
 
@@ -278,7 +366,8 @@ def check_tool_call(request: ToolCallRequest):
             risk_score += get_risk_score("sensitive_email_content", 30)
             reason.append("邮件内容包含敏感信息关键词")
 
-    # 6. 内容风险判断：从 config/policy.yaml 的 dangerous_keywords 中读取
+    # 6. 内容风险判断：
+    # 从 config/policy.yaml 的 dangerous_keywords 中读取
     prompt_injection_keywords = get_dangerous_keywords("prompt_injection")
     matched_prompt_keywords = match_keywords(content, prompt_injection_keywords)
 
@@ -293,7 +382,8 @@ def check_tool_call(request: ToolCallRequest):
         risk_score += get_risk_score("sensitive_content_keyword", 20)
         reason.append(f"内容包含敏感信息关键词：{word}")
 
-    # 7. 命令风险判断：从 config/policy.yaml 的 dangerous_keywords.command 中读取
+    # 7. 命令风险判断：
+    # 从 config/policy.yaml 的 dangerous_keywords.command 中读取
     dangerous_commands = get_dangerous_keywords("command")
     matched_commands = match_keywords(command, dangerous_commands)
 
@@ -301,7 +391,8 @@ def check_tool_call(request: ToolCallRequest):
         risk_score += get_risk_score("command_keyword", 30)
         reason.append(f"命令中包含高危操作：{cmd}")
 
-    # 8. SQL 风险判断：从 config/policy.yaml 的 dangerous_keywords.sql 中读取
+    # 8. SQL 风险判断：
+    # 从 config/policy.yaml 的 dangerous_keywords.sql 中读取
     dangerous_sql = get_dangerous_keywords("sql")
 
     if tool == "db.query":
@@ -345,20 +436,20 @@ def check_tool_call(request: ToolCallRequest):
     if low_confidence_force_confirm and decision == "allow":
         decision = "confirm"
         reason.append("由于 Agent 计划置信度不足，本次操作不能自动放行，转入人工确认。")
-    
+
     if capability_force_confirm and decision == "allow":
-     decision = "confirm"
-     reason.append("Capability Contract v2 要求本次工具调用进入人工确认。")
+        decision = "confirm"
+        reason.append("Capability Contract v2 要求本次工具调用进入人工确认。")
 
     if not reason:
         reason.append("未发现明显风险")
 
-    return {
-        "decision": decision,
-        "risk_score": risk_score,
-        "reason": reason,
-        "user": user,
-        "role": role,
-        "normalized_tool": tool,
-        "normalized_params": params,
-    }
+    return build_gateway_result(
+        decision=decision,
+        risk_score=risk_score,
+        reason=reason,
+        user=user,
+        role=role,
+        tool=tool,
+        params=params,
+    )
