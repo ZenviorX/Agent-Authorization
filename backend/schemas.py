@@ -9,6 +9,9 @@ class ToolCallRequest(BaseModel):
 
     # Task13：任务授权合约
     task_contract: Optional[Dict[str, Any]] = None
+    input_labels: List[str] = Field(default_factory=list)
+    current_step: int = 1
+    used_risk: int = 0
 
     # Task14：Agent 计划质量信息
     agent_confidence: Optional[float] = None

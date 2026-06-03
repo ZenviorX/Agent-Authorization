@@ -11,6 +11,8 @@ from backend.routes.demo_routes import router as demo_router
 from backend.routes.gateway_routes import router as gateway_router
 from backend.routes.task_routes import router as task_router
 from backend.routes.task_contract_routes import router as task_contract_router
+from backend.routes.capability_routes import router as capability_router
+from backend.routes.runtime_routes import router as runtime_router
 
 app = FastAPI(
     title="AI Agent Auth Gateway",
@@ -42,6 +44,8 @@ app.include_router(approval_router)
 app.include_router(audit_router)
 app.include_router(task_router)
 app.include_router(task_contract_router)
+app.include_router(capability_router)
+app.include_router(runtime_router)
 
 @app.get("/")
 def index():

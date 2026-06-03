@@ -1,0 +1,62 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List, Literal
+
+from pydantic import BaseModel, Field
+
+from backend.capability.capability_contract import CapabilityContract
+
+
+Decision = Literal["allow", "confirm", "deny"]
+
+
+class RuntimeStepRecord(BaseModel):
+    """
+    任务运行时的单步记录。
+
+    它记录的是：
+    某一步调用了什么工具、传入了什么参数、输入标签是什么、
+    最终决策是什么、产生了多少风险、输出标签是什么。
+    """
+
+    step_index: int = Field(..., description="当前步骤编号")
+    tool: str = Field(..., description="调用的工具名称")
+    params: Dict[str, Any] = Field(default_factory=dict, description="工具调用参数")
+
+    input_labels: List[str] = Field(default_factory=list, description="输入数据标签")
+    output_labels: List[str] = Field(default_factory=list, description="输出数据标签")
+
+    decision: Decision = Field(..., description="allow / confirm / deny")
+    risk_score: int = Field(default=0, description="本步骤风险分")
+    reason: List[str] = Field(default_factory=list, description="决策原因")
+
+    executed: bool = Field(default=False, description="该步骤是否被执行")
+    blocked: bool = Field(default=False, description="该步骤是否被阻断")
+
+
+class RuntimeTaskState(BaseModel):
+    """
+    任务级运行时状态。
+
+    它不是判断一次工具调用，而是记录整个任务执行过程。
+    后续 Taint Graph、Audit Graph、风险预算、步骤限制都会基于它实现。
+    """
+
+    task_id: str = Field(..., description="任务编号")
+    user: str = Field(..., description="任务发起用户")
+    original_task: str = Field(..., description="用户原始任务")
+
+    contract: CapabilityContract = Field(..., description="该任务绑定的 Capability Contract v2")
+
+    current_step: int = Field(default=0, description="当前已经执行到第几步")
+    used_risk: int = Field(default=0, description="当前已经消耗的风险预算")
+
+    steps: List[RuntimeStepRecord] = Field(default_factory=list, description="任务步骤记录")
+
+    data_labels_by_step: Dict[int, List[str]] = Field(
+        default_factory=dict,
+        description="每一步输出的数据标签"
+    )
+
+    violations: List[str] = Field(default_factory=list, description="任务中发生的违规原因")
+    is_blocked: bool = Field(default=False, description="任务是否已经被阻断")

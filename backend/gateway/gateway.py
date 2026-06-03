@@ -22,6 +22,8 @@ from backend.utils import (
 )
 from backend.task_contract.contract_models import TaskAuthContract
 from backend.task_contract.contract_enforcer import check_call_against_contract
+from backend.capability.capability_contract import CapabilityContract
+from backend.capability.capability_enforcer import enforce_capability_contract
 
 
 TOOL_REASON_MAP = {
@@ -75,6 +77,7 @@ def check_tool_call(request: ToolCallRequest):
         }
 
     low_confidence_force_confirm = False
+    capability_force_confirm = False
 
     if request.agent_confidence is not None:
         confidence = float(request.agent_confidence)
@@ -130,36 +133,78 @@ def check_tool_call(request: ToolCallRequest):
     command_lower = command.lower()
     sql_lower = sql.lower()
 
-    # 0. 任务授权合约检查：如果请求中携带 task_contract，则先判断本次工具调用是否偏离任务目标
+    # 0. 任务授权合约检查：
+    # 如果请求携带 task_contract，则先判断本次工具调用是否偏离任务目标。
+    # 支持两种合约：
+    # - v1 TaskAuthContract
+    # - v2 CapabilityContract
     if request.task_contract is not None:
         try:
-            task_contract = TaskAuthContract(**request.task_contract)
-            contract_result = check_call_against_contract(
-                contract=task_contract,
-                tool=tool,
-                params=params,
+            contract_data = request.task_contract
+
+            is_capability_v2 = (
+                contract_data.get("contract_version") == "2.0"
+                or "capabilities" in contract_data
             )
 
-            risk_score += contract_result.risk_score
+            if is_capability_v2:
+                capability_contract = CapabilityContract(**contract_data)
 
-            reason.append("已启用任务授权合约检查。")
-            reason.extend(contract_result.reason)
+                contract_result = enforce_capability_contract(
+                    contract=capability_contract,
+                    tool=tool,
+                    params=params,
+                    input_labels=request.input_labels,
+                    current_step=request.current_step,
+                    used_risk=request.used_risk,
+                )
 
-            if contract_result.decision == "deny":
-                return {
-                    "decision": "deny",
-                    "risk_score": risk_score,
-                    "reason": reason,
-                    "user": user,
-                    "role": role,
-                    "normalized_tool": tool,
-                    "normalized_params": params,
-                }
+                risk_score += contract_result.risk_score
+                reason.append("已启用 Capability Contract v2 检查。")
+                reason.extend(contract_result.reason)
+
+                if contract_result.decision == "deny":
+                    return {
+                        "decision": "deny",
+                        "risk_score": risk_score,
+                        "reason": reason,
+                        "user": user,
+                        "role": role,
+                        "normalized_tool": tool,
+                        "normalized_params": params,
+                    }
+
+                if contract_result.decision == "confirm":
+                    capability_force_confirm = True
+
+            else:
+                task_contract = TaskAuthContract(**contract_data)
+
+                contract_result = check_call_against_contract(
+                    contract=task_contract,
+                    tool=tool,
+                    params=params,
+                )
+
+                risk_score += contract_result.risk_score
+                reason.append("已启用任务授权合约 v1 检查。")
+                reason.extend(contract_result.reason)
+
+                if contract_result.decision == "deny":
+                    return {
+                        "decision": "deny",
+                        "risk_score": risk_score,
+                        "reason": reason,
+                        "user": user,
+                        "role": role,
+                        "normalized_tool": tool,
+                        "normalized_params": params,
+                    }
+
         except Exception as e:
             risk_score += get_risk_score("contract_parse_error", 100)
             reason.append("任务授权合约解析失败，拒绝本次工具调用。")
             reason.append(str(e))
-
             return {
                 "decision": "deny",
                 "risk_score": risk_score,
@@ -300,6 +345,10 @@ def check_tool_call(request: ToolCallRequest):
     if low_confidence_force_confirm and decision == "allow":
         decision = "confirm"
         reason.append("由于 Agent 计划置信度不足，本次操作不能自动放行，转入人工确认。")
+    
+    if capability_force_confirm and decision == "allow":
+     decision = "confirm"
+     reason.append("Capability Contract v2 要求本次工具调用进入人工确认。")
 
     if not reason:
         reason.append("未发现明显风险")
