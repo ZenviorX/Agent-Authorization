@@ -39,3 +39,18 @@ def attack_chain_report():
     返回多步攻击链演示 Markdown 报告。
     """
     return read_report_file("attack_chain_demo_report.md")
+
+@router.get("/reports/attack-chain-benchmark")
+def attack_chain_benchmark_report():
+    """
+    返回多步攻击链批量评测 Markdown 报告。
+    """
+    return read_report_file("attack_chain_benchmark_report.md")
+
+@router.get("/reports/comparison-benchmark")
+def comparison_benchmark_report():
+    """
+    返回安全对比实验 Markdown 报告。
+    """
+    return read_report_file("comparison_benchmark_report.md")
+

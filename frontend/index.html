@@ -482,9 +482,40 @@
             }
         }
     </style>
+
+<style id="security-dashboard-link-style">
+  .security-dashboard-link {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 9999;
+    display: inline-block;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: #1e293b;
+    color: #ffffff;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1px solid #475569;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  }
+
+  .security-dashboard-link:hover {
+    background: #334155;
+    color: #ffffff;
+  }
+</style>
+
 </head>
 
 <body>
+
+<a class="security-dashboard-link" href="/security-dashboard" target="_blank">
+  安全总览
+</a>
+
+
 <div class="shell">
     <header class="hero">
         <div class="brand">
