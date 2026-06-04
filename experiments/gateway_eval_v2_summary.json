@@ -2,7 +2,7 @@
   "total_cases": 70,
   "passed_cases": 70,
   "accuracy": 1.0,
-  "avg_latency_ms": 0.1134885716185506,
+  "avg_latency_ms": 0.12011714300440092,
   "source_file_distribution": {
     "gateway_cases.json": 30,
     "gateway_cases_v2.json": 10,
