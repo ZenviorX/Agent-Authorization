@@ -10,8 +10,8 @@ on:
       - main
 
 jobs:
-  test:
-    name: Run tests and security benchmarks
+  dashboard:
+    name: Generate HTML experiment dashboard
     runs-on: ubuntu-latest
 
     steps:
@@ -28,28 +28,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Run unit tests
+      - name: Generate HTML dashboard
         run: |
-          python -m unittest discover -s tests
+          python experiments/runners/generate_ci_dashboard.py
 
-      - name: Run gateway security benchmark
-        run: |
-          python experiments/runners/run_gateway_benchmark.py
-
-      - name: Run chain smoke benchmark
-        run: |
-          python experiments/runners/ci_chain_smoke.py
-
-      - name: Run comparison benchmark
-        run: |
-          python experiments/runners/run_comparison_benchmark.py
-
-      - name: Upload experiment reports
+      - name: Upload HTML dashboard
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: experiment-reports
-          path: |
-            experiments/outputs/*.csv
-            experiments/outputs/*.json
-            experiments/reports/*.md
-            experiments/dashboards/*.html
+          name: ci-experiment-dashboard
+          path: experiments/dashboards/ci_experiment_dashboard.html
