@@ -148,6 +148,21 @@ def open_pages():
     webbrowser.open(DOCS_URL)
 
 
+def print_existing_backend_warning():
+    print()
+    print("WARNING: Backend is already running on this port.")
+    print("The startup script will not replace an existing backend process.")
+    print("If you pulled new code but the old backend is still running,")
+    print("the browser may still show stale frontend content, such as old user options.")
+    print()
+    print("Recommended fix:")
+    print("1. Close the old terminal window running uvicorn/start_project.py")
+    print("2. Or press Ctrl + C in that terminal")
+    print("3. Run this startup script again")
+    print("4. Press Ctrl + F5 in the browser")
+    print()
+
+
 def start_backend():
     print("Starting backend service...")
 
@@ -212,6 +227,7 @@ def main():
     install_requirements_if_needed()
 
     if is_backend_ready():
+        print_existing_backend_warning()
         print(f"Backend already running: {BASE_URL}")
         open_pages()
         print()
