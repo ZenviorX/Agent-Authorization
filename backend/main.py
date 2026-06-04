@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from backend.routes.agent_routes import router as agent_router
 from backend.routes.approval_routes import router as approval_router
@@ -28,6 +28,39 @@ FRONTEND_INDEX = BASE_DIR / "frontend" / "index.html"
 FRONTEND_TASK_CHAIN = BASE_DIR / "frontend" / "task_chain.html"
 FRONTEND_SECURITY_DASHBOARD = BASE_DIR / "frontend" / "security_dashboard.html"
 FRONTEND_ATTACK_CHAIN_RUNTIME = BASE_DIR / "frontend" / "attack_chain_runtime.html"
+
+IDENTITY_OPTIONS_HTML = """<option value=\"user\">user</option>\n                            <option value=\"admin\">admin</option>"""
+TASK_CHAIN_IDENTITY_OPTIONS_HTML = """<option value=\"user\">user</option><option value=\"admin\">admin</option>"""
+
+
+def _normalize_identity_options(html: str) -> str:
+    """
+    统一前端身份下拉框，只保留普通用户 user 和管理员 admin。
+    这样页面展示与 config/policy.yaml 中的身份策略保持一致。
+    """
+    replacements = {
+        """<option value=\"alice\">alice</option>\n                            <option value=\"student\">student</option>\n                            <option value=\"guest\">guest</option>\n                            <option value=\"admin\">admin</option>""": IDENTITY_OPTIONS_HTML,
+        """<option value=\"student\">student</option><option value=\"teacher\">teacher</option><option value=\"admin\">admin</option><option value=\"guest\">guest</option>""": TASK_CHAIN_IDENTITY_OPTIONS_HTML,
+        "teacher@sdu.edu.cn": "admin@sdu.edu.cn",
+    }
+
+    for old, new in replacements.items():
+        html = html.replace(old, new)
+
+    return html
+
+
+def _serve_frontend_html(path: Path, missing_message: str):
+    if path.exists():
+        html = path.read_text(encoding="utf-8")
+        html = _normalize_identity_options(html)
+        return HTMLResponse(content=html)
+
+    return {
+        "message": missing_message,
+        "expected_path": str(path),
+    }
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,25 +88,21 @@ app.include_router(runtime_router)
 app.include_router(attack_chain_router)
 app.include_router(security_overview_router)
 
+
 @app.get("/")
 def index():
-    if FRONTEND_INDEX.exists():
-        return FileResponse(FRONTEND_INDEX)
+    return _serve_frontend_html(
+        FRONTEND_INDEX,
+        "Frontend file is missing",
+    )
 
-    return {
-        "message": "Frontend file is missing",
-        "expected_path": str(FRONTEND_INDEX),
-    }
 
 @app.get("/task-chain")
 def task_chain_page():
-    if FRONTEND_TASK_CHAIN.exists():
-        return FileResponse(FRONTEND_TASK_CHAIN)
-    return {
-        "message": "Task chain frontend file is missing",
-        "expected_path": str(FRONTEND_TASK_CHAIN),
-    }
-
+    return _serve_frontend_html(
+        FRONTEND_TASK_CHAIN,
+        "Task chain frontend file is missing",
+    )
 
 
 @app.get("/attack-chain-runtime")
@@ -103,6 +132,3 @@ def api_status():
         "version": "0.4.0",
         "architecture": "Agent -> Gateway -> ToolExecutor",
     }
-
-
-
