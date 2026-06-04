@@ -18,7 +18,7 @@ from backend.schemas import ToolCallRequest
 
 
 CASE_DIR = PROJECT_ROOT / "security_cases"
-OUT_HTML = PROJECT_ROOT / "experiments" / "dashboards" / "ci_experiment_dashboard.html"
+OUT_HTML = PROJECT_ROOT / "tests" / "artifacts" / "ci_experiment_dashboard.html"
 
 
 def safe(value: Any) -> str:

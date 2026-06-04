@@ -1,11 +1,11 @@
-﻿import json
+import json
 import unittest
 from pathlib import Path
 
 from backend.attack_chain import AttackChainDetector
 
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 CASE_FILE = ROOT_DIR / "security_cases" / "attack_chain_cases.json"
 
 

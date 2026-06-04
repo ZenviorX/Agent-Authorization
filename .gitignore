@@ -29,12 +29,12 @@ logs/
 data/secret/
 
 # Generated experiment artifacts
-experiments/outputs/
-experiments/reports/
-experiments/dashboards/
 
 # OS/editor files
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# Generated test dashboard artifacts
+tests/artifacts/
