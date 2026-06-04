@@ -18,7 +18,19 @@ from backend.schemas import ToolCallRequest
 
 
 CASE_DIR = PROJECT_ROOT / "security_cases"
-OUT_HTML = PROJECT_ROOT / "tests" / "artifacts" / "ci_experiment_dashboard.html"
+RESULTS_DIR = PROJECT_ROOT / "Results"
+
+
+def get_next_result_path() -> Path:
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    max_index = 0
+    for path in RESULTS_DIR.glob("Result_*.html"):
+        suffix = path.stem.replace("Result_", "", 1)
+        if suffix.isdigit():
+            max_index = max(max_index, int(suffix))
+
+    return RESULTS_DIR / f"Result_{max_index + 1:03d}.html"
 
 
 def safe(value: Any) -> str:
@@ -284,7 +296,7 @@ def build_html(summary: Dict[str, Any], rows: List[Dict[str, Any]], tests: Dict[
   <header>
     <h1>CI 实验结果仪表盘 <span class="status {status_class}">{status_text}</span></h1>
     <p>分支：{safe(ref)}　Commit：{safe(sha)}　Run ID：{safe(run_id)}</p>
-    <p>workflow 只负责生成并上传本 HTML；实验失败不会再让 Actions 标红。</p>
+    <p>本 HTML 会按 Result_001、Result_002 的顺序保存在仓库根目录 Results 文件夹中。</p>
   </header>
   <main>
     <div class="cards">{metric_cards(summary, tests)}</div>
@@ -319,9 +331,9 @@ def main() -> int:
     except Exception as exc:
         error = repr(exc)
 
-    OUT_HTML.parent.mkdir(parents=True, exist_ok=True)
-    OUT_HTML.write_text(build_html(summary, rows, tests, error), encoding="utf-8")
-    print(f"HTML dashboard: {OUT_HTML}")
+    out_html = get_next_result_path()
+    out_html.write_text(build_html(summary, rows, tests, error), encoding="utf-8")
+    print(f"HTML dashboard: {out_html}")
 
     if error:
         print(f"Dashboard captured runtime error: {error}")
