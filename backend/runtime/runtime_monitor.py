@@ -6,6 +6,8 @@ from backend.capability.capability_contract import CapabilityContract, Capabilit
 from backend.capability.capability_enforcer import enforce_capability_contract
 from backend.runtime.task_state import RuntimeStepRecord, RuntimeTaskState
 from backend.runtime.flow_label import analyze_output_labels
+from backend.attack_chain.attack_chain_detector import AttackChainDetector
+from backend.attack_chain.attack_chain_detector import AttackChainDetector
 
 
 def create_runtime_state(contract: CapabilityContract) -> RuntimeTaskState:
@@ -71,7 +73,57 @@ def _infer_output_labels(
             return list(capability.output_labels)
 
     return []
+def _build_attack_chain_detector(state: RuntimeTaskState) -> AttackChainDetector:
+    """
+    根据当前 RuntimeTaskState 中已经执行过的步骤，
+    重新构造攻击链检测器的历史状态。
+    """
+    detector = AttackChainDetector(session_id=state.task_id)
 
+    for step in state.steps:
+        chain_params = dict(step.params or {})
+
+        labels = set(step.input_labels or []) | set(step.output_labels or [])
+
+        # 如果历史步骤的标签里已经有 prompt_injection，
+        # 就补一个内容标记，方便攻击链检测器恢复状态。
+        if "prompt_injection" in labels and not chain_params.get("content"):
+            chain_params["content"] = "ignore previous instructions"
+
+        detector.add_event(
+            tool=step.tool,
+            params=chain_params,
+            gateway_result={
+                "decision": step.decision,
+                "risk_score": step.risk_score,
+            },
+        )
+
+    return detector
+
+def _merge_task_decision(
+    current_decision: str,
+    new_decision: str,
+) -> str:
+    """
+    合并任务级整体决策，保证任务状态不会被后续低风险步骤降级。
+
+    优先级：
+    deny > confirm > allow
+    """
+    priority = {
+        "allow": 0,
+        "confirm": 1,
+        "deny": 2,
+    }
+
+    current_level = priority.get(current_decision, 0)
+    new_level = priority.get(new_decision, 0)
+
+    if new_level >= current_level:
+        return new_decision
+
+    return current_decision
 
 def run_runtime_step(
     state: RuntimeTaskState,
@@ -124,38 +176,128 @@ def run_runtime_step(
       resource=resource,
 )
 
+    chain_detector = _build_attack_chain_detector(state)
+
+    chain_params = dict(params or {})
+    if output_content:
+        chain_params["content"] = output_content
+
+    chain_state = chain_detector.add_event(
+        tool=tool,
+        params=chain_params,
+        gateway_result={
+            "decision": result.decision,
+            "risk_score": result.risk_score,
+        },
+    )
+
+    state.attack_chain_state = chain_state
+
+    chain_events = chain_state.get("events", [])
+    current_chain_event = chain_events[-1] if chain_events else {}
+
+    chain_decision = chain_state.get("final_decision", result.decision)
+    chain_risk_delta = int(current_chain_event.get("risk_delta", 0) or 0)
+    chain_reason = current_chain_event.get("reason", [])
+
+    final_decision = result.decision
+    final_risk_score = result.risk_score
+    final_reason = list(result.reason or [])
+
+    if chain_reason:
+        final_reason.append("Attack chain detector:")
+        final_reason.extend(chain_reason)
+
+    dangerous_tools = {
+        "email.send",
+        "file.write",
+        "file.delete",
+        "shell.run",
+        "code.exec",
+        "db.query",
+        "http.post",
+    }
+
+    dangerous_chain_stages = {
+        "sensitive_resource_access",
+        "prompt_to_sensitive_access_chain",
+        "data_exfiltration_chain",
+        "prompt_to_command_execution_chain",
+        "high_risk_command",
+        "external_output",
+    }
+
+    current_chain_stage = current_chain_event.get("stage")
+
+    if chain_decision == "deny":
+        final_decision = "deny"
+        final_risk_score += chain_risk_delta
+
+    elif chain_decision == "confirm" and final_decision == "allow":
+        if tool in dangerous_tools or current_chain_stage in dangerous_chain_stages:
+            final_decision = "confirm"
+            final_risk_score += chain_risk_delta
+        else:
+            final_reason.append(
+                "Attack chain risk observed, but current step is read-only; "
+                "the step is allowed and tainted labels will be propagated."
+            )
+
+    elif chain_risk_delta > 0 and (
+        tool in dangerous_tools or current_chain_stage in dangerous_chain_stages
+    ):
+        final_risk_score += chain_risk_delta
+    state.final_decision = _merge_task_decision(
+        state.final_decision,
+        final_decision,
+    )
+
+    if final_decision == "confirm" and next_step not in state.pending_confirm_steps:
+        state.pending_confirm_steps.append(next_step)
+
+    final_result = CapabilityCheckResult(
+        decision=final_decision,
+        risk_score=final_risk_score,
+        reason=final_reason,
+    )
+
     step_record = RuntimeStepRecord(
         step_index=next_step,
         tool=tool,
         params=params,
         input_labels=input_labels,
         output_labels=output_labels,
-        decision=result.decision,
-        risk_score=result.risk_score,
-        reason=result.reason,
-        executed=(result.decision == "allow"),
-        blocked=(result.decision == "deny"),
+        decision=final_result.decision,
+        risk_score=final_result.risk_score,
+        reason=final_result.reason,
+        executed=(final_result.decision == "allow"),
+        blocked=(final_result.decision == "deny"),
+        requires_confirmation=(final_result.decision == "confirm"),
+        confirmed=False,
+        confirmation_status=(
+            "pending" if final_result.decision == "confirm" else "none"
+        ),
     )
 
     state.steps.append(step_record)
 
-    if result.decision == "allow":
+    if final_result.decision == "allow":
         state.current_step = next_step
-        state.used_risk += result.risk_score
+        state.used_risk += final_result.risk_score
         state.data_labels_by_step[next_step] = output_labels
 
-    elif result.decision == "confirm":
+    elif final_result.decision == "confirm":
         state.current_step = next_step
-        state.used_risk += result.risk_score
+        state.used_risk += final_result.risk_score
         state.violations.append(
             f"Step {next_step} requires human confirmation: {tool}"
         )
 
-    elif result.decision == "deny":
+    elif final_result.decision == "deny":
         state.is_blocked = True
-        state.violations.extend(result.reason)
+        state.violations.extend(final_result.reason)
 
-    return result
+    return final_result
 
 
 def get_step_output_labels(
@@ -170,3 +312,76 @@ def get_step_output_labels(
     """
 
     return state.data_labels_by_step.get(step_index, [])
+
+def approve_runtime_step(
+    state: RuntimeTaskState,
+    step_index: int,
+) -> bool:
+    """
+    批准一个等待人工确认的运行时步骤。
+
+    返回 True 表示批准成功；
+    返回 False 表示没有找到对应的待确认步骤。
+    """
+    for step in state.steps:
+        if step.step_index != step_index:
+            continue
+
+        if not step.requires_confirmation:
+            return False
+
+        step.confirmed = True
+        step.confirmation_status = "approved"
+        step.executed = True
+        step.blocked = False
+
+        state.data_labels_by_step[step_index] = step.output_labels
+
+        if step_index in state.pending_confirm_steps:
+            state.pending_confirm_steps.remove(step_index)
+        if (
+            not state.pending_confirm_steps
+            and state.final_decision == "confirm"
+            and not state.is_blocked
+        ):
+            state.final_decision = "allow"
+
+        return True
+
+    return False
+
+def reject_runtime_step(
+    state: RuntimeTaskState,
+    step_index: int,
+) -> bool:
+    """
+    拒绝一个等待人工确认的运行时步骤。
+
+    返回 True 表示拒绝成功；
+    返回 False 表示没有找到对应的待确认步骤。
+    """
+    for step in state.steps:
+        if step.step_index != step_index:
+            continue
+
+        if not step.requires_confirmation:
+            return False
+
+        step.confirmed = False
+        step.confirmation_status = "rejected"
+        step.executed = False
+        step.blocked = True
+        step.decision = "deny"
+
+        if step_index in state.pending_confirm_steps:
+            state.pending_confirm_steps.remove(step_index)
+
+        state.is_blocked = True
+        state.final_decision = "deny"
+        state.violations.append(
+            f"Step {step_index} was rejected by human reviewer."
+        )
+
+        return True
+
+    return False

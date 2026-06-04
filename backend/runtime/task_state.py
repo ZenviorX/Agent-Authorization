@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -32,6 +32,20 @@ class RuntimeStepRecord(BaseModel):
 
     executed: bool = Field(default=False, description="该步骤是否被执行")
     blocked: bool = Field(default=False, description="该步骤是否被阻断")
+    requires_confirmation: bool = Field(
+        default=False,
+        description="该步骤是否需要人工确认"
+    )
+
+    confirmed: bool = Field(
+        default=False,
+        description="该步骤是否已经被人工确认"
+    )
+
+    confirmation_status: Literal["none", "pending", "approved", "rejected"] = Field(
+        default="none",
+        description="人工确认状态"
+    )
 
 
 class RuntimeTaskState(BaseModel):
@@ -60,3 +74,16 @@ class RuntimeTaskState(BaseModel):
 
     violations: List[str] = Field(default_factory=list, description="任务中发生的违规原因")
     is_blocked: bool = Field(default=False, description="任务是否已经被阻断")
+    final_decision: Decision = Field(
+    default="allow",
+    description="当前任务的整体最终决策：allow / confirm / deny")
+
+    attack_chain_state: Optional[Dict[str, Any]] = Field(
+    default=None,
+    description="攻击链检测器的状态快照"
+)
+
+    pending_confirm_steps: List[int] = Field(
+    default_factory=list,
+    description="需要人工确认的步骤编号"
+)
