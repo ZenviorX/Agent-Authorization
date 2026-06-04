@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from backend.capability.capability_contract import CapabilityContract, CapabilityCheckResult
+from backend.attack_chain.attack_chain_detector import AttackChainDetector
+from backend.capability.capability_contract import CapabilityCheckResult, CapabilityContract
 from backend.capability.capability_enforcer import enforce_capability_contract
-from backend.runtime.task_state import RuntimeStepRecord, RuntimeTaskState
 from backend.runtime.flow_label import analyze_output_labels
-from backend.attack_chain.attack_chain_detector import AttackChainDetector
-from backend.attack_chain.attack_chain_detector import AttackChainDetector
+from backend.runtime.task_state import RuntimeStepRecord, RuntimeTaskState
 
 
 def create_runtime_state(contract: CapabilityContract) -> RuntimeTaskState:
@@ -35,9 +34,10 @@ def _infer_output_labels(
     """
     根据合约能力规则和实际输出内容推断输出标签。
 
-    - allow 的步骤才会产生输出；
-    - 先读取合约中该工具的基础 output_labels；
-    - 再根据实际输出内容做 taint / sensitive 分析。
+    注意：
+    - 只有 allow 的步骤才认为真正产生输出；
+    - confirm 表示等待人工确认，暂时不产生输出；
+    - deny 表示被阻断，也不产生输出。
     """
 
     if decision != "allow":
@@ -55,34 +55,18 @@ def _infer_output_labels(
         base_labels=base_labels,
         resource=resource,
     )
-    
-    """
-    根据合约中的能力规则推断该工具调用可能产生的输出标签。
 
-    注意：
-    - 只有 allow 的步骤才认为真正产生输出。
-    - confirm 表示等待人工确认，暂时不产生输出。
-    - deny 表示被阻断，也不产生输出。
-    """
 
-    if decision != "allow":
-        return []
-
-    for capability in contract.capabilities:
-        if capability.tool == tool:
-            return list(capability.output_labels)
-
-    return []
 def _build_attack_chain_detector(state: RuntimeTaskState) -> AttackChainDetector:
     """
     根据当前 RuntimeTaskState 中已经执行过的步骤，
     重新构造攻击链检测器的历史状态。
     """
+
     detector = AttackChainDetector(session_id=state.task_id)
 
     for step in state.steps:
         chain_params = dict(step.params or {})
-
         labels = set(step.input_labels or []) | set(step.output_labels or [])
 
         # 如果历史步骤的标签里已经有 prompt_injection，
@@ -101,6 +85,7 @@ def _build_attack_chain_detector(state: RuntimeTaskState) -> AttackChainDetector
 
     return detector
 
+
 def _merge_task_decision(
     current_decision: str,
     new_decision: str,
@@ -111,6 +96,7 @@ def _merge_task_decision(
     优先级：
     deny > confirm > allow
     """
+
     priority = {
         "allow": 0,
         "confirm": 1,
@@ -124,6 +110,71 @@ def _merge_task_decision(
         return new_decision
 
     return current_decision
+
+
+def _has_tainted_or_sensitive_input(input_labels: Optional[List[str]]) -> bool:
+    """
+    判断当前步骤输入是否携带污染或敏感标签。
+    """
+
+    risky_labels = {
+        "tainted",
+        "prompt_injection",
+        "sensitive",
+        "secret",
+        "credential",
+    }
+
+    return bool(set(input_labels or []) & risky_labels)
+
+
+def _should_apply_chain_risk(
+    tool: str,
+    current_chain_stage: Optional[str],
+    input_labels: Optional[List[str]],
+    chain_risk_delta: int,
+) -> bool:
+    """
+    判断攻击链检测器产生的风险是否应该真正叠加到本步骤最终风险分。
+
+    这里不能把所有 external_output 都直接叠加。
+    原因是 email.send 本身已经由 Capability Enforcer 计算过基础外发风险，
+    如果再把普通 external_output 重复加一次，就会导致风险预算被重复扣除。
+
+    只有以下情况才叠加攻击链风险：
+    1. 当前阶段已经进入敏感访问、注入到敏感访问、数据外发链等明确攻击链；
+    2. 当前危险工具正在处理 tainted / sensitive / secret 等风险标签数据。
+    """
+
+    if chain_risk_delta <= 0:
+        return False
+
+    dangerous_tools = {
+        "email.send",
+        "file.write",
+        "file.delete",
+        "shell.run",
+        "code.exec",
+        "db.query",
+        "http.post",
+    }
+
+    blocking_chain_stages = {
+        "sensitive_resource_access",
+        "prompt_to_sensitive_access_chain",
+        "data_exfiltration_chain",
+        "prompt_to_command_execution_chain",
+        "high_risk_command",
+    }
+
+    if current_chain_stage in blocking_chain_stages:
+        return True
+
+    if tool in dangerous_tools and _has_tainted_or_sensitive_input(input_labels):
+        return True
+
+    return False
+
 
 def run_runtime_step(
     state: RuntimeTaskState,
@@ -142,6 +193,7 @@ def run_runtime_step(
     """
 
     input_labels = input_labels or []
+
     if state.is_blocked:
         return CapabilityCheckResult(
             decision="deny",
@@ -149,7 +201,7 @@ def run_runtime_step(
             reason=[
                 "Runtime task is already blocked; no further tool calls are allowed."
             ],
-        )   
+        )
 
     next_step = state.current_step + 1
 
@@ -163,22 +215,24 @@ def run_runtime_step(
     )
 
     resource = None
+
     for key in ["path", "file_path", "resource", "filename"]:
-       if params.get(key):
-          resource = str(params.get(key))
-          break
+        if params.get(key):
+            resource = str(params.get(key))
+            break
 
     output_labels = _infer_output_labels(
-      contract=state.contract,
-      tool=tool,
-      decision=result.decision,
-      output_content=output_content,
-      resource=resource,
-)
+        contract=state.contract,
+        tool=tool,
+        decision=result.decision,
+        output_content=output_content,
+        resource=resource,
+    )
 
     chain_detector = _build_attack_chain_detector(state)
 
     chain_params = dict(params or {})
+
     if output_content:
         chain_params["content"] = output_content
 
@@ -199,6 +253,7 @@ def run_runtime_step(
     chain_decision = chain_state.get("final_decision", result.decision)
     chain_risk_delta = int(current_chain_event.get("risk_delta", 0) or 0)
     chain_reason = current_chain_event.get("reason", [])
+    current_chain_stage = current_chain_event.get("stage")
 
     final_decision = result.decision
     final_risk_score = result.risk_score
@@ -208,45 +263,32 @@ def run_runtime_step(
         final_reason.append("Attack chain detector:")
         final_reason.extend(chain_reason)
 
-    dangerous_tools = {
-        "email.send",
-        "file.write",
-        "file.delete",
-        "shell.run",
-        "code.exec",
-        "db.query",
-        "http.post",
-    }
-
-    dangerous_chain_stages = {
-        "sensitive_resource_access",
-        "prompt_to_sensitive_access_chain",
-        "data_exfiltration_chain",
-        "prompt_to_command_execution_chain",
-        "high_risk_command",
-        "external_output",
-    }
-
-    current_chain_stage = current_chain_event.get("stage")
+    should_apply_chain_risk = _should_apply_chain_risk(
+        tool=tool,
+        current_chain_stage=current_chain_stage,
+        input_labels=input_labels,
+        chain_risk_delta=chain_risk_delta,
+    )
 
     if chain_decision == "deny":
         final_decision = "deny"
-        final_risk_score += chain_risk_delta
+
+        if should_apply_chain_risk:
+            final_risk_score += chain_risk_delta
 
     elif chain_decision == "confirm" and final_decision == "allow":
-        if tool in dangerous_tools or current_chain_stage in dangerous_chain_stages:
+        if should_apply_chain_risk:
             final_decision = "confirm"
             final_risk_score += chain_risk_delta
         else:
             final_reason.append(
-                "Attack chain risk observed, but current step is read-only; "
-                "the step is allowed and tainted labels will be propagated."
+                "Attack chain risk observed, but current step does not carry "
+                "tainted or sensitive data, so the base authorization decision is kept."
             )
 
-    elif chain_risk_delta > 0 and (
-        tool in dangerous_tools or current_chain_stage in dangerous_chain_stages
-    ):
+    elif should_apply_chain_risk:
         final_risk_score += chain_risk_delta
+
     state.final_decision = _merge_task_decision(
         state.final_decision,
         final_decision,
@@ -313,6 +355,7 @@ def get_step_output_labels(
 
     return state.data_labels_by_step.get(step_index, [])
 
+
 def approve_runtime_step(
     state: RuntimeTaskState,
     step_index: int,
@@ -323,6 +366,7 @@ def approve_runtime_step(
     返回 True 表示批准成功；
     返回 False 表示没有找到对应的待确认步骤。
     """
+
     for step in state.steps:
         if step.step_index != step_index:
             continue
@@ -339,6 +383,7 @@ def approve_runtime_step(
 
         if step_index in state.pending_confirm_steps:
             state.pending_confirm_steps.remove(step_index)
+
         if (
             not state.pending_confirm_steps
             and state.final_decision == "confirm"
@@ -350,6 +395,7 @@ def approve_runtime_step(
 
     return False
 
+
 def reject_runtime_step(
     state: RuntimeTaskState,
     step_index: int,
@@ -360,6 +406,7 @@ def reject_runtime_step(
     返回 True 表示拒绝成功；
     返回 False 表示没有找到对应的待确认步骤。
     """
+
     for step in state.steps:
         if step.step_index != step_index:
             continue

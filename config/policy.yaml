@@ -5,8 +5,8 @@ version: "2.1"
 
 # 用户与角色映射
 # 当前系统只保留两个身份：
-#   user  ：普通用户，权限受限
-#   admin ：管理员，高风险操作仍需确认
+# user  ：普通用户，权限受限
+# admin ：管理员，高风险操作仍需确认
 users:
   user: user
   admin: admin
@@ -191,6 +191,8 @@ roles:
         resource: "*"
       - tool: file.write
         resource: public/*
+      - tool: file.delete
+        resource: public/*
 
     deny:
       - tool: "*"
@@ -198,7 +200,7 @@ roles:
       - tool: "*"
         resource: private/*
       - tool: file.delete
-        resource: "*"
+        resource: course/*
       - tool: shell.run
         resource: "*"
 
