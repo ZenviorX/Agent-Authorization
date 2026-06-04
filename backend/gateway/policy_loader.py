@@ -39,11 +39,11 @@ def clear_policy_cache():
 def get_user_role(user: str) -> str:
     """
     根据用户名获取角色。
-    如果用户没有配置，默认按 student 处理。
+    如果用户没有配置，默认按普通 user 处理。
     """
     policy = load_policy()
     users = policy.get("users", {})
-    return users.get(user, "student")
+    return users.get(user, "user")
 
 
 def get_supported_tools() -> list[str]:
@@ -123,11 +123,11 @@ def get_decision_threshold() -> Dict[str, int]:
 def get_role_policy(role: str) -> Dict[str, Any]:
     """
     获取指定角色的权限策略。
-    如果角色不存在，默认使用 student 策略。
+    如果角色不存在，默认使用普通 user 策略。
     """
     policy = load_policy()
     roles = policy.get("roles", {})
-    return roles.get(role, roles.get("student", {}))
+    return roles.get(role, roles.get("user", {}))
 
 
 def _match_tool(rule_tool: str, tool: str) -> bool:
