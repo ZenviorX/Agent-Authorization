@@ -1,4 +1,5 @@
 ﻿from pathlib import Path
+import re
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,22 +31,26 @@ FRONTEND_SECURITY_DASHBOARD = BASE_DIR / "frontend" / "security_dashboard.html"
 FRONTEND_ATTACK_CHAIN_RUNTIME = BASE_DIR / "frontend" / "attack_chain_runtime.html"
 
 IDENTITY_OPTIONS_HTML = """<option value=\"user\">user</option>\n                            <option value=\"admin\">admin</option>"""
-TASK_CHAIN_IDENTITY_OPTIONS_HTML = """<option value=\"user\">user</option><option value=\"admin\">admin</option>"""
 
 
 def _normalize_identity_options(html: str) -> str:
     """
     统一前端身份下拉框，只保留普通用户 user 和管理员 admin。
-    这样页面展示与 config/policy.yaml 中的身份策略保持一致。
-    """
-    replacements = {
-        """<option value=\"alice\">alice</option>\n                            <option value=\"student\">student</option>\n                            <option value=\"guest\">guest</option>\n                            <option value=\"admin\">admin</option>""": IDENTITY_OPTIONS_HTML,
-        """<option value=\"student\">student</option><option value=\"teacher\">teacher</option><option value=\"admin\">admin</option><option value=\"guest\">guest</option>""": TASK_CHAIN_IDENTITY_OPTIONS_HTML,
-        "teacher@sdu.edu.cn": "admin@sdu.edu.cn",
-    }
 
-    for old, new in replacements.items():
-        html = html.replace(old, new)
+    这里不再依赖旧 HTML 的精确字符串，而是用正则直接重写：
+    <select id="user">...</select>
+
+    这样即使前端文件里仍残留 alice/student/guest/teacher，
+    通过 FastAPI 访问页面时也会被强制替换成 user/admin。
+    """
+    html = re.sub(
+        r'<select\s+id="user"[^>]*>.*?</select>',
+        f'<select id="user">\n                            {IDENTITY_OPTIONS_HTML}\n                        </select>',
+        html,
+        flags=re.DOTALL,
+    )
+
+    html = html.replace("teacher@sdu.edu.cn", "admin@sdu.edu.cn")
 
     return html
 
