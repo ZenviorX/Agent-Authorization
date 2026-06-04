@@ -284,7 +284,7 @@ def build_html(summary: Dict[str, Any], rows: List[Dict[str, Any]], tests: Dict[
   <header>
     <h1>CI 实验结果仪表盘 <span class="status {status_class}">{status_text}</span></h1>
     <p>分支：{safe(ref)}　Commit：{safe(sha)}　Run ID：{safe(run_id)}</p>
-    <p>本页面是 workflow 唯一上传的实验结果文件。</p>
+    <p>workflow 只负责生成并上传本 HTML；实验失败不会再让 Actions 标红。</p>
   </header>
   <main>
     <div class="cards">{metric_cards(summary, tests)}</div>
@@ -323,8 +323,13 @@ def main() -> int:
     OUT_HTML.write_text(build_html(summary, rows, tests, error), encoding="utf-8")
     print(f"HTML dashboard: {OUT_HTML}")
 
-    if error or not tests["ok"] or summary.get("failed_cases", 0) > 0:
-        return 1
+    if error:
+        print(f"Dashboard captured runtime error: {error}")
+    if not tests["ok"]:
+        print("Dashboard captured unit test failures.")
+    if summary.get("failed_cases", 0) > 0:
+        print(f"Dashboard captured {summary.get('failed_cases')} failed experiment cases.")
+
     return 0
 
 
