@@ -28,6 +28,11 @@ logs/
 .env.*
 data/secret/
 
+# Generated experiment artifacts
+experiments/outputs/
+experiments/reports/
+experiments/dashboards/
+
 # OS/editor files
 .DS_Store
 Thumbs.db
