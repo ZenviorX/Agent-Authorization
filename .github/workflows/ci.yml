@@ -36,13 +36,9 @@ jobs:
         run: |
           python experiments/runners/run_gateway_benchmark.py
 
-      - name: Run attack-chain demo
+      - name: Run chain smoke benchmark
         run: |
-          python experiments/runners/run_attack_chain_demo.py
-
-      - name: Run attack-chain benchmark
-        run: |
-          python experiments/runners/run_attack_chain_benchmark.py
+          python experiments/runners/ci_chain_smoke.py
 
       - name: Run comparison benchmark
         run: |
