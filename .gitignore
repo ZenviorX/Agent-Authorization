@@ -28,13 +28,8 @@ logs/
 .env.*
 data/secret/
 
-# Generated experiment artifacts
-
 # OS/editor files
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
-# Generated test dashboard artifacts
-tests/artifacts/
