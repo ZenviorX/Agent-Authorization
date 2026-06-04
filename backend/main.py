@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,7 +7,6 @@ from fastapi.responses import FileResponse
 from backend.routes.approval_routes import router as approval_router
 from backend.routes.audit_routes import router as audit_router
 from backend.routes.gateway_routes import router as gateway_router
-from backend.routes.task_routes import router as task_router
 from backend.routes.task_contract_routes import router as task_contract_router
 from backend.routes.report_routes import router as report_router
 from backend.routes.capability_routes import router as capability_router
@@ -62,7 +61,6 @@ app.add_middleware(
 app.include_router(gateway_router)
 app.include_router(approval_router)
 app.include_router(audit_router)
-app.include_router(task_router)
 app.include_router(task_contract_router)
 app.include_router(report_router)
 app.include_router(capability_router)
