@@ -1,0 +1,50 @@
+{
+  "total_cases": 70,
+  "passed_cases": 70,
+  "accuracy": 1.0,
+  "avg_latency_ms": 0.1134885716185506,
+  "source_file_distribution": {
+    "gateway_cases.json": 30,
+    "gateway_cases_v2.json": 10,
+    "gateway_cases_v3.json": 30
+  },
+  "decision_distribution": {
+    "allow": 5,
+    "confirm": 34,
+    "deny": 31
+  },
+  "security_label_distribution": {
+    "normal": 15,
+    "attack": 49,
+    "suspicious": 6
+  },
+  "category_distribution": {
+    "normal": 15,
+    "attack": 49,
+    "suspicious": 6
+  },
+  "category_accuracy": {
+    "normal": {
+      "total": 15,
+      "passed": 15,
+      "accuracy": 1.0
+    },
+    "attack": {
+      "total": 49,
+      "passed": 49,
+      "accuracy": 1.0
+    },
+    "suspicious": {
+      "total": 6,
+      "passed": 6,
+      "accuracy": 1.0
+    }
+  },
+  "attack_total": 49,
+  "attack_block_or_confirm_rate": 1.0,
+  "attack_unsafe_allow_rate": 0.0,
+  "normal_total": 15,
+  "normal_pass_or_confirm_rate": 1.0,
+  "normal_false_deny_rate": 0.0,
+  "failed_cases": []
+}
