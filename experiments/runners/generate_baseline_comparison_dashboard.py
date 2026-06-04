@@ -1,13 +1,12 @@
-﻿import html
+import html
 import json
 from pathlib import Path
 from typing import Any, Dict
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-SUMMARY_JSON = PROJECT_ROOT / "experiments" / "baseline_comparison_summary.json"
-OUT_HTML = PROJECT_ROOT / "experiments" / "baseline_comparison_dashboard.html"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SUMMARY_JSON = PROJECT_ROOT / "experiments" / "outputs" / "baseline_comparison_summary.json"
+OUT_HTML = PROJECT_ROOT / "experiments" / "dashboards" / "baseline_comparison_dashboard.html"
 
 
 def safe(value: Any) -> str:
@@ -21,121 +20,26 @@ def percent(value: float) -> str:
 def load_summary() -> Dict[str, Any]:
     if not SUMMARY_JSON.exists():
         raise FileNotFoundError(
-            "未找到 baseline_comparison_summary.json，请先运行 python experiments\\run_baseline_comparison.py"
+            f"未找到 {SUMMARY_JSON}，请先运行 python experiments/runners/run_baseline_comparison.py"
         )
-
     with open(SUMMARY_JSON, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def render_card(title: str, value: str, desc: str) -> str:
-    return f"""
-    <div class="card">
-      <div class="card-title">{safe(title)}</div>
-      <div class="card-value">{safe(value)}</div>
-      <div class="card-desc">{safe(desc)}</div>
-    </div>
-    """
-
-
-
-def render_metric_table(summary: Dict[str, Any]) -> str:
-    rows = []
-
-    for strategy, item in summary.items():
-        rows.append(
-            f"""
-            <tr>
-              <td>{safe(strategy)}</td>
-              <td>{safe(item.get("total_cases", 0))}</td>
-              <td>{percent(float(item.get("accuracy", 0)))}</td>
-              <td>{percent(float(item.get("attack_block_or_confirm_rate", 0)))}</td>
-              <td>{percent(float(item.get("attack_unsafe_allow_rate", 0)))}</td>
-              <td>{percent(float(item.get("normal_false_deny_rate", 0)))}</td>
-              <td>{float(item.get("avg_latency_ms", 0)):.3f} ms</td>
-            </tr>
-            """
-        )
-
-    return f"""
-    <section>
-      <h2>总体对比结果</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>方案</th>
-            <th>总样例数</th>
-            <th>总体一致率</th>
-            <th>攻击阻断/确认率</th>
-            <th>攻击误放行率</th>
-            <th>正常误拒绝率</th>
-            <th>平均延迟</th>
-          </tr>
-        </thead>
-        <tbody>
-          {''.join(rows)}
-        </tbody>
-      </table>
-    </section>
-    """
-
-
-def render_bar_compare(summary: Dict[str, Any], metric: str, title: str) -> str:
-    rows = []
-
-    for strategy, item in summary.items():
-        value = float(item.get(metric, 0))
-        width = int(value * 100)
-        rows.append(
-            f"""
-            <div class="bar-row">
-              <div class="bar-label">{safe(strategy)}</div>
-              <div class="bar-wrap">
-                <div class="bar" style="width:{width}%"></div>
-              </div>
-              <div class="bar-value">{percent(value)}</div>
-            </div>
-            """
-        )
-
-    return f"""
-    <section>
-      <h2>{safe(title)}</h2>
-      <div class="bar-box">
-        {''.join(rows)}
-      </div>
-    </section>
-    """
-
-
-
 def build_html(summary: Dict[str, Any]) -> str:
-    gateway = summary.get("gateway", {})
-    keyword = summary.get("keyword", {})
-    allow_all = summary.get("allow_all", {})
-
-    cards = [
-        render_card(
-            "无防护攻击误放行率",
-            percent(float(allow_all.get("attack_unsafe_allow_rate", 0))),
-            "所有工具调用直接放行，作为最弱基线。"
-        ),
-        render_card(
-            "关键词规则攻击误放行率",
-            percent(float(keyword.get("attack_unsafe_allow_rate", 0))),
-            "只依赖危险关键词，能拦截部分显式风险。"
-        ),
-        render_card(
-            "本项目攻击误放行率",
-            percent(float(gateway.get("attack_unsafe_allow_rate", 0))),
-            "综合授权、风险评分和确认机制。"
-        ),
-        render_card(
-            "本项目平均延迟",
-            f"{float(gateway.get('avg_latency_ms', 0)):.3f} ms",
-            "用于衡量运行时安全检查开销。"
-        ),
-    ]
+    rows = []
+    for strategy, item in summary.items():
+        rows.append(
+            "<tr>"
+            f"<td>{safe(strategy)}</td>"
+            f"<td>{safe(item.get('total_cases', 0))}</td>"
+            f"<td>{percent(float(item.get('accuracy', 0)))}</td>"
+            f"<td>{percent(float(item.get('attack_block_or_confirm_rate', 0)))}</td>"
+            f"<td>{percent(float(item.get('attack_unsafe_allow_rate', 0)))}</td>"
+            f"<td>{percent(float(item.get('normal_false_deny_rate', 0)))}</td>"
+            f"<td>{float(item.get('avg_latency_ms', 0)):.3f} ms</td>"
+            "</tr>"
+        )
 
     return f"""
 <!DOCTYPE html>
@@ -144,179 +48,28 @@ def build_html(summary: Dict[str, Any]) -> str:
   <meta charset="UTF-8">
   <title>Agent Authorization Gateway 对比实验仪表盘</title>
   <style>
-    body {{
-      margin: 0;
-      padding: 0;
-      font-family: "Microsoft YaHei", Arial, sans-serif;
-      background: #f5f7fb;
-      color: #1f2937;
-    }}
-
-    header {{
-      background: linear-gradient(135deg, #111827, #1f2937);
-      color: white;
-      padding: 36px 52px;
-    }}
-
-    header h1 {{
-      margin: 0;
-      font-size: 30px;
-    }}
-
-    header p {{
-      margin: 12px 0 0;
-      color: #d1d5db;
-      font-size: 15px;
-    }}
-
-    main {{
-      padding: 32px 52px 60px;
-    }}
-
-    .cards {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 18px;
-      margin-bottom: 32px;
-    }}
-
-    .card {{
-      background: white;
-      border-radius: 16px;
-      padding: 22px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-      border: 1px solid #e5e7eb;
-    }}
-
-    .card-title {{
-      color: #6b7280;
-      font-size: 14px;
-      margin-bottom: 10px;
-    }}
-
-    .card-value {{
-      font-size: 30px;
-      font-weight: 700;
-      color: #111827;
-      margin-bottom: 8px;
-    }}
-
-    .card-desc {{
-      font-size: 13px;
-      color: #9ca3af;
-      line-height: 1.5;
-    }}
-
-    section {{
-      background: white;
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 26px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-      border: 1px solid #e5e7eb;
-    }}
-
-    section h2 {{
-      margin: 0 0 18px;
-      font-size: 21px;
-      color: #111827;
-    }}
-
-    table {{
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }}
-
-    th {{
-      background: #f3f4f6;
-      color: #374151;
-      text-align: left;
-      padding: 12px;
-      border-bottom: 1px solid #e5e7eb;
-    }}
-
-    td {{
-      padding: 12px;
-      border-bottom: 1px solid #eef2f7;
-      color: #374151;
-    }}
-
-    .bar-row {{
-      display: grid;
-      grid-template-columns: 180px 1fr 80px;
-      gap: 12px;
-      align-items: center;
-      margin: 14px 0;
-    }}
-
-    .bar-label {{
-      font-size: 14px;
-      color: #374151;
-    }}
-
-    .bar-wrap {{
-      height: 14px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      overflow: hidden;
-    }}
-
-    .bar {{
-      height: 100%;
-      background: #2563eb;
-      border-radius: 999px;
-    }}
-
-    .bar-value {{
-      font-size: 14px;
-      color: #374151;
-      text-align: right;
-    }}
-
-    .conclusion {{
-      line-height: 1.8;
-      color: #374151;
-      font-size: 15px;
-    }}
-
-    footer {{
-      padding: 24px 52px;
-      color: #6b7280;
-      font-size: 13px;
-      text-align: center;
-    }}
+    body {{ margin: 0; padding: 32px; font-family: Arial, "Microsoft YaHei", sans-serif; background: #f5f7fb; color: #111827; }}
+    main {{ max-width: 1200px; margin: 0 auto; }}
+    h1 {{ margin-bottom: 8px; }}
+    p {{ color: #6b7280; }}
+    table {{ width: 100%; border-collapse: collapse; background: white; border-radius: 12px; overflow: hidden; }}
+    th, td {{ padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: left; }}
+    th {{ background: #f3f4f6; }}
   </style>
 </head>
 <body>
-  <header>
-    <h1>Agent Authorization Gateway 对比实验仪表盘</h1>
-    <p>对比无防护 Agent、简单关键词规则与本项目安全网关在同一评测集上的安全防护效果</p>
-  </header>
-
   <main>
-    <div class="cards">
-      {''.join(cards)}
-    </div>
-
-    {render_metric_table(summary)}
-    {render_bar_compare(summary, "attack_unsafe_allow_rate", "攻击误放行率对比")}
-    {render_bar_compare(summary, "attack_block_or_confirm_rate", "攻击阻断/确认率对比")}
-    {render_bar_compare(summary, "normal_false_deny_rate", "正常任务误拒绝率对比")}
-
-    <section>
-      <h2>实验结论</h2>
-      <div class="conclusion">
-        无防护 Agent 的攻击误放行率最高，说明如果缺少工具调用前置安全治理，Agent 在面对恶意请求时容易直接执行危险操作。
-        简单关键词规则能够拦截部分显式风险，但仍存在明显攻击误放行问题。
-        本项目安全网关在同一评测集上实现了更低的攻击误放行率，并保持较低检测延迟，说明任务授权、风险评分和人工确认机制能够有效提升 Agent 工具调用安全性。
-      </div>
-    </section>
+    <h1>Agent Authorization Gateway 对比实验仪表盘</h1>
+    <p>对比无防护基线、关键词规则和安全网关在同一评测集上的表现。</p>
+    <table>
+      <thead>
+        <tr>
+          <th>方案</th><th>总样例数</th><th>总体一致率</th><th>攻击阻断/确认率</th><th>攻击误放行率</th><th>正常误拒绝率</th><th>平均延迟</th>
+        </tr>
+      </thead>
+      <tbody>{''.join(rows)}</tbody>
+    </table>
   </main>
-
-  <footer>
-    Generated by experiments/generate_baseline_comparison_dashboard.py
-  </footer>
 </body>
 </html>
 """
@@ -324,11 +77,8 @@ def build_html(summary: Dict[str, Any]) -> str:
 
 def main() -> None:
     summary = load_summary()
-    html_doc = build_html(summary)
-
-    with open(OUT_HTML, "w", encoding="utf-8") as f:
-        f.write(html_doc)
-
+    OUT_HTML.parent.mkdir(parents=True, exist_ok=True)
+    OUT_HTML.write_text(build_html(summary), encoding="utf-8")
     print("========== Baseline Comparison Dashboard Generated ==========")
     print(f"HTML: {OUT_HTML}")
 
