@@ -16,7 +16,7 @@ class BuildTaskContractRequest(BaseModel):
     生成任务授权合约的请求体。
     """
 
-    user: str = "student"
+    user: str = "user"
     task_text: str
 
 

@@ -61,7 +61,7 @@ def build_explanations(reason: list[str]) -> list[dict]:
 
         if "路径" in text or "secret" in text or "资源风险" in text or "访问路径" in text:
             factor = "resource_path"
-        elif "角色" in text or "权限" in text or "student" in text or "admin" in text:
+        elif "角色" in text or "权限" in text or "user" in text or "admin" in text:
             factor = "role_policy"
         elif "邮件" in text or "外发" in text or "接收人" in text:
             factor = "external_output"

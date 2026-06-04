@@ -18,7 +18,7 @@ class TaskStep(BaseModel):
 
     例如：
     Step 1: file.read public/notice.txt
-    Step 2: email.send teacher@sdu.edu.cn
+    Step 2: email.send admin@sdu.edu.cn
     """
 
     step_id: int

@@ -15,7 +15,7 @@ router = APIRouter(
 
 
 class CapabilityCompileRequest(BaseModel):
-    user: str = Field(default="student", description="发起任务的用户")
+    user: str = Field(default="user", description="发起任务的用户")
     original_task: str = Field(..., description="用户原始自然语言任务")
     max_steps: int = Field(default=5, description="任务最大工具调用步数")
     risk_budget: int = Field(default=80, description="任务风险预算")
@@ -36,7 +36,7 @@ def compile_contract(request: CapabilityCompileRequest):
     将用户自然语言任务编译为 Capability Contract v2。
 
     示例：
-    用户任务：读取 public/notice.txt 并发送给 teacher@example.com
+    用户任务：读取 public/notice.txt 并发送给 admin@sdu.edu.cn
     输出：任务级能力合约，包括允许的工具、资源、收件人、风险预算等。
     """
 

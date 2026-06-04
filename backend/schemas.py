@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional
 
 
 class ToolCallRequest(BaseModel):
-    user: str = "test_user"
+    user: str = "user"
     tool: str
     params: Dict[str, Any] = Field(default_factory=dict)
 
@@ -67,7 +67,7 @@ class AgentTextRequest(BaseModel):
     user：当前用户
     user_input：自然语言任务
     """
-    user: str = "test_user"
+    user: str = "user"
     user_input: str
 
 

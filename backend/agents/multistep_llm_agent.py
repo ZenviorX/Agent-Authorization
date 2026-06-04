@@ -159,7 +159,7 @@ class MultiStepLLMAgent:
     {
       "tool": "email.send",
       "params": {
-        "to": "teacher@sdu.edu.cn",
+        "to": "admin@sdu.edu.cn",
         "content_from_step": 1
       },
       "description": "将上一步读取到的内容发送给老师"

@@ -1,9 +1,8 @@
 ﻿from pathlib import Path
-import re
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 
 from backend.routes.agent_routes import router as agent_router
 from backend.routes.approval_routes import router as approval_router
@@ -30,36 +29,9 @@ FRONTEND_TASK_CHAIN = BASE_DIR / "frontend" / "task_chain.html"
 FRONTEND_SECURITY_DASHBOARD = BASE_DIR / "frontend" / "security_dashboard.html"
 FRONTEND_ATTACK_CHAIN_RUNTIME = BASE_DIR / "frontend" / "attack_chain_runtime.html"
 
-IDENTITY_OPTIONS_HTML = """<option value=\"user\">user</option>\n                            <option value=\"admin\">admin</option>"""
-
-
-def _normalize_identity_options(html: str) -> str:
-    """
-    统一前端身份下拉框，只保留普通用户 user 和管理员 admin。
-
-    这里不再依赖旧 HTML 的精确字符串，而是用正则直接重写：
-    <select id="user">...</select>
-
-    这样即使前端文件里仍残留 alice/student/guest/teacher，
-    通过 FastAPI 访问页面时也会被强制替换成 user/admin。
-    """
-    html = re.sub(
-        r'<select\s+id="user"[^>]*>.*?</select>',
-        f'<select id="user">\n                            {IDENTITY_OPTIONS_HTML}\n                        </select>',
-        html,
-        flags=re.DOTALL,
-    )
-
-    html = html.replace("teacher@sdu.edu.cn", "admin@sdu.edu.cn")
-
-    return html
-
-
 def _serve_frontend_html(path: Path, missing_message: str):
     if path.exists():
-        html = path.read_text(encoding="utf-8")
-        html = _normalize_identity_options(html)
-        return HTMLResponse(content=html)
+        return FileResponse(path)
 
     return {
         "message": missing_message,

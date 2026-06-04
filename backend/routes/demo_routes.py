@@ -55,7 +55,7 @@ def agent_injection_demo():
     attack_chain = []
 
     first_request = ToolCallRequest(
-        user="alice",
+        user="user",
         tool="file.read",
         params={"path": "public/injected_notice.txt"},
     )
@@ -117,7 +117,7 @@ def agent_injection_demo():
         }
 
     second_request = ToolCallRequest(
-        user="alice",
+        user="user",
         tool="file.read",
         params={"path": "secret/password.txt"},
     )

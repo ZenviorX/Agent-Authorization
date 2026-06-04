@@ -25,7 +25,7 @@ router = APIRouter(
 
 
 class RuntimeStartRequest(BaseModel):
-    user: str = Field(default="student", description="发起任务的用户")
+    user: str = Field(default="user", description="发起任务的用户")
     original_task: str = Field(..., description="用户原始任务")
     max_steps: int = Field(default=5, description="任务最大步骤数")
     risk_budget: int = Field(default=80, description="任务风险预算")

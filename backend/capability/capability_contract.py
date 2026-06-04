@@ -45,7 +45,7 @@ class CapabilityRule(BaseModel):
 
     recipients: List[str] = Field(
         default_factory=list,
-        description="允许外发的目标，例如 teacher@example.com"
+        description="允许外发的目标，例如 admin@sdu.edu.cn"
     )
 
     allowed_input_labels: List[DataLabel] = Field(

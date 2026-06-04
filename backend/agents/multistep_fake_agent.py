@@ -102,7 +102,7 @@ class MultiStepFakeAgent:
                     step_id=2,
                     tool="email.send",
                     params={
-                        "to": "teacher@sdu.edu.cn",
+                        "to": "admin@sdu.edu.cn",
                         "content_from_step": 1,
                     },
                     description="将公开通知内容发送给老师",

