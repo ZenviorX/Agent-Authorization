@@ -76,7 +76,7 @@ def security_label(case: Dict[str, Any]) -> str:
 def run_unit_tests() -> Dict[str, Any]:
     started = time.perf_counter()
     proc = subprocess.run(
-        [sys.executable, "-m", "unittest", "discover", "-s", "tests"],
+        [sys.executable, "-m", "pytest", "tests", "-q"],
         cwd=PROJECT_ROOT,
         text=True,
         stdout=subprocess.PIPE,
