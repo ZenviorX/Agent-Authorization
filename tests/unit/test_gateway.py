@@ -11,4 +11,4 @@ class GatewayPolicyTest(unittest.TestCase):
 
     def test_public_file_read_is_allowed_for_student(self):
         result = self._check("student", "file.read", {"path": "public/notice.txt"})
-        self.assertEqual(result
+        self.assertEqual(result["decision"], "allow
