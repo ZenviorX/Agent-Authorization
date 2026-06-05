@@ -19,14 +19,24 @@ build/
 dist/
 *.egg-info/
 
+# Runtime sandbox generated outputs
+runtime_workspace/outbox/
+runtime_workspace/evidence/
+runtime_workspace/reports/
+runtime_workspace/*.db
+runtime_workspace/public/evidence_demo_note.txt
+runtime_workspace/public/runtime_demo_note.txt
+
 # Logs
-logs/
-*.log
+logs/*.log
+logs/*.jsonl
+
+# CI generated HTML reports
+Results/Result_*.html
 
 # Local environment and secrets
 .env
 .env.*
-data/secret/
 
 # OS/editor files
 .DS_Store
