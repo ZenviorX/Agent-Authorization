@@ -1,4 +1,4 @@
-from backend.gateway.gateway import check_tool_call
+from backend.gateway import check_tool_call
 from backend.schemas import ToolCallRequest
 
 
@@ -8,4 +8,8 @@ def check(user: str, tool: str, params: dict, **extra):
 
 
 def test_public_file_read_is_allowed_for_student():
-    result = check("student", "file.read", {"path": "public
+    result = check("student", "file.read", {"path": "public/notice.txt"})
+    assert result["decision"] == "allow"
+
+
+def test_secret
