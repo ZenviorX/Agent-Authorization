@@ -23,7 +23,7 @@ def load_gateway_cases():
         return cases
 
     for file_path in sorted(CASE_DIR.glob("gateway_cases*.json")):
-        data = json.loads(file_path.read_text(encoding="utf-8"))
+        data = json.loads(file_path.read_text(encoding="utf-8-sig"))
 
         if isinstance(data, dict) and "cases" in data:
             data = data["cases"]
