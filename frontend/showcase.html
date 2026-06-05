@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>AgentGuard 比赛展示入口</title>
+
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --panel-soft: #f8fafc;
+            --text: #172033;
+            --muted: #64748b;
+            --line: #dbe3ef;
+            --primary: #2854c5;
+            --green: #16a34a;
+            --red: #dc2626;
+            --purple: #7c3aed;
+            --teal: #0f766e;
+            --shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top left, rgba(40, 84, 197, 0.14), transparent 30%),
+                radial-gradient(circle at bottom right, rgba(15, 118, 110, 0.12), transparent 34%),
+                linear-gradient(135deg, #f4f7fb 0%, #eef3fb 100%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+        }
+
+        a {
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .page {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 34px 0 46px;
+        }
+
+        .hero {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid var(--line);
+            border-radius: 26px;
+            box-shadow: var(--shadow);
+            padding: 28px;
+            margin-bottom: 20px;
+        }
+
+        .hero-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            align-items: flex-start;
+        }
+
+        .badge {
+            display: inline-flex;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #eaf0ff;
+            color: var(--primary);
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        h1 {
+            margin: 14px 0 10px;
+            font-size: 34px;
+            line-height: 1.25;
+        }
+
+        .subtitle {
+            max-width: 860px;
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.8;
+            font-size: 15px;
+        }
+
+        .status {
+            white-space: nowrap;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #eef2ff;
+            color: var(--primary);
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        .status.ok {
+            background: #dcfce7;
+            color: var(--green);
+        }
+
+        .status.bad {
+            background: #fee2e2;
+            color: var(--red);
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        button,
+        .button-link {
+            border: none;
+            border-radius: 12px;
+            padding: 11px 15px;
+            cursor: pointer;
+            font-weight: 800;
+            color: #ffffff;
+            background: var(--primary);
+            font-size: 14px;
+        }
+
+        .button-link.teal,
+        button.teal {
+            background: var(--teal);
+        }
+
+        .button-link.purple {
+            background: var(--purple);
+        }
+
+        .button-link.gray,
+        button.gray {
+            background: #475569;
+        }
+
+        button:hover,
+        .button-link:hover {
+            filter: brightness(0.97);
+        }
+
+        .core {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 18px;
+        }
+
+        .card-header {
+            padding: 17px 18px;
+            border-bottom: 1px solid var(--line);
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .card-header p {
+            margin: 7px 0 0;
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 13px;
+        }
+
+        .card-body {
+            padding: 18px;
+        }
+
+        .flow {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+
+        .flow-item {
+            padding: 14px 10px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            text-align: center;
+            background: var(--panel-soft);
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        .flow-item span {
+            display: block;
+            margin-top: 7px;
+            color: var(--muted);
+            font-weight: 500;
+            line-height: 1.5;
+            font-size: 12px;
+        }
+
+        .highlights {
+            display: grid;
+            gap: 10px;
+        }
+
+        .highlight {
+            padding: 13px 14px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--panel-soft);
+        }
+
+        .highlight strong {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .highlight span {
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 13px;
+        }
+
+        .modules {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .module {
+            display: flex;
+            flex-direction: column;
+            min-height: 220px;
+            padding: 20px;
+            border-radius: 22px;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .module:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 42px rgba(15, 23, 42, 0.12);
+        }
+
+        .module-tag {
+            align-self: flex-start;
+            padding: 5px 9px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .module-tag.primary {
+            background: #eaf0ff;
+            color: var(--primary);
+        }
+
+        .module-tag.green {
+            background: #dcfce7;
+            color: var(--green);
+        }
+
+        .module-tag.red {
+            background: #fee2e2;
+            color: var(--red);
+        }
+
+        .module-tag.purple {
+            background: #ede9fe;
+            color: var(--purple);
+        }
+
+        .module-tag.teal {
+            background: #ccfbf1;
+            color: var(--teal);
+        }
+
+        .module h3 {
+            margin: 16px 0 8px;
+            font-size: 19px;
+        }
+
+        .module p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.75;
+            font-size: 14px;
+        }
+
+        .module .open {
+            margin-top: auto;
+            padding-top: 16px;
+            color: var(--primary);
+            font-weight: 800;
+            font-size: 14px;
+        }
+
+        .report-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .metric {
+            padding: 15px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--panel-soft);
+        }
+
+        .metric .label {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .metric .value {
+            font-size: 24px;
+            font-weight: 900;
+        }
+
+        .empty {
+            padding: 16px;
+            border: 1px dashed var(--line);
+            border-radius: 16px;
+            color: var(--muted);
+            background: var(--panel-soft);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        pre {
+            margin: 0;
+            padding: 16px;
+            border-radius: 16px;
+            background: #0f172a;
+            color: #dbeafe;
+            overflow: auto;
+            max-height: 460px;
+            line-height: 1.65;
+            font-size: 13px;
+        }
+
+        .path {
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        @media (max-width: 1020px) {
+            .core {
+                grid-template-columns: 1fr;
+            }
+
+            .flow {
+                grid-template-columns: 1fr;
+            }
+
+            .modules {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .report-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 680px) {
+            .hero-top {
+                flex-direction: column;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .modules {
+                grid-template-columns: 1fr;
+            }
+
+            .report-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <section class="hero">
+            <div class="hero-top">
+                <div>
+                    <div class="badge">信安赛作品展示入口</div>
+
+                    <h1>AgentGuard：面向 AI Agent 工具调用的任务级零信任授权系统</h1>
+
+                    <p class="subtitle">
+                        本页面用于答辩现场快速进入核心模块：授权证据包、沙箱运行态、多步任务链、
+                        单步网关、安全总览和接口文档。推荐先展示授权证据包，再展示沙箱运行态。
+                    </p>
+                </div>
+
+                <div id="serverStatus" class="status">未检测</div>
+            </div>
+
+            <div class="actions">
+                <button onclick="checkServer()">检测后端</button>
+
+                <a class="button-link teal" href="/authorized-evidence">进入授权证据包</a>
+
+                <a class="button-link purple" href="/sandbox-dashboard">进入沙箱运行态</a>
+
+                <button class="gray" onclick="generateReport()">生成展示报告</button>
+
+                <a class="button-link gray" href="/docs">接口文档</a>
+            </div>
+        </section>
+
+        <section class="core">
+            <div class="card">
+                <div class="card-header">
+                    <h2>核心闭环</h2>
+
+                    <p>项目重点不是简单阻断，而是把 Agent 每一步工具调用纳入授权、执行和审计链路。</p>
+                </div>
+
+                <div class="card-body">
+                    <div class="flow">
+                        <div class="flow-item">
+                            任务输入
+                            <span>用户自然语言任务</span>
+                        </div>
+
+                        <div class="flow-item">
+                            授权合约
+                            <span>最小权限边界</span>
+                        </div>
+
+                        <div class="flow-item">
+                            Gateway
+                            <span>allow / confirm / deny</span>
+                        </div>
+
+                        <div class="flow-item">
+                            沙箱执行
+                            <span>真实工具调用痕迹</span>
+                        </div>
+
+                        <div class="flow-item">
+                            证据审计
+                            <span>JSON + SHA256</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2>答辩强调点</h2>
+
+                    <p>现场介绍时可以按下面三个点来讲，主线会更清楚。</p>
+                </div>
+
+                <div class="card-body">
+                    <div class="highlights">
+                        <div class="highlight">
+                            <strong>1. 任务级零信任</strong>
+                            <span>不是信任 Agent，而是每一步工具调用都重新授权。</span>
+                        </div>
+
+                        <div class="highlight">
+                            <strong>2. 真实沙箱执行</strong>
+                            <span>文件、邮件、数据库和命令都有可验证运行痕迹。</span>
+                        </div>
+
+                        <div class="highlight">
+                            <strong>3. 证据包可复查</strong>
+                            <span>授权结果、执行结果和拦截结果会固化为 SHA256 证据包。</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="modules">
+            <a class="module" href="/authorized-evidence">
+                <span class="module-tag teal">推荐首讲</span>
+
+                <h3>授权证据包展示</h3>
+
+                <p>
+                    展示工具调用先经过 Gateway 授权，只有 allow 才进入执行器。
+                    deny / confirm 不直接执行，并生成 SHA256 证据包。
+                </p>
+
+                <div class="open">打开 /authorized-evidence →</div>
+            </a>
+
+            <a class="module" href="/sandbox-dashboard">
+                <span class="module-tag purple">真实运行</span>
+
+                <h3>沙箱运行态展示</h3>
+
+                <p>
+                    展示 runtime_workspace 中的文件、邮件 outbox、SQLite 数据库和真实工具执行痕迹。
+                </p>
+
+                <div class="open">打开 /sandbox-dashboard →</div>
+            </a>
+
+            <a class="module" href="/task-chain">
+                <span class="module-tag red">攻击链</span>
+
+                <h3>多步任务链演示</h3>
+
+                <p>
+                    展示提示注入、污染传播、敏感数据访问和外发阻断。
+                </p>
+
+                <div class="open">打开 /task-chain →</div>
+            </a>
+
+            <a class="module" href="/">
+                <span class="module-tag primary">基础能力</span>
+
+                <h3>单步网关检查</h3>
+
+                <p>
+                    展示单次工具调用如何经过角色、资源、路径、邮件外发和风险评分检查。
+                </p>
+
+                <div class="open">打开首页 →</div>
+            </a>
+
+            <a class="module" href="/security-dashboard">
+                <span class="module-tag green">总览面板</span>
+
+                <h3>安全总览</h3>
+
+                <p>
+                    查看系统整体安全状态、风险趋势、攻击链结果和审计概览。
+                </p>
+
+                <div class="open">打开 /security-dashboard →</div>
+            </a>
+
+            <a class="module" href="/docs">
+                <span class="module-tag">接口文档</span>
+
+                <h3>FastAPI Docs</h3>
+
+                <p>
+                    展示后端接口完整性，便于查看 Gateway、Runtime、Evidence、Report 等 API。
+                </p>
+
+                <div class="open">打开 /docs →</div>
+            </a>
+        </section>
+
+        <section class="card">
+            <div class="card-header">
+                <h2>自动展示报告</h2>
+
+                <p>
+                    自动汇总证据包数量、授权执行情况、阻断情况和 SHA256 校验结果。
+                </p>
+            </div>
+
+            <div class="card-body">
+                <div class="report-actions">
+                    <button class="teal" onclick="generateReport()">生成展示报告</button>
+
+                    <button class="gray" onclick="loadLatestReport()">读取最新报告</button>
+
+                    <button onclick="loadReportList()">刷新报告列表</button>
+                </div>
+
+                <div class="report-grid">
+                    <div class="metric">
+                        <div class="label">证据包总数</div>
+                        <div id="evidenceTotal" class="value">-</div>
+                    </div>
+
+                    <div class="metric">
+                        <div class="label">授权证据包</div>
+                        <div id="authorizedTotal" class="value">-</div>
+                    </div>
+
+                    <div class="metric">
+                        <div class="label">阻断步数</div>
+                        <div id="blockedTotal" class="value">-</div>
+                    </div>
+
+                    <div class="metric">
+                        <div class="label">哈希通过率</div>
+                        <div id="hashRate" class="value">-</div>
+                    </div>
+                </div>
+
+                <div id="reportInfo" class="empty">
+                    点击“生成展示报告”后，这里会显示报告文件路径和统计摘要。
+                </div>
+
+                <div style="height: 14px;"></div>
+
+                <div id="reportList" class="empty">
+                    暂无报告列表。
+                </div>
+
+                <div style="height: 14px;"></div>
+
+                <pre id="reportPreview">暂无报告内容</pre>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        function getApiBase() {
+            return "http://127.0.0.1:8000";
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        async function fetchJson(path) {
+            const response = await fetch(`${getApiBase()}${path}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || data.message || "接口响应异常");
+            }
+
+            return data;
+        }
+
+        async function checkServer() {
+            const serverStatus = document.getElementById("serverStatus");
+
+            serverStatus.textContent = "检测中...";
+            serverStatus.className = "status";
+
+            try {
+                const response = await fetch(`${getApiBase()}/api/status`);
+
+                if (!response.ok) {
+                    throw new Error("后端异常");
+                }
+
+                serverStatus.textContent = "后端运行正常";
+                serverStatus.className = "status ok";
+
+            } catch (error) {
+                serverStatus.textContent = "后端未连接";
+                serverStatus.className = "status bad";
+            }
+        }
+
+        async function generateReport() {
+            const reportInfo = document.getElementById("reportInfo");
+
+            reportInfo.className = "empty";
+            reportInfo.textContent = "正在生成展示报告，请稍候...";
+
+            try {
+                const data = await fetchJson("/showcase-report/generate");
+
+                renderReportResult(data);
+
+                await loadReportList();
+
+            } catch (error) {
+                reportInfo.textContent = `生成失败：${error}`;
+            }
+        }
+
+        async function loadLatestReport() {
+            const preview = document.getElementById("reportPreview");
+
+            preview.textContent = "正在读取最新报告...";
+
+            try {
+                const data = await fetchJson("/showcase-report/latest");
+
+                preview.textContent = data.content || "报告内容为空";
+
+                document.getElementById("reportInfo").className = "empty";
+                document.getElementById("reportInfo").innerHTML = `
+                    <strong>最新报告：</strong>
+                    <span class="path">${escapeHtml(data.file || "-")}</span>
+                `;
+
+            } catch (error) {
+                preview.textContent = `读取失败：${error}`;
+            }
+        }
+
+        async function loadReportList() {
+            try {
+                const data = await fetchJson("/showcase-report/list");
+
+                renderReportList(data);
+
+            } catch (error) {
+                document.getElementById("reportList").textContent = `加载失败：${error}`;
+            }
+        }
+
+        function renderReportResult(data) {
+            const summary = data.summary || {};
+
+            document.getElementById("evidenceTotal").textContent = summary.total_evidence_files ?? "-";
+            document.getElementById("authorizedTotal").textContent = summary.authorized_evidence_files ?? "-";
+            document.getElementById("blockedTotal").textContent = summary.blocked_steps ?? "-";
+            document.getElementById("hashRate").textContent = summary.hash_verified_rate ?? "-";
+
+            document.getElementById("reportInfo").className = "empty";
+            document.getElementById("reportInfo").innerHTML = `
+                <strong>Markdown 报告：</strong>
+                <span class="path">${escapeHtml(data.markdown_file || "-")}</span>
+                <br />
+                <strong>JSON 摘要：</strong>
+                <span class="path">${escapeHtml(data.json_file || "-")}</span>
+                <br />
+                <strong>统计：</strong>
+                证据包 ${escapeHtml(summary.total_evidence_files ?? "-")} 个，
+                授权证据包 ${escapeHtml(summary.authorized_evidence_files ?? "-")} 个，
+                工具调用总步数 ${escapeHtml(summary.total_steps ?? "-")}，
+                阻断步数 ${escapeHtml(summary.blocked_steps ?? "-")}。
+            `;
+
+            document.getElementById("reportPreview").textContent = data.markdown_preview || "报告预览为空";
+        }
+
+        function renderReportList(data) {
+            const reports = data.reports || [];
+
+            if (reports.length === 0) {
+                document.getElementById("reportList").className = "empty";
+                document.getElementById("reportList").textContent = "暂无报告。";
+                return;
+            }
+
+            document.getElementById("reportList").className = "empty";
+            document.getElementById("reportList").innerHTML = reports.slice(0, 6).map(report => `
+                <div>
+                    <strong>文件名：</strong>
+                    <span class="path">${escapeHtml(report.name)}</span>
+                    <br />
+                    <strong>路径：</strong>
+                    <span class="path">${escapeHtml(report.relative_path)}</span>
+                    <br />
+                    <strong>大小：</strong>${escapeHtml(report.size)} B
+                    <br />
+                    <strong>修改时间：</strong>${escapeHtml(report.created_at || "-")}
+                    <hr />
+                </div>
+            `).join("");
+        }
+
+        checkServer();
+        loadReportList();
+    </script>
+</body>
+</html>
