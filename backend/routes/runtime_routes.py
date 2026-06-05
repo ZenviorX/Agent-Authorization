@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+import sqlite3
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
@@ -7,16 +11,24 @@ from pydantic import BaseModel, Field
 
 from backend.capability.capability_compiler import compile_capability_contract
 from backend.runtime.runtime_monitor import (
-    approve_runtime_step,
     create_runtime_state,
     get_step_output_labels,
-    reject_runtime_step,
     run_runtime_step,
 )
 from backend.runtime.runtime_store import (
     get_runtime_state,
     list_runtime_states,
     save_runtime_state,
+)
+from backend.tools.tool_executor import (
+    DB_PATH,
+    OUTBOX_DIR,
+    PRIVATE_DIR,
+    PUBLIC_DIR,
+    SANDBOX_DIR,
+    SECRET_DIR,
+    ensure_sandbox_ready,
+    execute_tool,
 )
 
 
@@ -33,66 +45,24 @@ class RuntimeStartRequest(BaseModel):
     risk_budget: int = Field(default=80, description="任务风险预算")
 
 
-def build_runtime_summary(state):
-    """
-    生成运行时任务摘要，供 start / step / state / list 接口复用。
-    """
-    last_step = state.steps[-1] if state.steps else None
-    attack_chain_state = state.attack_chain_state or {}
-
-    approved_steps = [
-        step.step_index
-        for step in state.steps
-        if step.confirmation_status == "approved"
-    ]
-
-    rejected_steps = [
-        step.step_index
-        for step in state.steps
-        if step.confirmation_status == "rejected"
-    ]
-
-    return {
-        "task_id": state.task_id,
-        "user": state.user,
-        "original_task": state.original_task,
-        "current_step": state.current_step,
-        "used_risk": state.used_risk,
-        "risk_budget": state.contract.risk_budget,
-        "final_decision": state.final_decision,
-        "is_blocked": state.is_blocked,
-        "pending_confirm_steps": state.pending_confirm_steps,
-        "approved_steps": approved_steps,
-        "rejected_steps": rejected_steps,
-        "pending_confirm_count": len(state.pending_confirm_steps),
-        "step_count": len(state.steps),
-        "violation_count": len(state.violations),
-        "last_tool": last_step.tool if last_step else None,
-        "last_decision": last_step.decision if last_step else None,
-        "last_risk_score": last_step.risk_score if last_step else None,
-        "attack_chain_decision": attack_chain_state.get("final_decision"),
-        "attack_chain_risk": attack_chain_state.get("cumulative_risk"),
-    }
-
 class RuntimeStepRequest(BaseModel):
     tool: str = Field(..., description="当前调用的工具")
     params: Dict[str, Any] = Field(default_factory=dict, description="工具调用参数")
 
     input_labels: List[str] = Field(
         default_factory=list,
-        description="手动传入的输入标签"
+        description="手动传入的输入标签",
     )
 
     input_from_steps: List[int] = Field(
         default_factory=list,
-        description="继承哪些历史步骤的输出标签"
+        description="继承哪些历史步骤的输出标签",
     )
 
     output_content: Optional[str] = Field(
         default=None,
-        description="工具实际输出内容，用于自动分析 taint / sensitive 标签"
+        description="工具实际输出内容，用于自动分析 taint / sensitive 标签",
     )
-
 
 
 @router.post("/start")
@@ -119,11 +89,10 @@ def start_runtime_task(request: RuntimeStartRequest):
     return {
         "message": "Runtime task started successfully.",
         "task_id": state.task_id,
-        "summary": build_runtime_summary(state),
-        "attack_chain_state": state.attack_chain_state,
         "contract": contract.model_dump(),
         "state": state.model_dump(),
     }
+
 
 @router.post("/{task_id}/step")
 def run_step(task_id: str, request: RuntimeStepRequest):
@@ -137,16 +106,14 @@ def run_step(task_id: str, request: RuntimeStepRequest):
     state = get_runtime_state(task_id)
 
     if state is None:
-        raise HTTPException(status_code=404, detail=f"Runtime task {task_id} not found.")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Runtime task {task_id} not found.",
+        )
 
     merged_input_labels = list(request.input_labels)
 
-    source_steps = list(request.input_from_steps)
-
-    if not source_steps and state.current_step > 0:
-        source_steps.append(state.current_step)
-
-    for step_index in source_steps:
+    for step_index in request.input_from_steps:
         inherited_labels = get_step_output_labels(state, step_index)
 
         for label in inherited_labels:
@@ -166,109 +133,366 @@ def run_step(task_id: str, request: RuntimeStepRequest):
     return {
         "message": "Runtime step checked successfully.",
         "task_id": task_id,
-        "decision": result.decision,
-        "risk_score": result.risk_score,
-        "reason": result.reason,
-        "summary": build_runtime_summary(state),
-        "attack_chain_state": state.attack_chain_state,
         "result": result.model_dump(),
         "state": state.model_dump(),
     }
 
 
+@router.get("/sandbox/status")
+def read_sandbox_status():
+    """
+    查看安全沙箱整体状态。
+
+    这个接口用于展示：
+    1. 沙箱目录是否存在；
+    2. public/private/secret/outbox 是否初始化；
+    3. outbox 中是否有沙箱邮件；
+    4. SQLite 演示数据库是否存在。
+    """
+
+    ensure_sandbox_ready()
+
+    return {
+        "message": "Sandbox status loaded successfully.",
+        "sandbox": {
+            "enabled": True,
+            "root": str(SANDBOX_DIR),
+            "public_dir": str(PUBLIC_DIR),
+            "private_dir": str(PRIVATE_DIR),
+            "secret_dir": str(SECRET_DIR),
+            "outbox_dir": str(OUTBOX_DIR),
+            "database": str(DB_PATH),
+        },
+        "exists": {
+            "root": SANDBOX_DIR.exists(),
+            "public_dir": PUBLIC_DIR.exists(),
+            "private_dir": PRIVATE_DIR.exists(),
+            "secret_dir": SECRET_DIR.exists(),
+            "outbox_dir": OUTBOX_DIR.exists(),
+            "database": DB_PATH.exists(),
+        },
+        "counts": {
+            "public_files": _count_files(PUBLIC_DIR),
+            "private_files": _count_files(PRIVATE_DIR),
+            "secret_files": _count_files(SECRET_DIR),
+            "outbox_emails": _count_files(OUTBOX_DIR),
+        },
+    }
+
+
+@router.get("/sandbox/files")
+def list_sandbox_files():
+    """
+    查看沙箱中的文件列表。
+
+    注意：
+    这里不会直接返回 secret 文件内容，只返回文件名和大小。
+    """
+
+    ensure_sandbox_ready()
+
+    return {
+        "message": "Sandbox files loaded successfully.",
+        "public": _list_files(PUBLIC_DIR),
+        "private": _list_files(PRIVATE_DIR),
+        "secret": _list_files(SECRET_DIR),
+        "outbox": _list_files(OUTBOX_DIR),
+    }
+
+
+@router.get("/sandbox/outbox")
+def list_sandbox_outbox():
+    """
+    查看沙箱邮件 outbox。
+
+    email.send 不会真实外发，而是写入 runtime_workspace/outbox。
+    这个接口用于展示被沙箱记录下来的邮件。
+    """
+
+    ensure_sandbox_ready()
+
+    emails = []
+
+    for file_path in sorted(OUTBOX_DIR.glob("*.json")):
+        try:
+            data = json.loads(file_path.read_text(encoding="utf-8"))
+
+        except json.JSONDecodeError:
+            data = {
+                "error": "Invalid JSON mail record.",
+            }
+
+        emails.append(
+            {
+                "file": str(file_path.relative_to(SANDBOX_DIR)),
+                "size": file_path.stat().st_size,
+                "data": data,
+            }
+        )
+
+    return {
+        "message": "Sandbox outbox loaded successfully.",
+        "count": len(emails),
+        "emails": emails,
+    }
+
+
+@router.get("/sandbox/database")
+def read_sandbox_database():
+    """
+    查看沙箱数据库中的演示数据。
+
+    这个接口只读取 notices 表，不执行用户输入 SQL。
+    真正的 SQL 查询仍然走 db.query 工具。
+    """
+
+    ensure_sandbox_ready()
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, title, content, visibility
+            FROM notices
+            ORDER BY id
+            """
+        ).fetchall()
+
+        notices = [dict(row) for row in rows]
+
+    finally:
+        conn.close()
+
+    return {
+        "message": "Sandbox database loaded successfully.",
+        "database": str(DB_PATH),
+        "table": "notices",
+        "row_count": len(notices),
+        "rows": notices,
+    }
+
+
+@router.get("/sandbox/demo-run")
+def run_sandbox_demo():
+    """
+    一键生成沙箱运行痕迹。
+
+    用于比赛演示：
+    1. 写入一个 public 文件；
+    2. 再读取这个 public 文件；
+    3. 发送一封沙箱邮件到 outbox；
+    4. 查询 SQLite 数据库；
+    5. 执行一个安全命令；
+    6. 尝试路径穿越，证明沙箱会拦截越界访问。
+    """
+
+    ensure_sandbox_ready()
+
+    now = datetime.now().isoformat(timespec="seconds")
+
+    demo_content = (
+        "AgentGuard 沙箱演示记录\n"
+        f"生成时间：{now}\n"
+        "说明：该文件由 /runtime/sandbox/demo-run 接口生成，"
+        "用于证明工具调用已经进入真实沙箱执行。\n"
+    )
+
+    steps = []
+
+    steps.append(
+        {
+            "name": "写入公开文件",
+            "tool": "file.write",
+            "params": {
+                "path": "public/runtime_demo_note.txt",
+                "content": demo_content,
+            },
+            "result": execute_tool(
+                "file.write",
+                {
+                    "path": "public/runtime_demo_note.txt",
+                    "content": demo_content,
+                },
+            ),
+        }
+    )
+
+    steps.append(
+        {
+            "name": "读取公开文件",
+            "tool": "file.read",
+            "params": {
+                "path": "public/runtime_demo_note.txt",
+            },
+            "result": execute_tool(
+                "file.read",
+                {
+                    "path": "public/runtime_demo_note.txt",
+                },
+            ),
+        }
+    )
+
+    steps.append(
+        {
+            "name": "沙箱邮件落盘",
+            "tool": "email.send",
+            "params": {
+                "to": "teacher@example.com",
+                "subject": "AgentGuard 沙箱演示邮件",
+                "content": "这是一封沙箱邮件，不会真实外发，只会写入 runtime_workspace/outbox。",
+            },
+            "result": execute_tool(
+                "email.send",
+                {
+                    "to": "teacher@example.com",
+                    "subject": "AgentGuard 沙箱演示邮件",
+                    "content": "这是一封沙箱邮件，不会真实外发，只会写入 runtime_workspace/outbox。",
+                },
+            ),
+        }
+    )
+
+    steps.append(
+        {
+            "name": "查询沙箱数据库",
+            "tool": "db.query",
+            "params": {
+                "sql": "SELECT id, title, visibility FROM notices",
+            },
+            "result": execute_tool(
+                "db.query",
+                {
+                    "sql": "SELECT id, title, visibility FROM notices",
+                },
+            ),
+        }
+    )
+
+    steps.append(
+        {
+            "name": "执行安全命令",
+            "tool": "shell.run",
+            "params": {
+                "command": "echo AgentGuard sandbox demo",
+            },
+            "result": execute_tool(
+                "shell.run",
+                {
+                    "command": "echo AgentGuard sandbox demo",
+                },
+            ),
+        }
+    )
+
+    steps.append(
+        {
+            "name": "路径穿越拦截测试",
+            "tool": "file.read",
+            "params": {
+                "path": "../secret/password.txt",
+            },
+            "result": execute_tool(
+                "file.read",
+                {
+                    "path": "../secret/password.txt",
+                },
+            ),
+        }
+    )
+
+    success_count = sum(
+        1
+        for step in steps
+        if step["result"].get("success") is True
+    )
+
+    blocked_count = sum(
+        1
+        for step in steps
+        if step["result"].get("success") is False
+    )
+
+    return {
+        "message": "Sandbox demo executed successfully.",
+        "sandbox": {
+            "root": str(SANDBOX_DIR),
+            "outbox_dir": str(OUTBOX_DIR),
+            "database": str(DB_PATH),
+        },
+        "summary": {
+            "total_steps": len(steps),
+            "success_steps": success_count,
+            "blocked_steps": blocked_count,
+            "note": "blocked_steps 中包含故意设计的路径穿越拦截测试。",
+        },
+        "steps": steps,
+    }
+
+
 @router.get("/{task_id}/state")
-def get_state(task_id: str):
+def read_runtime_state(task_id: str):
+    """
+    查看指定任务的运行时状态。
+    """
+
     state = get_runtime_state(task_id)
 
-    if not state:
-        raise HTTPException(status_code=404, detail="Runtime task not found.")
-
-    return {
-        "message": "Runtime task state fetched successfully.",
-        "task_id": task_id,
-        "summary": build_runtime_summary(state),
-        "violations": state.violations,
-        "attack_chain_state": state.attack_chain_state,
-        "steps": [step.model_dump() for step in state.steps],
-        "state": state.model_dump(),
-    }
-
-@router.post("/{task_id}/confirm/{step_index}")
-def confirm_runtime_step(task_id: str, step_index: int):
-    """
-    人工批准某个等待确认的运行时步骤。
-    """
-    state = get_runtime_state(task_id)
-
-    if not state:
-        raise HTTPException(status_code=404, detail="Runtime task not found.")
-
-    success = approve_runtime_step(
-        state=state,
-        step_index=step_index,
-    )
-
-    if not success:
+    if state is None:
         raise HTTPException(
-            status_code=400,
-            detail="Runtime step is not waiting for confirmation.",
+            status_code=404,
+            detail=f"Runtime task {task_id} not found.",
         )
 
-    save_runtime_state(state)
-
     return {
-        "message": "Runtime step confirmed successfully.",
-        "task_id": task_id,
-        "confirmed_step": step_index,
-        "summary": build_runtime_summary(state),
+        "message": "Runtime task state loaded successfully.",
         "state": state.model_dump(),
     }
 
-@router.post("/{task_id}/reject/{step_index}")
-def reject_runtime_confirm_step(task_id: str, step_index: int):
-    """
-    人工拒绝某个等待确认的运行时步骤。
-    """
-    state = get_runtime_state(task_id)
-
-    if not state:
-        raise HTTPException(status_code=404, detail="Runtime task not found.")
-
-    success = reject_runtime_step(
-        state=state,
-        step_index=step_index,
-    )
-
-    if not success:
-        raise HTTPException(
-            status_code=400,
-            detail="Runtime step is not waiting for confirmation.",
-        )
-
-    save_runtime_state(state)
-
-    return {
-        "message": "Runtime step rejected successfully.",
-        "task_id": task_id,
-        "rejected_step": step_index,
-        "summary": build_runtime_summary(state),
-        "state": state.model_dump(),
-    }
 
 @router.get("")
 def list_runtime_tasks():
     """
-    查看当前内存中的全部运行时任务摘要。
+    查看当前内存中的全部运行时任务。
     """
-    states = list_runtime_states()
 
-    tasks = [
-        build_runtime_summary(state)
-        for state in states.values()
-    ]
+    states = list_runtime_states()
 
     return {
         "message": "Runtime task list loaded successfully.",
-        "count": len(tasks),
-        "tasks": tasks,
+        "count": len(states),
+        "tasks": {
+            task_id: state.model_dump()
+            for task_id, state in states.items()
+        },
     }
+
+
+def _count_files(directory: Path) -> int:
+    if not directory.exists():
+        return 0
+
+    return sum(1 for item in directory.iterdir() if item.is_file())
+
+
+def _list_files(directory: Path):
+    if not directory.exists():
+        return []
+
+    files = []
+
+    for file_path in sorted(directory.iterdir()):
+        if not file_path.is_file():
+            continue
+
+        files.append(
+            {
+                "name": file_path.name,
+                "relative_path": str(file_path.relative_to(SANDBOX_DIR)),
+                "size": file_path.stat().st_size,
+            }
+        )
+
+    return files

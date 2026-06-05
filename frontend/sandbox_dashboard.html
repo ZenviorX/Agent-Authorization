@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>AgentGuard 沙箱运行态展示</title>
+
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --panel-soft: #f8fafc;
+            --text: #172033;
+            --muted: #64748b;
+            --line: #dbe3ef;
+            --primary: #2854c5;
+            --primary-soft: #eaf0ff;
+            --green: #16a34a;
+            --red: #dc2626;
+            --amber: #d97706;
+            --purple: #7c3aed;
+            --shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at top left, rgba(40, 84, 197, 0.12), transparent 32%),
+                linear-gradient(135deg, #f4f7fb 0%, #eef3fb 100%);
+            color: var(--text);
+            font-family:
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                "Microsoft YaHei",
+                sans-serif;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .page {
+            width: min(1180px, calc(100% - 32px));
+            margin: 0 auto;
+            padding: 28px 0 40px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+
+        .brand {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: 0.02em;
+        }
+
+        .brand p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .nav a {
+            padding: 9px 14px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.8);
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .nav a:hover {
+            color: var(--primary);
+            border-color: rgba(40, 84, 197, 0.4);
+            background: var(--primary-soft);
+        }
+
+        .hero {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            box-shadow: var(--shadow);
+            padding: 22px;
+            margin-bottom: 18px;
+        }
+
+        .hero-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+            margin-bottom: 16px;
+        }
+
+        .hero-title h2 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .hero-title p {
+            margin: 8px 0 0;
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        .status {
+            white-space: nowrap;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #eef2ff;
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .status.ok {
+            background: #dcfce7;
+            color: var(--green);
+        }
+
+        .status.bad {
+            background: #fee2e2;
+            color: var(--red);
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr auto auto auto auto auto;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .api-input {
+            width: 100%;
+            padding: 11px 13px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            outline: none;
+            color: var(--text);
+            background: #fff;
+        }
+
+        .api-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(40, 84, 197, 0.12);
+        }
+
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 11px 15px;
+            cursor: pointer;
+            font-weight: 700;
+            color: #fff;
+            background: var(--primary);
+        }
+
+        button:hover {
+            filter: brightness(0.97);
+        }
+
+        button.secondary {
+            background: #475569;
+        }
+
+        button.light {
+            background: var(--primary-soft);
+            color: var(--primary);
+            border: 1px solid rgba(40, 84, 197, 0.22);
+        }
+
+        button.demo {
+            background: #7c3aed;
+        }
+
+        button.evidence {
+            background: #0f766e;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .metric {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+            padding: 18px;
+        }
+
+        .metric .label {
+            color: var(--muted);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .metric .value {
+            font-size: 26px;
+            font-weight: 800;
+        }
+
+        .metric .hint {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 18px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            margin-bottom: 18px;
+        }
+
+        .card-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--line);
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .card-header h3 {
+            margin: 0;
+            font-size: 17px;
+        }
+
+        .card-header span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .card-body {
+            padding: 16px 18px 18px;
+        }
+
+        .empty {
+            padding: 18px;
+            border: 1px dashed var(--line);
+            border-radius: 14px;
+            background: var(--panel-soft);
+            color: var(--muted);
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th,
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: var(--muted);
+            background: #f8fafc;
+            font-weight: 800;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 9px;
+            font-size: 12px;
+            font-weight: 700;
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .tag.public,
+        .tag.success,
+        .tag.verified {
+            background: #dcfce7;
+            color: var(--green);
+        }
+
+        .tag.private {
+            background: #fef3c7;
+            color: var(--amber);
+        }
+
+        .tag.secret,
+        .tag.blocked,
+        .tag.unverified {
+            background: #fee2e2;
+            color: var(--red);
+        }
+
+        .tag.outbox {
+            background: #ede9fe;
+            color: var(--purple);
+        }
+
+        .tag.hash {
+            background: #ccfbf1;
+            color: #0f766e;
+        }
+
+        pre {
+            margin: 0;
+            padding: 14px;
+            border-radius: 14px;
+            background: #0f172a;
+            color: #dbeafe;
+            overflow: auto;
+            max-height: 420px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .path {
+            font-family: Consolas, "Courier New", monospace;
+            color: #334155;
+        }
+
+        .hash-text {
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 12px;
+            word-break: break-all;
+            color: #0f766e;
+        }
+
+        .mail-card,
+        .demo-step,
+        .evidence-card {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 12px;
+            background: var(--panel-soft);
+        }
+
+        .mail-card:last-child,
+        .demo-step:last-child,
+        .evidence-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .mail-card p,
+        .demo-step p,
+        .evidence-card p {
+            margin: 6px 0;
+            line-height: 1.6;
+            font-size: 13px;
+        }
+
+        .mail-content {
+            margin-top: 8px;
+            padding: 10px;
+            border-radius: 10px;
+            background: #fff;
+            border: 1px solid var(--line);
+            white-space: pre-wrap;
+        }
+
+        .demo-step-head,
+        .evidence-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .demo-step-title,
+        .evidence-title {
+            font-weight: 800;
+        }
+
+        .demo-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 10px;
+            background: #fff;
+            border: 1px solid var(--line);
+            font-family: Consolas, "Courier New", monospace;
+            white-space: pre-wrap;
+            font-size: 12px;
+            line-height: 1.6;
+            max-height: 180px;
+            overflow: auto;
+        }
+
+        .mini-button {
+            padding: 7px 10px;
+            font-size: 12px;
+            border-radius: 9px;
+        }
+
+        .footer-note {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.8;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 1080px) {
+            .controls {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .api-input {
+                grid-column: 1 / -1;
+            }
+        }
+
+        @media (max-width: 980px) {
+            .grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .controls {
+                grid-template-columns: 1fr;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-title {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <header class="topbar">
+            <div class="brand">
+                <h1>AgentGuard 沙箱运行态展示</h1>
+
+                <p>展示文件沙箱、邮件 outbox、SQLite 数据库、真实执行痕迹与 SHA256 证据包。</p>
+            </div>
+
+            <nav class="nav">
+                <a href="/">单步网关</a>
+
+                <a href="/task-chain">多步任务链</a>
+
+                <a href="/security-dashboard">安全总览</a>
+            </nav>
+        </header>
+
+        <section class="hero">
+            <div class="hero-title">
+                <div>
+                    <h2>安全沙箱 Runtime Workspace</h2>
+
+                    <p>
+                        本页面用于比赛展示：Agent 的文件读写、邮件发送和数据库查询不再只是口头模拟，
+                        而是在 <strong>runtime_workspace</strong> 中留下可验证的运行痕迹，并生成可复查的 SHA256 证据包。
+                    </p>
+                </div>
+
+                <div id="serverStatus" class="status">未检测</div>
+            </div>
+
+            <div class="controls">
+                <input
+                    id="apiBase"
+                    class="api-input"
+                    value="http://127.0.0.1:8000"
+                    placeholder="后端地址，例如 http://127.0.0.1:8000"
+                />
+
+                <button onclick="checkServer()">检测后端</button>
+
+                <button class="secondary" onclick="loadAll()">刷新全部</button>
+
+                <button class="demo" onclick="runDemo()">一键生成演示痕迹</button>
+
+                <button class="evidence" onclick="generateEvidence()">生成证据包</button>
+
+                <button class="light" onclick="clearView()">清空页面</button>
+            </div>
+
+            <div class="footer-note">
+                使用前请先启动后端：
+                <span class="path">python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000</span>
+            </div>
+        </section>
+
+        <section class="grid">
+            <div class="metric">
+                <div class="label">Public 文件</div>
+
+                <div id="publicCount" class="value">-</div>
+
+                <div class="hint">公开文件，可用于正常读取演示</div>
+            </div>
+
+            <div class="metric">
+                <div class="label">Private 文件</div>
+
+                <div id="privateCount" class="value">-</div>
+
+                <div class="hint">内部文件，用于权限控制演示</div>
+            </div>
+
+            <div class="metric">
+                <div class="label">Secret 文件</div>
+
+                <div id="secretCount" class="value">-</div>
+
+                <div class="hint">敏感文件，只展示文件名不展示内容</div>
+            </div>
+
+            <div class="metric">
+                <div class="label">Outbox 邮件</div>
+
+                <div id="outboxCount" class="value">-</div>
+
+                <div class="hint">沙箱邮件落盘记录，未真实外发</div>
+            </div>
+        </section>
+
+        <main class="layout">
+            <div>
+                <section class="card">
+                    <div class="card-header">
+                        <h3>证据包生成结果</h3>
+
+                        <span>/sandbox-evidence/run</span>
+                    </div>
+
+                    <div class="card-body">
+                        <div id="evidenceView" class="empty">
+                            点击“生成证据包”后，这里会展示证据文件、SHA256 和执行摘要。
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h3>一键演示执行结果</h3>
+
+                        <span>/runtime/sandbox/demo-run</span>
+                    </div>
+
+                    <div class="card-body">
+                        <div id="demoView" class="empty">
+                            点击“一键生成演示痕迹”后，这里会展示每一步真实沙箱执行结果。
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h3>沙箱目录状态</h3>
+
+                        <span>/runtime/sandbox/status</span>
+                    </div>
+
+                    <div class="card-body">
+                        <div id="statusView" class="empty">暂无数据，请点击“刷新全部”。</div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h3>沙箱文件列表</h3>
+
+                        <span>/runtime/sandbox/files</span>
+                    </div>
+
+                    <div class="card-body">
+                        <div id="filesView" class="empty">暂无数据，请点击“刷新全部”。</div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h3>沙箱数据库 notices 表</h3>
+
+                        <span>/runtime/sandbox/database</span>
+                    </div>
+
+                    <div class="card-body">
+                        <div id="databaseView" class="empty">暂无数据，请点击“刷新全部”。</div>
+                    </div>
+                </section>
+            </div>
+
+            <div>
+                <section class="card">
+                    <div class="card-header">
+                        <h3>证据包列表</h3>
+
+                        <span>/sandbox-evidence/list</span>
+                    </div>
+
+                    <div class="card-body">
+                        <div id="evidenceListView" class="empty">
+                            暂无证据包。点击“生成证据包”后会自动刷新。
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h3>邮件 outbox</h3>
+
+                        <span>/runtime/sandbox/outbox</span>
+                    </div>
+
+                    <div class="card-body">
+                        <div id="outboxView" class="empty">
+                            暂无邮件。你可以点击“一键生成演示痕迹”，再查看 outbox 记录。
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h3>原始 JSON</h3>
+
+                        <span>用于答辩时展示接口返回</span>
+                    </div>
+
+                    <div class="card-body">
+                        <pre id="rawView">暂无数据</pre>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function getApiBase() {
+            return document.getElementById("apiBase").value.trim().replace(/\/$/, "");
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+        }
+
+        function formatJson(data) {
+            return JSON.stringify(data, null, 2);
+        }
+
+        async function fetchJson(path) {
+            const response = await fetch(`${getApiBase()}${path}`);
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || data.message || "后端接口响应异常");
+            }
+
+            return data;
+        }
+
+        async function checkServer() {
+            const serverStatus = document.getElementById("serverStatus");
+
+            serverStatus.textContent = "检测中...";
+            serverStatus.className = "status";
+
+            try {
+                await fetchJson("/api/status");
+
+                serverStatus.textContent = "后端运行正常";
+                serverStatus.className = "status ok";
+
+            } catch (error) {
+                serverStatus.textContent = "后端未连接";
+                serverStatus.className = "status bad";
+            }
+        }
+
+        async function generateEvidence() {
+            const evidenceView = document.getElementById("evidenceView");
+
+            evidenceView.className = "empty";
+            evidenceView.textContent = "正在生成证据包，请稍候...";
+
+            try {
+                const evidenceResult = await fetchJson("/sandbox-evidence/run");
+
+                renderEvidenceResult(evidenceResult);
+
+                document.getElementById("rawView").textContent = formatJson(evidenceResult);
+
+                await loadEvidenceList();
+
+                await loadAll(false);
+
+            } catch (error) {
+                renderError("evidenceView", error);
+            }
+        }
+
+        async function loadEvidenceList() {
+            try {
+                const list = await fetchJson("/sandbox-evidence/list");
+
+                renderEvidenceList(list);
+
+            } catch (error) {
+                renderError("evidenceListView", error);
+            }
+        }
+
+        async function readEvidence(fileName) {
+            try {
+                const data = await fetchJson(`/sandbox-evidence/read/${encodeURIComponent(fileName)}`);
+
+                renderEvidenceReadResult(data);
+
+                document.getElementById("rawView").textContent = formatJson(data);
+
+            } catch (error) {
+                renderError("evidenceView", error);
+            }
+        }
+
+        async function runDemo() {
+            const demoView = document.getElementById("demoView");
+
+            demoView.className = "empty";
+            demoView.textContent = "正在执行沙箱演示，请稍候...";
+
+            try {
+                const demo = await fetchJson("/runtime/sandbox/demo-run");
+
+                renderDemo(demo);
+
+                document.getElementById("rawView").textContent = formatJson(demo);
+
+                await loadAll(false);
+
+            } catch (error) {
+                renderError("demoView", error);
+            }
+        }
+
+        async function loadAll(updateRaw = true) {
+            await checkServer();
+
+            const raw = {};
+
+            try {
+                const status = await fetchJson("/runtime/sandbox/status");
+                raw.status = status;
+
+                renderStatus(status);
+                renderMetrics(status);
+
+            } catch (error) {
+                renderError("statusView", error);
+            }
+
+            try {
+                const files = await fetchJson("/runtime/sandbox/files");
+                raw.files = files;
+
+                renderFiles(files);
+
+            } catch (error) {
+                renderError("filesView", error);
+            }
+
+            try {
+                const outbox = await fetchJson("/runtime/sandbox/outbox");
+                raw.outbox = outbox;
+
+                renderOutbox(outbox);
+
+            } catch (error) {
+                renderError("outboxView", error);
+            }
+
+            try {
+                const database = await fetchJson("/runtime/sandbox/database");
+                raw.database = database;
+
+                renderDatabase(database);
+
+            } catch (error) {
+                renderError("databaseView", error);
+            }
+
+            try {
+                const evidenceList = await fetchJson("/sandbox-evidence/list");
+                raw.evidence_list = evidenceList;
+
+                renderEvidenceList(evidenceList);
+
+            } catch (error) {
+                renderError("evidenceListView", error);
+            }
+
+            if (updateRaw) {
+                document.getElementById("rawView").textContent = formatJson(raw);
+            }
+        }
+
+        function renderMetrics(status) {
+            const counts = status.counts || {};
+
+            document.getElementById("publicCount").textContent = counts.public_files ?? "-";
+            document.getElementById("privateCount").textContent = counts.private_files ?? "-";
+            document.getElementById("secretCount").textContent = counts.secret_files ?? "-";
+            document.getElementById("outboxCount").textContent = counts.outbox_emails ?? "-";
+        }
+
+        function renderEvidenceResult(evidenceResult) {
+            const evidence = evidenceResult.evidence || {};
+            const summary = evidence.summary || {};
+            const file = evidenceResult.file || "-";
+            const sha256 = evidenceResult.sha256 || evidence.sha256 || "-";
+
+            document.getElementById("evidenceView").className = "";
+            document.getElementById("evidenceView").innerHTML = `
+                <div class="evidence-card">
+                    <div class="evidence-head">
+                        <div class="evidence-title">证据包已生成</div>
+                        <span class="tag verified">已保存</span>
+                    </div>
+
+                    <p><strong>证据文件：</strong><span class="path">${escapeHtml(file)}</span></p>
+
+                    <p><strong>SHA256：</strong></p>
+
+                    <p class="hash-text">${escapeHtml(sha256)}</p>
+
+                    <p>
+                        <strong>执行摘要：</strong>
+                        共 ${escapeHtml(summary.total_steps ?? "-")} 步，
+                        成功 ${escapeHtml(summary.success_steps ?? "-")} 步，
+                        拦截 ${escapeHtml(summary.blocked_steps ?? "-")} 步。
+                    </p>
+
+                    <p>
+                        <strong>说明：</strong>
+                        该证据包记录了工具、参数、执行结果和拦截情况，可用于答辩复查。
+                    </p>
+                </div>
+            `;
+        }
+
+        function renderEvidenceReadResult(data) {
+            const evidence = data.evidence || {};
+            const summary = evidence.summary || {};
+
+            document.getElementById("evidenceView").className = "";
+            document.getElementById("evidenceView").innerHTML = `
+                <div class="evidence-card">
+                    <div class="evidence-head">
+                        <div class="evidence-title">证据包校验结果</div>
+                        ${data.hash_verified
+                            ? "<span class='tag verified'>哈希校验通过</span>"
+                            : "<span class='tag unverified'>哈希校验失败</span>"
+                        }
+                    </div>
+
+                    <p><strong>证据文件：</strong><span class="path">${escapeHtml(data.file || "-")}</span></p>
+
+                    <p><strong>文件内 SHA256：</strong></p>
+                    <p class="hash-text">${escapeHtml(data.sha256_in_file || "-")}</p>
+
+                    <p><strong>重新计算 SHA256：</strong></p>
+                    <p class="hash-text">${escapeHtml(data.sha256_recomputed || "-")}</p>
+
+                    <p>
+                        <strong>执行摘要：</strong>
+                        共 ${escapeHtml(summary.total_steps ?? "-")} 步，
+                        成功 ${escapeHtml(summary.success_steps ?? "-")} 步，
+                        拦截 ${escapeHtml(summary.blocked_steps ?? "-")} 步。
+                    </p>
+                </div>
+            `;
+        }
+
+        function renderEvidenceList(list) {
+            const files = list.files || [];
+
+            if (files.length === 0) {
+                document.getElementById("evidenceListView").className = "empty";
+                document.getElementById("evidenceListView").innerHTML = "暂无证据包。点击“生成证据包”后会自动刷新。";
+                return;
+            }
+
+            document.getElementById("evidenceListView").className = "";
+            document.getElementById("evidenceListView").innerHTML = files.map(file => {
+                const summary = file.summary || {};
+
+                return `
+                    <div class="evidence-card">
+                        <div class="evidence-head">
+                            <div class="evidence-title">${escapeHtml(file.name)}</div>
+                            <button class="mini-button evidence" onclick="readEvidence('${escapeHtml(file.name)}')">校验</button>
+                        </div>
+
+                        <p><strong>路径：</strong><span class="path">${escapeHtml(file.relative_path)}</span></p>
+
+                        <p><strong>创建时间：</strong>${escapeHtml(file.created_at || "-")}</p>
+
+                        <p>
+                            <strong>摘要：</strong>
+                            共 ${escapeHtml(summary.total_steps ?? "-")} 步，
+                            成功 ${escapeHtml(summary.success_steps ?? "-")} 步，
+                            拦截 ${escapeHtml(summary.blocked_steps ?? "-")} 步。
+                        </p>
+
+                        <p><strong>SHA256：</strong></p>
+
+                        <p class="hash-text">${escapeHtml(file.sha256 || "-")}</p>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function renderDemo(demo) {
+            const steps = demo.steps || [];
+            const summary = demo.summary || {};
+
+            const summaryHtml = `
+                <div class="empty" style="margin-bottom: 12px;">
+                    共执行 ${escapeHtml(summary.total_steps ?? steps.length)} 步，
+                    成功 ${escapeHtml(summary.success_steps ?? "-")} 步，
+                    拦截 ${escapeHtml(summary.blocked_steps ?? "-")} 步。
+                    其中拦截步骤用于证明沙箱能阻止越界访问。
+                </div>
+            `;
+
+            const stepsHtml = steps.map((step, index) => {
+                const result = step.result || {};
+                const success = result.success === true;
+
+                return `
+                    <div class="demo-step">
+                        <div class="demo-step-head">
+                            <div class="demo-step-title">
+                                Step ${index + 1}：${escapeHtml(step.name)}
+                            </div>
+
+                            ${success
+                                ? "<span class='tag success'>执行成功</span>"
+                                : "<span class='tag blocked'>已拦截</span>"
+                            }
+                        </div>
+
+                        <p><strong>工具：</strong><span class="path">${escapeHtml(step.tool)}</span></p>
+
+                        <p><strong>参数：</strong><span class="path">${escapeHtml(JSON.stringify(step.params || {}))}</span></p>
+
+                        <div class="demo-result">${escapeHtml(JSON.stringify(result, null, 2))}</div>
+                    </div>
+                `;
+            }).join("");
+
+            document.getElementById("demoView").className = "";
+            document.getElementById("demoView").innerHTML = summaryHtml + stepsHtml;
+        }
+
+        function renderStatus(status) {
+            const sandbox = status.sandbox || {};
+            const exists = status.exists || {};
+
+            document.getElementById("statusView").className = "";
+            document.getElementById("statusView").innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>项目</th>
+                            <th>状态</th>
+                            <th>路径</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${statusRow("沙箱根目录", exists.root, sandbox.root)}
+                        ${statusRow("public 目录", exists.public_dir, sandbox.public_dir)}
+                        ${statusRow("private 目录", exists.private_dir, sandbox.private_dir)}
+                        ${statusRow("secret 目录", exists.secret_dir, sandbox.secret_dir)}
+                        ${statusRow("outbox 目录", exists.outbox_dir, sandbox.outbox_dir)}
+                        ${statusRow("SQLite 数据库", exists.database, sandbox.database)}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function statusRow(name, ok, path) {
+            return `
+                <tr>
+                    <td>${escapeHtml(name)}</td>
+                    <td>${ok ? "<span class='tag public'>存在</span>" : "<span class='tag secret'>缺失</span>"}</td>
+                    <td class="path">${escapeHtml(path || "")}</td>
+                </tr>
+            `;
+        }
+
+        function renderFiles(files) {
+            const groups = [
+                ["public", "公开文件", files.public || []],
+                ["private", "内部文件", files.private || []],
+                ["secret", "敏感文件", files.secret || []],
+                ["outbox", "邮件记录", files.outbox || []],
+            ];
+
+            const rows = [];
+
+            for (const [type, label, list] of groups) {
+                for (const file of list) {
+                    rows.push(`
+                        <tr>
+                            <td><span class="tag ${type}">${escapeHtml(label)}</span></td>
+                            <td>${escapeHtml(file.name)}</td>
+                            <td class="path">${escapeHtml(file.relative_path)}</td>
+                            <td>${escapeHtml(file.size)} B</td>
+                        </tr>
+                    `);
+                }
+            }
+
+            if (rows.length === 0) {
+                document.getElementById("filesView").className = "empty";
+                document.getElementById("filesView").innerHTML = "沙箱中暂无文件。";
+                return;
+            }
+
+            document.getElementById("filesView").className = "";
+            document.getElementById("filesView").innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>类型</th>
+                            <th>文件名</th>
+                            <th>相对路径</th>
+                            <th>大小</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows.join("")}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderOutbox(outbox) {
+            const emails = outbox.emails || [];
+
+            document.getElementById("outboxCount").textContent = outbox.count ?? emails.length;
+
+            if (emails.length === 0) {
+                document.getElementById("outboxView").className = "empty";
+                document.getElementById("outboxView").innerHTML = `
+                    暂无邮件。你可以点击“一键生成演示痕迹”，再查看 outbox 记录。
+                `;
+
+                return;
+            }
+
+            document.getElementById("outboxView").className = "";
+            document.getElementById("outboxView").innerHTML = emails.map(email => {
+                const data = email.data || {};
+
+                return `
+                    <div class="mail-card">
+                        <p><strong>文件：</strong><span class="path">${escapeHtml(email.file)}</span></p>
+
+                        <p><strong>收件人：</strong>${escapeHtml(data.to || "")}</p>
+
+                        <p><strong>主题：</strong>${escapeHtml(data.subject || "")}</p>
+
+                        <p><strong>创建时间：</strong>${escapeHtml(data.created_at || "")}</p>
+
+                        <p>
+                            <strong>真实外发：</strong>
+                            ${data.real_external_send ? "<span class='tag secret'>是</span>" : "<span class='tag public'>否，已被沙箱接管</span>"}
+                        </p>
+
+                        <div class="mail-content">${escapeHtml(data.content || "")}</div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function renderDatabase(database) {
+            const rows = database.rows || [];
+
+            if (rows.length === 0) {
+                document.getElementById("databaseView").className = "empty";
+                document.getElementById("databaseView").innerHTML = "数据库暂无记录。";
+                return;
+            }
+
+            document.getElementById("databaseView").className = "";
+            document.getElementById("databaseView").innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>标题</th>
+                            <th>内容</th>
+                            <th>可见性</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        ${rows.map(row => `
+                            <tr>
+                                <td>${escapeHtml(row.id)}</td>
+                                <td>${escapeHtml(row.title)}</td>
+                                <td>${escapeHtml(row.content)}</td>
+                                <td><span class="tag ${getVisibilityClass(row.visibility)}">${escapeHtml(row.visibility)}</span></td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function getVisibilityClass(visibility) {
+            const value = String(visibility || "").toLowerCase();
+
+            if (value.includes("public")) {
+                return "public";
+            }
+
+            if (value.includes("secret")) {
+                return "secret";
+            }
+
+            return "private";
+        }
+
+        function renderError(elementId, error) {
+            document.getElementById(elementId).className = "empty";
+            document.getElementById(elementId).innerHTML = `
+                加载失败：${escapeHtml(error)}
+            `;
+        }
+
+        function clearView() {
+            document.getElementById("publicCount").textContent = "-";
+            document.getElementById("privateCount").textContent = "-";
+            document.getElementById("secretCount").textContent = "-";
+            document.getElementById("outboxCount").textContent = "-";
+
+            document.getElementById("evidenceView").innerHTML = "点击“生成证据包”后，这里会展示证据文件、SHA256 和执行摘要。";
+            document.getElementById("evidenceView").className = "empty";
+
+            document.getElementById("evidenceListView").innerHTML = "暂无证据包。点击“生成证据包”后会自动刷新。";
+            document.getElementById("evidenceListView").className = "empty";
+
+            document.getElementById("demoView").innerHTML = "点击“一键生成演示痕迹”后，这里会展示每一步真实沙箱执行结果。";
+            document.getElementById("demoView").className = "empty";
+
+            document.getElementById("statusView").innerHTML = "暂无数据，请点击“刷新全部”。";
+            document.getElementById("statusView").className = "empty";
+
+            document.getElementById("filesView").innerHTML = "暂无数据，请点击“刷新全部”。";
+            document.getElementById("filesView").className = "empty";
+
+            document.getElementById("outboxView").innerHTML = "暂无邮件。你可以点击“一键生成演示痕迹”，再查看 outbox 记录。";
+            document.getElementById("outboxView").className = "empty";
+
+            document.getElementById("databaseView").innerHTML = "暂无数据，请点击“刷新全部”。";
+            document.getElementById("databaseView").className = "empty";
+
+            document.getElementById("rawView").textContent = "暂无数据";
+        }
+
+        checkServer();
+        loadEvidenceList();
+    </script>
+</body>
+</html>

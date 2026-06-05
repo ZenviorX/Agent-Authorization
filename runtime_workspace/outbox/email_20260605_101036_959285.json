@@ -1,0 +1,8 @@
+{
+  "to": "teacher@example.com",
+  "subject": "AgentGuard 证据包演示邮件",
+  "content": "这是一封证据包演示邮件，不会真实外发，只会写入 runtime_workspace/outbox。",
+  "created_at": "2026-06-05T10:10:36",
+  "sandbox": true,
+  "real_external_send": false
+}

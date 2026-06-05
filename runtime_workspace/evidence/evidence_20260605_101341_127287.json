@@ -1,0 +1,142 @@
+{
+  "project": "AgentGuard",
+  "evidence_type": "sandbox_runtime_execution",
+  "created_at": "2026-06-05T10:13:41",
+  "finished_at": "2026-06-05T10:13:41",
+  "sandbox": {
+    "root": "D:\\信安赛\\agent-authorization\\Agent-Authorization\\runtime_workspace",
+    "outbox_dir": "D:\\信安赛\\agent-authorization\\Agent-Authorization\\runtime_workspace\\outbox",
+    "evidence_dir": "D:\\信安赛\\agent-authorization\\Agent-Authorization\\runtime_workspace\\evidence",
+    "real_external_send": false
+  },
+  "summary": {
+    "total_steps": 6,
+    "success_steps": 5,
+    "blocked_steps": 1,
+    "note": "blocked_steps 包含故意设计的路径穿越拦截测试。"
+  },
+  "steps": [
+    {
+      "name": "写入公开文件",
+      "tool": "file.write",
+      "params": {
+        "path": "public/evidence_demo_note.txt",
+        "content": "AgentGuard 证据包演示记录\n生成时间：2026-06-05T10:13:41\n说明：该文件由 /sandbox-evidence/run 生成，用于证明工具调用进入了真实沙箱。\n"
+      },
+      "result": {
+        "success": true,
+        "result": {
+          "message": "文件已写入安全沙箱",
+          "path": "public\\evidence_demo_note.txt",
+          "bytes": 170
+        }
+      },
+      "success": true,
+      "recorded_at": "2026-06-05T10:13:41"
+    },
+    {
+      "name": "读取公开文件",
+      "tool": "file.read",
+      "params": {
+        "path": "public/evidence_demo_note.txt"
+      },
+      "result": {
+        "success": true,
+        "result": "AgentGuard 证据包演示记录\n生成时间：2026-06-05T10:13:41\n说明：该文件由 /sandbox-evidence/run 生成，用于证明工具调用进入了真实沙箱。\n",
+        "meta": {
+          "sandbox": true,
+          "path": "public\\evidence_demo_note.txt",
+          "bytes": 170
+        }
+      },
+      "success": true,
+      "recorded_at": "2026-06-05T10:13:41"
+    },
+    {
+      "name": "沙箱邮件落盘",
+      "tool": "email.send",
+      "params": {
+        "to": "teacher@example.com",
+        "subject": "AgentGuard 证据包演示邮件",
+        "content": "这是一封证据包演示邮件，不会真实外发，只会写入 runtime_workspace/outbox。"
+      },
+      "result": {
+        "success": true,
+        "result": {
+          "message": "邮件已写入沙箱 outbox，未真实外发",
+          "outbox_file": "outbox\\email_20260605_101341_103868.json",
+          "to": "teacher@example.com",
+          "subject": "AgentGuard 证据包演示邮件"
+        }
+      },
+      "success": true,
+      "recorded_at": "2026-06-05T10:13:41"
+    },
+    {
+      "name": "查询沙箱数据库",
+      "tool": "db.query",
+      "params": {
+        "sql": "SELECT id, title, visibility FROM notices"
+      },
+      "result": {
+        "success": true,
+        "result": {
+          "rows": [
+            {
+              "id": 1,
+              "title": "公开通知",
+              "visibility": "public"
+            },
+            {
+              "id": 2,
+              "title": "课程资料",
+              "visibility": "course"
+            },
+            {
+              "id": 3,
+              "title": "敏感记录",
+              "visibility": "secret"
+            }
+          ],
+          "row_count": 3,
+          "database": "agent_runtime.db"
+        }
+      },
+      "success": true,
+      "recorded_at": "2026-06-05T10:13:41"
+    },
+    {
+      "name": "执行安全命令",
+      "tool": "shell.run",
+      "params": {
+        "command": "echo AgentGuard evidence demo"
+      },
+      "result": {
+        "success": true,
+        "result": {
+          "command": "echo AgentGuard evidence demo",
+          "cwd": "D:\\信安赛\\agent-authorization\\Agent-Authorization\\runtime_workspace",
+          "returncode": 0,
+          "stdout": "AgentGuard evidence demo\n",
+          "stderr": ""
+        }
+      },
+      "success": true,
+      "recorded_at": "2026-06-05T10:13:41"
+    },
+    {
+      "name": "路径穿越拦截测试",
+      "tool": "file.read",
+      "params": {
+        "path": "../secret/password.txt"
+      },
+      "result": {
+        "success": false,
+        "result": "非法路径：禁止访问沙箱目录之外的文件"
+      },
+      "success": false,
+      "recorded_at": "2026-06-05T10:13:41"
+    }
+  ],
+  "sha256": "4ef7ef2bb2f292e7382236ae633db83c7ccb1aba0841ae3ef119448c06e86e9b"
+}
