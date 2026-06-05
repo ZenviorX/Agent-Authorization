@@ -1,17 +1,30 @@
 # AI Agent 工具调用授权策略配置文件
-# 修改安全策略时优先修改本文件，尽量不要改业务代码。
+# 设计目标：
+# 1. 所有 Agent 工具调用默认不可信
+# 2. 普通操作自动放行，高风险操作人工确认，危险操作直接拒绝
+# 3. 策略尽量配置化，减少业务代码硬编码
+# 4. 只保留 user / admin 两类角色，保证系统清晰易讲
 
-version: "2.1"
+version: "3.0"
 
-# 用户与角色映射
-# 当前系统只保留两个身份：
-# user  ：普通用户，权限受限
-# admin ：管理员，高风险操作仍需确认
+# ============================================================
+# 1. 用户与角色映射
+# ============================================================
+
 users:
   user: user
-  admin: admin
+  student: user
+  demo_user: user
 
-# 系统支持的标准工具。Agent 或 LLM 不能临时创造未登记工具。
+  admin: admin
+  root: admin
+  demo_admin: admin
+
+# ============================================================
+# 2. 系统支持的标准工具
+# ============================================================
+# Agent 或 LLM 不能临时创造未登记工具。
+
 supported_tools:
   - file.read
   - file.write
@@ -20,87 +33,166 @@ supported_tools:
   - shell.run
   - db.query
 
-# 每种工具执行前必须具备的参数。缺少参数时不允许自动执行。
+# ============================================================
+# 3. 每种工具必须具备的参数
+# ============================================================
+
 required_params:
   file.read:
     - path
+
   file.write:
     - path
     - content
+
   file.delete:
     - path
+
   email.send:
     - to
     - content
+
   shell.run:
     - command
+
   db.query:
     - sql
 
-# Agent 计划质量阈值
-agent_plan:
-  min_auto_confidence: 0.85
-  min_confirm_confidence: 0.55
+# ============================================================
+# 4. Agent 计划质量阈值
+# ============================================================
+# agent_confidence < 0.60：直接拒绝
+# 0.60 <= agent_confidence < 0.88：至少人工确认
+# agent_confidence >= 0.88：进入正常风险评估
 
-# 内部可信邮箱域名。非内部邮箱视为存在外发风险。
+agent_plan:
+  min_auto_confidence: 0.88
+  min_confirm_confidence: 0.60
+
+# ============================================================
+# 5. 内部可信邮箱域名
+# ============================================================
+
 internal_email_domains:
   - "@sdu.edu.cn"
+  - "@mail.sdu.edu.cn"
+  - "@student.sdu.edu.cn"
 
-# 工具基础风险分
+# ============================================================
+# 6. 工具基础风险分
+# ============================================================
+# 分数越高，越不可能自动执行。
+
 tool_risk:
-  file.read: 10
-  file.write: 30
-  file.delete: 60
-  email.send: 50
-  shell.run: 80
-  db.query: 40
+  file.read: 8
+  file.write: 35
+  file.delete: 75
+  email.send: 45
+  shell.run: 85
+  db.query: 35
 
-# 资源路径风险分
+# ============================================================
+# 7. 资源路径风险分
+# ============================================================
+# 当前代码是“路径子串命中”机制，所以关键词不要太泛。
+# 例如 key 太容易误伤，建议用 .key、private_key、api_key 这类更具体的词。
+
 resource_risk:
   public/: 0
-  course/: 10
-  private/: 40
-  secret/: 80
-  password: 80
-  passwd: 80
-  key: 80
-  token: 80
-  .env: 80
+  course/: 8
+  data/: 10
+  logs/: 15
+  readonly/: 10
 
-# 风险分决策阈值
+  private/: 45
+  backup/: 40
+  dump/: 60
+  database/: 35
+  users.db: 60
+
+  secret/: 90
+  credentials/: 90
+  config/secrets: 90
+  .env: 90
+  id_rsa: 90
+  id_dsa: 90
+  private_key: 90
+  api_key: 85
+  apikey: 85
+  access_key: 85
+  refresh_token: 85
+  token: 80
+  password: 90
+  passwd: 90
+  .pem: 80
+  .key: 75
+
+# ============================================================
+# 8. 风险分决策阈值
+# ============================================================
+# <= 39：allow
+# 40 - 79：confirm
+# >= 80：deny
+
 decision_threshold:
   allow_max: 39
-  confirm_max: 69
-  deny_min: 70
+  confirm_max: 79
+  deny_min: 80
 
-# 细粒度风险加分。Gateway、PlanGuard、ContextAnalyzer 尽量从这里取值。
+# ============================================================
+# 9. 细粒度风险加分
+# ============================================================
+
 risk_scores:
-  unknown_tool: 100
+  unknown_tool: 120
+
   low_confidence_deny: 100
   low_confidence_confirm: 45
-  missing_params: 60
-  path_traversal: 60
-  absolute_path: 40
-  role_deny: 70
-  no_role_policy: 20
-  missing_email_to: 20
-  external_email: 25
-  sensitive_email_content: 30
-  prompt_injection_keyword: 30
-  sensitive_content_keyword: 20
-  command_keyword: 30
-  sql_keyword: 50
-  non_select_sql: 30
-  contract_parse_error: 100
 
-# 危险关键词配置
+  missing_params: 60
+
+  path_traversal: 90
+  absolute_path: 70
+
+  role_deny: 90
+  no_role_policy: 25
+
+  missing_email_to: 35
+  external_email: 35
+  sensitive_email_content: 50
+
+  prompt_injection_keyword: 40
+  sensitive_content_keyword: 25
+
+  command_keyword: 60
+
+  sql_keyword: 70
+  non_select_sql: 50
+
+  contract_parse_error: 120
+
+# ============================================================
+# 10. 危险关键词配置
+# ============================================================
+
 dangerous_keywords:
   path:
     - "../"
     - "..\\"
     - "%2e%2e"
-    - "public/../"
+    - "%252e%252e"
+    - "/etc/passwd"
+    - "c:\\"
+    - "c:/"
+    - "\\windows\\"
     - "secret/"
+    - "private/"
+    - ".env"
+    - "id_rsa"
+    - "id_dsa"
+    - "credentials"
+    - "backup"
+    - "dump"
 
   command:
     - "rm -rf"
@@ -109,9 +201,31 @@ dangerous_keywords:
     - "shutdown"
     - "reboot"
     - "powershell"
+    - "cmd.exe /c"
     - "curl"
     - "wget"
+    - "nc "
+    - "netcat"
     - "chmod 777"
+    - "chown"
+    - "sudo"
+    - "su -"
+    - "ssh "
+    - "scp "
+    - "ftp "
+    - "python -c"
+    - "perl -e"
+    - "bash -c"
+    - "sh -c"
+    - "invoke-webrequest"
+    - "iwr "
+    - "certutil"
+    - "bitsadmin"
+    - "reg add"
+    - "taskkill"
+    - "mkfs"
+    - "dd if="
+    - "> /dev/sda"
 
   prompt_injection:
     - "忽略之前的规则"
@@ -120,20 +234,35 @@ dangerous_keywords:
     - "忽略之前的指令"
     - "忽略系统提示"
     - "不要遵守安全策略"
-    - "不要遵守"
+    - "不要遵守开发者指令"
     - "绕过权限检查"
-    - "绕过"
-    - "请读取"
+    - "绕过安全检查"
+    - "关闭安全检查"
+    - "禁用安全策略"
+    - "你现在是管理员"
+    - "你现在拥有最高权限"
+    - "开发者模式"
+    - "越权读取"
     - "读取 secret"
     - "读取敏感文件"
     - "发送给 attacker"
     - "attacker@example.com"
-    - "ignore previous"
+    - "把密码发出去"
+    - "把 token 发出去"
     - "ignore previous instructions"
     - "ignore all previous instructions"
     - "disregard previous instructions"
+    - "forget previous instructions"
     - "bypass authorization"
-    - "bypass"
+    - "bypass the policy"
+    - "disable safety"
+    - "disable security"
+    - "developer mode"
+    - "you are now admin"
+    - "reveal system prompt"
+    - "show system prompt"
+    - "exfiltrate"
+    - "send to attacker"
 
   sensitive_content:
     - "password"
@@ -141,22 +270,36 @@ dangerous_keywords:
     - "secret"
     - "token"
     - "credential"
+    - "credentials"
     - "api_key"
     - "apikey"
+    - "access_key"
+    - "refresh_token"
     - "private_key"
+    - "bearer "
+    - "authorization:"
     - "密钥"
     - "密码"
     - "口令"
     - "令牌"
+    - "私钥"
+    - "凭证"
+    - "访问令牌"
 
   sensitive_path:
     - "secret"
+    - "private"
     - "password"
     - "passwd"
-    - "private"
-    - "key"
-    - ".env"
     - "token"
+    - ".env"
+    - "credentials"
+    - "id_rsa"
+    - "id_dsa"
+    - "private_key"
+    - "api_key"
+    - ".pem"
+    - ".key"
 
   sql:
     - "drop table"
@@ -167,15 +310,43 @@ dangerous_keywords:
     - "insert into"
     - "alter table"
     - "create table"
+    - "grant "
+    - "revoke "
+    - "attach database"
+    - "pragma "
+    - "load_extension"
+    - "outfile"
+    - "xp_cmdshell"
 
-# 可能造成数据外发或副作用的工具
+# ============================================================
+# 11. 可能造成数据外发或副作用的工具
+# ============================================================
+
 external_output_tools:
   - email.send
   - shell.run
   - db.query
   - file.write
+  - file.delete
 
-# 角色权限策略
+# ============================================================
+# 12. 角色权限策略
+# ============================================================
+# 只保留 user 和 admin。
+# 策略优先级：deny > confirm > allow。
+#
+# user：
+# - 可以读取 public/course
+# - 可以执行数据库查询，但危险 SQL 会被风险规则拦截
+# - 写文件、发邮件、删 public 文件需要确认
+# - 禁止访问 secret/private
+# - 禁止 shell
+#
+# admin：
+# - 可以访问更多资源
+# - 删除文件和 shell 执行仍需人工确认
+# - 高风险敏感路径会因为风险分转入确认或拒绝
+
 roles:
   user:
     allow:
@@ -184,7 +355,7 @@ roles:
       - tool: file.read
         resource: course/*
       - tool: db.query
-        resource: readonly/*
+        resource: "*"
 
     confirm:
       - tool: email.send
@@ -199,6 +370,10 @@ roles:
         resource: secret/*
       - tool: "*"
         resource: private/*
+      - tool: "*"
+        resource: credentials/*
+      - tool: file.write
+        resource: course/*
       - tool: file.delete
         resource: course/*
       - tool: shell.run
@@ -223,20 +398,35 @@ roles:
 
     deny: []
 
-# 任务授权合约默认策略
+# ============================================================
+# 13. 任务授权合约默认策略
+# ============================================================
+# 任务合约体现“任务级零信任”思想：
+# 即使用户有权限，Agent 当前任务也必须被限制在任务边界内。
+
 task_contract:
-  extract_file_path_pattern: '(public/[a-zA-Z0-9_.\-/]+|data/[a-zA-Z0-9_.\-/]+|logs/[a-zA-Z0-9_.\-/]+|course/[a-zA-Z0-9_.\-/]+)'
+  extract_file_path_pattern: '(public/[a-zA-Z0-9_.\-/]+|course/[a-zA-Z0-9_.\-/]+|data/[a-zA-Z0-9_.\-/]+|logs/[a-zA-Z0-9_.\-/]+|runtime_workspace/[a-zA-Z0-9_.\-/]+)'
 
   default_denied_tools:
     - shell.run
+    - file.delete
     - code.exec
-    - db.query
+    - http.request
+    - browser.open
 
   default_denied_paths:
     - secret/*
     - private/*
+    - credentials/*
+    - config/secrets/*
     - ../*
+    - ..\\*
+    - .env
+    - id_rsa
+    - id_dsa
+    - "*.pem"
+    - "*.key"
 
-  default_risk_budget: 80
+  default_risk_budget: 70
   default_allow_external_send: false
   default_require_human_confirm: false
