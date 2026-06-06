@@ -15,7 +15,7 @@ def check(user: str, tool: str, params: dict):
 
 def test_gateway_allows_public_file_read():
     result = check(
-        user="student",
+        user="user",
         tool="file.read",
         params={"path": "public/notice.txt"},
     )
@@ -25,7 +25,7 @@ def test_gateway_allows_public_file_read():
 
 def test_gateway_denies_secret_file_read():
     result = check(
-        user="student",
+        user="user",
         tool="file.read",
         params={"path": "secret/password.txt"},
     )
@@ -35,7 +35,7 @@ def test_gateway_denies_secret_file_read():
 
 def test_gateway_denies_path_traversal():
     result = check(
-        user="alice",
+        user="user",
         tool="file.read",
         params={"path": "../../secret/password.txt"},
     )
@@ -45,7 +45,7 @@ def test_gateway_denies_path_traversal():
 
 def test_gateway_requires_confirmation_for_file_delete():
     result = check(
-        user="teacher",
+        user="user",
         tool="file.delete",
         params={"path": "public/notice.txt"},
     )
