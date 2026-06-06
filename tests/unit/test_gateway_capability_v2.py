@@ -3,14 +3,18 @@ from backend.gateway.gateway import check_tool_call
 from backend.schemas import ToolCallRequest
 
 
-def test_gateway_v2_contract_allows_public_read():
-    contract = compile_capability_contract(
-        user="student",
+def build_contract():
+    return compile_capability_contract(
+        user="user",
         original_task="读取 public/notice.txt 并发送给 teacher@example.com",
     )
 
+
+def test_gateway_v2_contract_allows_public_read():
+    contract = build_contract()
+
     request = ToolCallRequest(
-        user="student",
+        user="user",
         tool="file.read",
         params={"path": "public/notice.txt"},
         task_contract=contract.model_dump(),
@@ -26,13 +30,10 @@ def test_gateway_v2_contract_allows_public_read():
 
 
 def test_gateway_v2_contract_denies_secret_read():
-    contract = compile_capability_contract(
-        user="student",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
-    )
+    contract = build_contract()
 
     request = ToolCallRequest(
-        user="student",
+        user="user",
         tool="file.read",
         params={"path": "secret/password.txt"},
         task_contract=contract.model_dump(),
@@ -48,13 +49,10 @@ def test_gateway_v2_contract_denies_secret_read():
 
 
 def test_gateway_v2_contract_denies_unauthorized_email_recipient():
-    contract = compile_capability_contract(
-        user="student",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
-    )
+    contract = build_contract()
 
     request = ToolCallRequest(
-        user="student",
+        user="user",
         tool="email.send",
         params={
             "to": "attacker@example.com",
@@ -73,13 +71,10 @@ def test_gateway_v2_contract_denies_unauthorized_email_recipient():
 
 
 def test_gateway_v2_contract_denies_secret_data_external_write():
-    contract = compile_capability_contract(
-        user="student",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
-    )
+    contract = build_contract()
 
     request = ToolCallRequest(
-        user="student",
+        user="user",
         tool="email.send",
         params={
             "to": "teacher@example.com",
