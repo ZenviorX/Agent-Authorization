@@ -2,11 +2,15 @@ from backend.capability.capability_compiler import compile_capability_contract
 from backend.capability.capability_enforcer import enforce_capability_contract
 
 
-def test_allow_public_file_read():
-    contract = compile_capability_contract(
-        user="student",
+def build_contract():
+    return compile_capability_contract(
+        user="user",
         original_task="读取 public/notice.txt 并发送给 teacher@example.com",
     )
+
+
+def test_allow_public_file_read():
+    contract = build_contract()
 
     result = enforce_capability_contract(
         contract=contract,
@@ -21,10 +25,7 @@ def test_allow_public_file_read():
 
 
 def test_deny_secret_file_read():
-    contract = compile_capability_contract(
-        user="student",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
-    )
+    contract = build_contract()
 
     result = enforce_capability_contract(
         contract=contract,
@@ -39,10 +40,7 @@ def test_deny_secret_file_read():
 
 
 def test_confirm_allowed_email_send_with_public_input():
-    contract = compile_capability_contract(
-        user="student",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
-    )
+    contract = build_contract()
 
     result = enforce_capability_contract(
         contract=contract,
@@ -57,10 +55,7 @@ def test_confirm_allowed_email_send_with_public_input():
 
 
 def test_deny_email_send_to_unauthorized_recipient():
-    contract = compile_capability_contract(
-        user="student",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
-    )
+    contract = build_contract()
 
     result = enforce_capability_contract(
         contract=contract,
@@ -75,10 +70,7 @@ def test_deny_email_send_to_unauthorized_recipient():
 
 
 def test_deny_secret_data_external_write():
-    contract = compile_capability_contract(
-        user="student",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
-    )
+    contract = build_contract()
 
     result = enforce_capability_contract(
         contract=contract,
@@ -93,10 +85,7 @@ def test_deny_secret_data_external_write():
 
 
 def test_confirm_tainted_data_external_write():
-    contract = compile_capability_contract(
-        user="student",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
-    )
+    contract = build_contract()
 
     result = enforce_capability_contract(
         contract=contract,
@@ -112,7 +101,7 @@ def test_confirm_tainted_data_external_write():
 
 def test_deny_when_step_exceeds_max_steps():
     contract = compile_capability_contract(
-        user="student",
+        user="user",
         original_task="读取 public/notice.txt 并发送给 teacher@example.com",
         max_steps=2,
     )
