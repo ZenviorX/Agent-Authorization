@@ -21,24 +21,22 @@ CASE_DIR = PROJECT_ROOT / "security_cases"
 RESULTS_DIR = PROJECT_ROOT / "Results"
 
 
-def get_next_result_path() -> Path:
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    max_index = 0
-    for path in RESULTS_DIR.glob("Result_*.html"):
-        suffix = path.stem.replace("Result_", "", 1)
-        if suffix.isdigit():
-            max_index = max(max_index, int(suffix))
-
-    return RESULTS_DIR / f"Result_{max_index + 1:03d}.html"
-
-
 def safe(value: Any) -> str:
     return html.escape(str(value))
 
 
 def percent(value: float) -> str:
     return f"{value * 100:.2f}%"
+
+
+def get_next_result_path() -> Path:
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    max_index = 0
+    for path in RESULTS_DIR.glob("Result_*.html"):
+        suffix = path.stem.replace("Result_", "", 1)
+        if suffix.isdigit():
+            max_index = max(max_index, int(suffix))
+    return RESULTS_DIR / f"Result_{max_index + 1:03d}.html"
 
 
 def load_cases() -> List[Dict[str, Any]]:
@@ -141,13 +139,10 @@ def run_gateway_eval() -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
             "id": case.get("id"),
             "source_file": source_file,
             "category": category,
-            "label": label,
-            "description": case.get("description", ""),
             "expected": case.get("expected_decision", case.get("expected_decision_in")),
             "actual": decision,
             "passed": ok,
             "risk_score": result.get("risk_score", ""),
-            "risk_level": result.get("risk_level", ""),
             "latency_ms": round(latency_ms, 3),
             "reason": " | ".join(str(x) for x in result.get("reason", [])),
         })
@@ -335,14 +330,18 @@ def main() -> int:
     out_html.write_text(build_html(summary, rows, tests, error), encoding="utf-8")
     print(f"HTML dashboard: {out_html}")
 
+    failed = False
     if error:
         print(f"Dashboard captured runtime error: {error}")
+        failed = True
     if not tests["ok"]:
         print("Dashboard captured unit test failures.")
+        failed = True
     if summary.get("failed_cases", 0) > 0:
         print(f"Dashboard captured {summary.get('failed_cases')} failed experiment cases.")
+        failed = True
 
-    return 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
