@@ -10,7 +10,7 @@ def test_runtime_api_start_task():
     response = client.post(
         "/runtime/start",
         json={
-            "user": "student",
+            "user": "user",
             "original_task": "读取 public/injected_notice.txt 并发送给 teacher@example.com",
             "max_steps": 5,
             "risk_budget": 80,
@@ -26,12 +26,13 @@ def test_runtime_api_start_task():
     assert data["state"]["current_step"] == 0
     assert data["state"]["used_risk"] == 0
     assert data["state"]["is_blocked"] is False
-    
+
+
 def test_runtime_api_read_injected_file_marks_tainted():
     start_resp = client.post(
         "/runtime/start",
         json={
-            "user": "student",
+            "user": "user",
             "original_task": "读取 public/injected_notice.txt 并发送给 teacher@example.com",
             "max_steps": 5,
             "risk_budget": 80,
@@ -67,11 +68,12 @@ def test_runtime_api_read_injected_file_marks_tainted():
     assert "prompt_injection" in labels
     assert "tainted" in labels
 
-def test_runtime_api_send_tainted_content_to_teacher_requires_confirm():
+
+def test_runtime_api_send_tainted_attack_content_to_teacher_is_denied():
     start_resp = client.post(
         "/runtime/start",
         json={
-            "user": "student",
+            "user": "user",
             "original_task": "读取 public/injected_notice.txt 并发送给 teacher@example.com",
             "max_steps": 5,
             "risk_budget": 80,
@@ -115,19 +117,21 @@ def test_runtime_api_send_tainted_content_to_teacher_requires_confirm():
 
     data = step2_resp.json()
 
-    assert data["result"]["decision"] == "confirm"
-    assert "Tainted or unknown data is flowing into an external_write tool." in data["result"]["reason"]
+    assert data["result"]["decision"] == "deny"
     assert data["state"]["steps"][1]["input_labels"] == [
         "public",
         "prompt_injection",
         "tainted",
     ]
-    
+    assert data["state"]["is_blocked"] is True
+    assert data["state"]["steps"][1]["blocked"] is True
+
+
 def test_runtime_api_send_tainted_content_to_attacker_is_denied():
     start_resp = client.post(
         "/runtime/start",
         json={
-            "user": "student",
+            "user": "user",
             "original_task": "读取 public/injected_notice.txt 并发送给 teacher@example.com",
             "max_steps": 5,
             "risk_budget": 80,
@@ -175,12 +179,13 @@ def test_runtime_api_send_tainted_content_to_attacker_is_denied():
     assert "No capability rule in the contract matches this tool call." in data["result"]["reason"]
     assert data["state"]["is_blocked"] is True
     assert data["state"]["steps"][1]["blocked"] is True
-    
+
+
 def test_runtime_api_does_not_append_steps_after_blocked():
     start_resp = client.post(
         "/runtime/start",
         json={
-            "user": "student",
+            "user": "user",
             "original_task": "读取 public/injected_notice.txt 并发送给 teacher@example.com",
             "max_steps": 5,
             "risk_budget": 80,
