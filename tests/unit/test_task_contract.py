@@ -9,11 +9,11 @@ class TestTaskContract(unittest.TestCase):
         task = "读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
 
         contract = build_task_contract(
-            user="student",
+            user="user",
             task_text=task
         )
 
-        self.assertEqual(contract.user, "student")
+        self.assertEqual(contract.user, "user")
         self.assertIn("file.read", contract.allowed_tools)
         self.assertIn("email.send", contract.allowed_tools)
 
