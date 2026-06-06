@@ -1,4 +1,4 @@
-﻿import json
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,7 +14,7 @@ class TestAuditHashChain(unittest.TestCase):
 
             with patch.object(audit_logger, "LOG_FILE", temp_log):
                 record = audit_logger.write_log(
-                    user="student",
+                    user="user",
                     tool="file.read",
                     params={"path": "public/notice.txt"},
                     gateway_result={
@@ -37,7 +37,7 @@ class TestAuditHashChain(unittest.TestCase):
 
             with patch.object(audit_logger, "LOG_FILE", temp_log):
                 audit_logger.write_log(
-                    user="student",
+                    user="user",
                     tool="file.read",
                     params={"path": "public/notice.txt"},
                     gateway_result={
@@ -51,7 +51,7 @@ class TestAuditHashChain(unittest.TestCase):
                 )
 
                 audit_logger.write_log(
-                    user="student",
+                    user="user",
                     tool="file.read",
                     params={"path": "secret/password.txt"},
                     gateway_result={
@@ -75,7 +75,7 @@ class TestAuditHashChain(unittest.TestCase):
 
             with patch.object(audit_logger, "LOG_FILE", temp_log):
                 audit_logger.write_log(
-                    user="student",
+                    user="user",
                     tool="file.read",
                     params={"path": "public/notice.txt"},
                     gateway_result={
