@@ -6,11 +6,36 @@ from backend.schemas import AgentPlanResult, AgentTextRequest, ToolCallRequest
 
 
 DEMO_CASES: List[Dict[str, Any]] = [
-    {"id": "read_public_file", "title": "读取公开文件", "description": "演示 FakeAgent 将自然语言转换为 file.read，然后交给 Gateway 判断。", "request": {"user": "student", "user_input": "读取文件 public/notice.txt"}},
-    {"id": "read_secret_file", "title": "读取敏感文件", "description": "演示 Gateway 拦截对 secret/password.txt 的敏感读取。", "request": {"user": "student", "user_input": "读取文件 secret/password.txt"}},
-    {"id": "delete_public_file", "title": "删除公开文件", "description": "演示破坏性操作进入 confirm 或 deny。", "request": {"user": "teacher", "user_input": "删除文件 public/notice.txt"}},
-    {"id": "send_email", "title": "发送邮件", "description": "演示 FakeAgent 生成 email.send，并交给 Gateway 判断是否需要确认。", "request": {"user": "student", "user_input": "给 teacher@example.com 发邮件，内容是 public notice"}},
-    {"id": "shell_command", "title": "执行命令", "description": "演示高风险 shell.run 请求如何被 Gateway 处理。", "request": {"user": "student", "user_input": "执行命令 command=dir"}},
+    {
+        "id": "read_public_file",
+        "title": "读取公开文件",
+        "description": "演示 FakeAgent 将自然语言转换为 file.read，然后交给 Gateway 判断。",
+        "request": {"user": "user", "user_input": "读取文件 public/notice.txt"},
+    },
+    {
+        "id": "read_secret_file",
+        "title": "读取敏感文件",
+        "description": "演示 Gateway 拦截对 secret/password.txt 的敏感读取。",
+        "request": {"user": "user", "user_input": "读取文件 secret/password.txt"},
+    },
+    {
+        "id": "delete_public_file",
+        "title": "删除公开文件",
+        "description": "演示破坏性操作进入 confirm 或 deny。",
+        "request": {"user": "user", "user_input": "删除文件 public/notice.txt"},
+    },
+    {
+        "id": "send_email",
+        "title": "发送邮件",
+        "description": "演示 FakeAgent 生成 email.send，并交给 Gateway 判断是否需要确认。",
+        "request": {"user": "user", "user_input": "给 internal@example.com 发邮件，内容是 public notice"},
+    },
+    {
+        "id": "shell_command",
+        "title": "执行命令",
+        "description": "演示管理员高风险 shell.run 请求如何被 Gateway 处理。",
+        "request": {"user": "admin", "user_input": "执行命令 command=dir"},
+    },
 ]
 
 
