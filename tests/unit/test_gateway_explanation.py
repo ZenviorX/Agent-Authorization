@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 
 from backend.schemas import ToolCallRequest
 from backend.gateway.gateway import check_tool_call
@@ -7,7 +7,7 @@ from backend.gateway.gateway import check_tool_call
 class TestGatewayExplanation(unittest.TestCase):
     def test_secret_file_read_has_risk_level_and_explanations(self):
         request = ToolCallRequest(
-            user="student",
+            user="user",
             tool="file.read",
             params={
                 "path": "secret/password.txt"
@@ -32,7 +32,7 @@ class TestGatewayExplanation(unittest.TestCase):
 
     def test_public_file_read_has_explanation_fields(self):
         request = ToolCallRequest(
-            user="student",
+            user="user",
             tool="file.read",
             params={
                 "path": "public/notice.txt"
@@ -51,7 +51,7 @@ class TestGatewayExplanation(unittest.TestCase):
 
     def test_unknown_tool_has_structured_explanations(self):
         request = ToolCallRequest(
-            user="student",
+            user="user",
             tool="unknown.tool",
             params={}
         )
