@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 
 from fastapi.testclient import TestClient
 
@@ -16,7 +16,7 @@ class TestAttackChainRuntimeRoutes(unittest.TestCase):
             "/attack-chain/check",
             json={
                 "chain_session_id": self.session_id,
-                "user": "student",
+                "user": "user",
                 "tool": "file.read",
                 "params": {
                     "path": "public/notice.txt"
@@ -42,7 +42,7 @@ class TestAttackChainRuntimeRoutes(unittest.TestCase):
             "/attack-chain/check",
             json={
                 "chain_session_id": self.session_id,
-                "user": "student",
+                "user": "user",
                 "tool": "file.write",
                 "params": {
                     "path": "public/injected_notice.txt",
@@ -55,7 +55,7 @@ class TestAttackChainRuntimeRoutes(unittest.TestCase):
             "/attack-chain/check",
             json={
                 "chain_session_id": self.session_id,
-                "user": "student",
+                "user": "user",
                 "tool": "file.read",
                 "params": {
                     "path": "secret/password.txt"
@@ -76,7 +76,7 @@ class TestAttackChainRuntimeRoutes(unittest.TestCase):
             "/attack-chain/check",
             json={
                 "chain_session_id": self.session_id,
-                "user": "student",
+                "user": "user",
                 "tool": "file.read",
                 "params": {
                     "path": "public/notice.txt"
