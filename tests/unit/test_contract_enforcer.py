@@ -8,7 +8,7 @@ class TestContractEnforcer(unittest.TestCase):
 
     def setUp(self):
         self.contract = build_task_contract(
-            user="student",
+            user="user",
             task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
         )
 
