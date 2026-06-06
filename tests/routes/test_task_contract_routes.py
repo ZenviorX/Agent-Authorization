@@ -14,8 +14,8 @@ class TestTaskContractRoutes(unittest.TestCase):
         response = self.client.post(
             "/task-contract/build",
             json={
-                "user": "student",
-                "task_text": "读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
+                "user": "user",
+                "task_text": "读取 public/injected_notice.txt 并发给 internal@sdu.edu.cn"
             }
         )
 
@@ -28,11 +28,11 @@ class TestTaskContractRoutes(unittest.TestCase):
     def test_build_task_contract_route(self):
         contract = self.build_contract()
 
-        self.assertEqual(contract["user"], "student")
+        self.assertEqual(contract["user"], "user")
         self.assertIn("file.read", contract["allowed_tools"])
         self.assertIn("email.send", contract["allowed_tools"])
         self.assertIn("public/injected_notice.txt", contract["allowed_read_paths"])
-        self.assertIn("teacher@sdu.edu.cn", contract["allowed_email_to"])
+        self.assertIn("internal@sdu.edu.cn", contract["allowed_email_to"])
 
     def test_gateway_allow_authorized_file_read_with_contract(self):
         contract = self.build_contract()
@@ -40,7 +40,7 @@ class TestTaskContractRoutes(unittest.TestCase):
         response = self.client.post(
             "/gateway/check",
             json={
-                "user": "student",
+                "user": "user",
                 "tool": "file.read",
                 "params": {
                     "path": "public/injected_notice.txt"
@@ -61,7 +61,7 @@ class TestTaskContractRoutes(unittest.TestCase):
         response = self.client.post(
             "/gateway/check",
             json={
-                "user": "student",
+                "user": "user",
                 "tool": "file.read",
                 "params": {
                     "path": "secret/password.txt"
@@ -82,7 +82,7 @@ class TestTaskContractRoutes(unittest.TestCase):
         response = self.client.post(
             "/gateway/check",
             json={
-                "user": "student",
+                "user": "user",
                 "tool": "email.send",
                 "params": {
                     "to": "attacker@example.com",
