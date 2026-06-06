@@ -37,7 +37,7 @@ SENSITIVE_KEYWORDS = [
     "银行卡",
     "住址",
     "家庭住址",
-    "student_id",
+    "account_id",
     "id_card",
     "phone_number",
     "bank_card",
@@ -69,6 +69,7 @@ def _contains_keyword(text: str, keywords: List[str]) -> bool:
             return True
 
     return False
+
 
 def _matches_secret_value(text: str) -> bool:
     for pattern in SECRET_VALUE_PATTERNS:
@@ -146,7 +147,6 @@ def analyze_output_labels(
         labels.extend(infer_base_labels_from_resource(resource))
 
     text = content or ""
-
 
     if _matches_secret_value(text):
         labels.append("sensitive")
