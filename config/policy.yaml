@@ -3,22 +3,21 @@
 # 1. 所有 Agent 工具调用默认不可信
 # 2. 普通操作自动放行，高风险操作人工确认，危险操作直接拒绝
 # 3. 策略尽量配置化，减少业务代码硬编码
-# 4. 只保留 user / admin 两类角色，保证系统清晰易讲
+# 4. 只保留 user / admin 两类身份与角色，保证系统清晰易讲
 
 version: "3.0"
 
 # ============================================================
 # 1. 用户与角色映射
 # ============================================================
+# 系统只保留两个身份入口：
+# - user：普通用户
+# - admin：管理员
+# 其他实验身份不要继续扩散到策略层，避免 user/student/teacher/root/demo_user 混用。
 
 users:
   user: user
-  student: user
-  demo_user: user
-
   admin: admin
-  root: admin
-  demo_admin: admin
 
 # ============================================================
 # 2. 系统支持的标准工具
@@ -317,6 +316,18 @@ dangerous_keywords:
     - "load_extension"
     - "outfile"
     - "xp_cmdshell"
+    - "password"
+    - "passwd"
+    - "credential"
+    - "credentials"
+    - "api_key"
+    - "token"
+    - " from users"
+    - " or '1'='1"
+    - " or \"1\"=\"1"
+    - " or 1=1"
+    - "'1'='1"
+    - "\"1\"=\"1"
 
 # ============================================================
 # 11. 可能造成数据外发或副作用的工具
@@ -338,8 +349,9 @@ external_output_tools:
 # user：
 # - 可以读取 public/course
 # - 可以执行数据库查询，但危险 SQL 会被风险规则拦截
-# - 写文件、发邮件、删 public 文件需要确认
+# - 写 public 文件、发邮件、删 public 文件需要确认
 # - 禁止访问 secret/private
+# - 禁止写入或删除 course
 # - 禁止 shell
 #
 # admin：
