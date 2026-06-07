@@ -1,8 +1,0 @@
-{
-  "to": "teacher@example.com",
-  "subject": "测试邮件",
-  "content": "这是沙箱邮件",
-  "created_at": "2026-06-05T09:49:49",
-  "sandbox": true,
-  "real_external_send": false
-}

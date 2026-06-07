@@ -262,7 +262,7 @@
       "user": "user",
       "tool": "email.send",
       "params": {
-        "to": "teacher@example.com",
+        "to": "internal@example.com",
         "subject": "question",
         "content": "hello"
       },

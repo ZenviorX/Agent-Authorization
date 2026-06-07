@@ -340,14 +340,14 @@ def run_sandbox_demo():
             "name": "沙箱邮件落盘",
             "tool": "email.send",
             "params": {
-                "to": "teacher@example.com",
+                "to": "internal@example.com",
                 "subject": "AgentGuard 沙箱演示邮件",
                 "content": "这是一封沙箱邮件，不会真实外发，只会写入 runtime_workspace/outbox。",
             },
             "result": execute_tool(
                 "email.send",
                 {
-                    "to": "teacher@example.com",
+                    "to": "internal@example.com",
                     "subject": "AgentGuard 沙箱演示邮件",
                     "content": "这是一封沙箱邮件，不会真实外发，只会写入 runtime_workspace/outbox。",
                 },
