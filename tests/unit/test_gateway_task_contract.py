@@ -19,7 +19,7 @@ class TestGatewayTaskContract(unittest.TestCase):
     def test_allow_read_authorized_file(self):
         contract = build_task_contract(
             user="user",
-            task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
+            task_text="读取 public/injected_notice.txt 并发给 internal@sdu.edu.cn"
         )
 
         request = ToolCallRequest(
@@ -39,7 +39,7 @@ class TestGatewayTaskContract(unittest.TestCase):
     def test_deny_read_secret_file(self):
         contract = build_task_contract(
             user="user",
-            task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
+            task_text="读取 public/injected_notice.txt 并发给 internal@sdu.edu.cn"
         )
 
         request = ToolCallRequest(
@@ -59,7 +59,7 @@ class TestGatewayTaskContract(unittest.TestCase):
     def test_deny_send_to_unauthorized_email(self):
         contract = build_task_contract(
             user="user",
-            task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
+            task_text="读取 public/injected_notice.txt 并发给 internal@sdu.edu.cn"
         )
 
         request = ToolCallRequest(
@@ -80,14 +80,14 @@ class TestGatewayTaskContract(unittest.TestCase):
     def test_admin_send_to_authorized_email_not_blocked_by_contract(self):
         contract = build_task_contract(
             user="admin",
-            task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
+            task_text="读取 public/injected_notice.txt 并发给 internal@sdu.edu.cn"
         )
 
         request = ToolCallRequest(
             user="admin",
             tool="email.send",
             params={
-                "to": "teacher@sdu.edu.cn",
+                "to": "internal@sdu.edu.cn",
                 "content": "这是整理后的公开通知"
             },
             task_contract=contract.model_dump()
@@ -97,7 +97,7 @@ class TestGatewayTaskContract(unittest.TestCase):
 
         self.assertIn("已启用任务授权合约检查。", result["reason"])
         self.assertNotIn(
-            "邮件收件人 teacher@sdu.edu.cn 不在本次任务允许发送范围内。",
+            "邮件收件人 internal@sdu.edu.cn 不在本次任务允许发送范围内。",
             result["reason"]
         )
 
