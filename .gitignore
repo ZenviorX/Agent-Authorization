@@ -31,9 +31,6 @@ runtime_workspace/public/runtime_demo_note.txt
 logs/*.log
 logs/*.jsonl
 
-# CI generated HTML reports
-Results/Result_*.html
-
 # Local environment and secrets
 .env
 .env.*
