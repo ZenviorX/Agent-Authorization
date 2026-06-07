@@ -4,7 +4,7 @@ from backend.capability.capability_compiler import compile_capability_contract
 def test_compile_safe_read_and_send_task():
     contract = compile_capability_contract(
         user="user",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
+        original_task="读取 public/notice.txt 并发送给 internal@example.com",
     )
 
     assert contract.contract_version == "2.0"
@@ -20,7 +20,7 @@ def test_compile_safe_read_and_send_task():
 
     send_caps = [cap for cap in contract.capabilities if cap.tool == "email.send"]
     assert len(send_caps) == 1
-    assert "teacher@example.com" in send_caps[0].recipients
+    assert "internal@example.com" in send_caps[0].recipients
 
     assert "shell.run" in contract.forbidden_tools
     assert "code.exec" in contract.forbidden_tools
