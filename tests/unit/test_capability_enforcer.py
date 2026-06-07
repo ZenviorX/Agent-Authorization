@@ -5,7 +5,7 @@ from backend.capability.capability_enforcer import enforce_capability_contract
 def build_contract():
     return compile_capability_contract(
         user="user",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
+        original_task="读取 public/notice.txt 并发送给 internal@example.com",
     )
 
 
@@ -45,7 +45,7 @@ def test_confirm_allowed_email_send_with_public_input():
     result = enforce_capability_contract(
         contract=contract,
         tool="email.send",
-        params={"to": "teacher@example.com"},
+        params={"to": "internal@example.com"},
         input_labels=["public"],
         current_step=2,
         used_risk=10,
@@ -75,7 +75,7 @@ def test_deny_secret_data_external_write():
     result = enforce_capability_contract(
         contract=contract,
         tool="email.send",
-        params={"to": "teacher@example.com"},
+        params={"to": "internal@example.com"},
         input_labels=["secret"],
         current_step=2,
         used_risk=10,
@@ -90,7 +90,7 @@ def test_confirm_tainted_data_external_write():
     result = enforce_capability_contract(
         contract=contract,
         tool="email.send",
-        params={"to": "teacher@example.com"},
+        params={"to": "internal@example.com"},
         input_labels=["tainted"],
         current_step=2,
         used_risk=10,
@@ -102,7 +102,7 @@ def test_confirm_tainted_data_external_write():
 def test_deny_when_step_exceeds_max_steps():
     contract = compile_capability_contract(
         user="user",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
+        original_task="读取 public/notice.txt 并发送给 internal@example.com",
         max_steps=2,
     )
 
