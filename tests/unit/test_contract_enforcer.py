@@ -9,7 +9,7 @@ class TestContractEnforcer(unittest.TestCase):
     def setUp(self):
         self.contract = build_task_contract(
             user="user",
-            task_text="读取 public/injected_notice.txt 并发给 teacher@sdu.edu.cn"
+            task_text="读取 public/injected_notice.txt 并发给 internal@sdu.edu.cn"
         )
 
     def test_allow_read_authorized_file(self):
@@ -51,7 +51,7 @@ class TestContractEnforcer(unittest.TestCase):
             contract=self.contract,
             tool="email.send",
             params={
-                "to": "teacher@sdu.edu.cn",
+                "to": "internal@sdu.edu.cn",
                 "content": "这是整理后的公开通知。"
             }
         )
