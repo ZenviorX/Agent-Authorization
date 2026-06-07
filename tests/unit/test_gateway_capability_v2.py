@@ -6,7 +6,7 @@ from backend.schemas import ToolCallRequest
 def build_contract():
     return compile_capability_contract(
         user="user",
-        original_task="读取 public/notice.txt 并发送给 teacher@example.com",
+        original_task="读取 public/notice.txt 并发送给 internal@example.com",
     )
 
 
@@ -77,7 +77,7 @@ def test_gateway_v2_contract_denies_secret_data_external_write():
         user="user",
         tool="email.send",
         params={
-            "to": "teacher@example.com",
+            "to": "internal@example.com",
             "content": "secret data"
         },
         task_contract=contract.model_dump(),
