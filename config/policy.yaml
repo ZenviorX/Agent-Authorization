@@ -13,7 +13,7 @@ version: "3.0"
 # 系统只保留两个身份入口：
 # - user：普通用户
 # - admin：管理员
-# 其他实验身份不要继续扩散到策略层，避免 user/student/teacher/root/demo_user 混用。
+# 其他业务标签不要继续扩散到策略层，避免权限模型混乱。
 
 users:
   user: user
@@ -322,7 +322,7 @@ dangerous_keywords:
     - "credentials"
     - "api_key"
     - "token"
-    - " from users"
+    - " from accounts"
     - " or '1'='1"
     - " or \"1\"=\"1"
     - " or 1=1"
