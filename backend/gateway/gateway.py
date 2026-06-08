@@ -13,6 +13,7 @@ from backend.gateway.policy_loader import (
     get_risk_score,
     get_internal_email_domains,
 )
+from backend.gateway.semantic_guard import semantic_check_tool_call
 from backend.utils import (
     normalize_tool_name,
     normalize_params,
@@ -163,6 +164,7 @@ def check_tool_call(request: ToolCallRequest):
 
     low_confidence_force_confirm = False
     capability_force_confirm = False
+    semantic_force_confirm = False
 
     if request.agent_confidence is not None:
         confidence = float(request.agent_confidence)
@@ -220,6 +222,39 @@ def check_tool_call(request: ToolCallRequest):
     content_lower = content.lower()
     command_lower = command.lower()
     sql_lower = sql.lower()
+
+    # 0.5 Embedding 语义风险检测：
+    # 用本地句向量相似度识别关键词规则难以覆盖的模糊风险意图。
+    semantic_result = semantic_check_tool_call(
+        user=user,
+        role=role,
+        tool=tool,
+        params=params,
+        path=path,
+        content=content,
+        command=command,
+        sql=sql,
+    )
+
+    if semantic_result.get("enabled"):
+        semantic_risk_score = int(semantic_result.get("risk_score", 0))
+        risk_score += semantic_risk_score
+
+        labels = semantic_result.get("labels", [])
+        if labels:
+            reason.append(
+                f"语义检测命中风险标签：{', '.join(labels)}，风险分 +{semantic_risk_score}"
+            )
+
+        for item in semantic_result.get("reasons", []):
+            reason.append(f"语义检测：{item}")
+
+        if semantic_result.get("force_confirm"):
+            semantic_force_confirm = True
+
+        if semantic_result.get("hard_deny"):
+            hard_deny = True
+            reason.append("语义检测判定存在高危意图，本次调用进入拒绝路径。")
 
     # 0. 任务授权合约检查：
     # 如果请求携带 task_contract，则先判断本次工具调用是否偏离任务目标。
@@ -440,6 +475,10 @@ def check_tool_call(request: ToolCallRequest):
     if capability_force_confirm and decision == "allow":
         decision = "confirm"
         reason.append("Capability Contract v2 要求本次工具调用进入人工确认。")
+
+    if semantic_force_confirm and decision == "allow":
+        decision = "confirm"
+        reason.append("语义检测发现潜在风险，本次操作不能自动放行，转入人工确认。")
 
     if not reason:
         reason.append("未发现明显风险")

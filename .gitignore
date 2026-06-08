@@ -41,3 +41,33 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Local environment files
+.env
+.env.*
+!.env.example
+# Python virtual environments
+venv/
+.venv/
+env/
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# Local model/cache files
+.cache/
+models/
+.huggingface/
+sentence_transformers/
+# Temporary install bundles and logs
+semantic_guard_bundle*/
+semantic_guard_bundle*.zip
+pytest_fail*.txt
+*.bak
+*.backup
+# Local secrets
+config/secrets/
+secrets/
+*.bak-*
+*.backup-*
