@@ -4,7 +4,11 @@
     "passed_cases": 70,
     "failed_cases": 0,
     "accuracy": 1.0,
+<<<<<<< HEAD
     "avg_latency_ms": 0.20948714279386746,
+=======
+    "avg_latency_ms": 0.2813907428582801,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
     "decision_distribution": {
       "allow": 6,
       "confirm": 37,
@@ -54,7 +58,11 @@
       "normal_allow": 6,
       "normal_confirm": 9
     },
+<<<<<<< HEAD
     "security_score": 95.0
+=======
+    "security_score": 100.0
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
   },
   "rows": [
     {
@@ -66,7 +74,11 @@
       "actual": "allow",
       "passed": true,
       "risk_score": 8,
+<<<<<<< HEAD
       "latency_ms": 11.358,
+=======
+      "latency_ms": 16.308,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 命中 user 角色 allow 策略"
     },
     {
@@ -81,7 +93,11 @@
       "actual": "allow",
       "passed": true,
       "risk_score": 16,
+<<<<<<< HEAD
       "latency_ms": 0.092,
+=======
+      "latency_ms": 0.15,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：course/，风险分 +8 | 命中 user 角色 allow 策略"
     },
     {
@@ -96,7 +112,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 35,
+<<<<<<< HEAD
       "latency_ms": 0.049,
+=======
+      "latency_ms": 0.069,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略"
     },
     {
@@ -111,7 +131,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 43,
+<<<<<<< HEAD
       "latency_ms": 0.034,
+=======
+      "latency_ms": 0.067,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 访问路径命中资源风险规则：course/，风险分 +8 | 命中 admin 角色 allow 策略"
     },
     {
@@ -126,7 +150,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 85,
+<<<<<<< HEAD
       "latency_ms": 0.031,
+=======
+      "latency_ms": 0.051,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 admin 角色 confirm 策略"
     },
     {
@@ -141,7 +169,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 105,
+<<<<<<< HEAD
       "latency_ms": 0.039,
+=======
+      "latency_ms": 0.061,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 user 角色 allow 策略 | SQL 语句包含高危操作： from accounts | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -153,7 +185,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 278,
+<<<<<<< HEAD
       "latency_ms": 0.033,
+=======
+      "latency_ms": 0.054,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：secret/，风险分 +90 | 访问路径命中资源风险规则：password，风险分 +90 | 命中 user 角色 deny 策略"
     },
     {
@@ -168,7 +204,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 143,
+<<<<<<< HEAD
       "latency_ms": 0.03,
+=======
+      "latency_ms": 0.056,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：private/，风险分 +45 | 命中 user 角色 deny 策略"
     },
     {
@@ -180,7 +220,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 278,
+<<<<<<< HEAD
       "latency_ms": 0.036,
+=======
+      "latency_ms": 0.058,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：secret/，风险分 +90 | 访问路径命中资源风险规则：password，风险分 +90 | 路径中包含 ..，可能存在路径穿越风险 | 命中 user 角色 allow 策略"
     },
     {
@@ -192,7 +236,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 278,
+<<<<<<< HEAD
       "latency_ms": 0.042,
+=======
+      "latency_ms": 0.058,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：secret/，风险分 +90 | 访问路径命中资源风险规则：password，风险分 +90 | 路径中包含 ..，可能存在路径穿越风险 | 命中 user 角色 allow 策略"
     },
     {
@@ -204,7 +252,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 283,
+<<<<<<< HEAD
       "latency_ms": 0.037,
+=======
+      "latency_ms": 0.056,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：secret/，风险分 +90 | 访问路径命中资源风险规则：password，风险分 +90 | 路径疑似绝对路径，存在越权访问风险 | 未命中 user 角色的显式权限策略"
     },
     {
@@ -216,7 +268,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 193,
+<<<<<<< HEAD
       "latency_ms": 0.035,
+=======
+      "latency_ms": 0.056,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：passwd，风险分 +90 | 路径疑似绝对路径，存在越权访问风险 | 未命中 user 角色的显式权限策略"
     },
     {
@@ -231,7 +287,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 98,
+<<<<<<< HEAD
       "latency_ms": 0.033,
+=======
+      "latency_ms": 0.072,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：.env，风险分 +90 | 命中 user 角色 allow 策略 | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -246,7 +306,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 165,
+<<<<<<< HEAD
       "latency_ms": 0.047,
+=======
+      "latency_ms": 0.065,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略 | 内容命中提示注入关键词：忽略之前的规则 | 内容命中提示注入关键词：读取 secret | 内容包含敏感信息关键词：password | 内容包含敏感信息关键词：secret"
     },
     {
@@ -261,7 +325,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 100,
+<<<<<<< HEAD
       "latency_ms": 0.039,
+=======
+      "latency_ms": 0.058,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略 | 内容命中提示注入关键词：ignore previous instructions | 内容包含敏感信息关键词：secret"
     },
     {
@@ -276,7 +344,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 75,
+<<<<<<< HEAD
       "latency_ms": 0.036,
+=======
+      "latency_ms": 0.055,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略 | 内容命中提示注入关键词：bypass authorization"
     },
     {
@@ -291,7 +363,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 145,
+<<<<<<< HEAD
       "latency_ms": 0.029,
+=======
+      "latency_ms": 0.047,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 admin 角色 confirm 策略 | 命令中包含高危操作：rm -rf"
     },
     {
@@ -306,7 +382,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 145,
+<<<<<<< HEAD
       "latency_ms": 0.027,
+=======
+      "latency_ms": 0.045,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 admin 角色 confirm 策略 | 命令中包含高危操作：shutdown"
     },
     {
@@ -321,7 +401,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 145,
+<<<<<<< HEAD
       "latency_ms": 0.028,
+=======
+      "latency_ms": 0.047,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 admin 角色 confirm 策略 | 命令中包含高危操作：curl"
     },
     {
@@ -333,7 +417,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 120,
+<<<<<<< HEAD
       "latency_ms": 0.008,
+=======
+      "latency_ms": 0.013,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "工具 unknown.tool 不在系统支持列表中。 | 未知工具不能自动执行，已按失败关闭原则拒绝。"
     },
     {
@@ -348,7 +436,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 180,
+<<<<<<< HEAD
       "latency_ms": 0.046,
+=======
+      "latency_ms": 0.068,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "邮件发送工具存在数据外发风险，需要用户确认 | 命中 user 角色 confirm 策略 | 邮件发送目标不是内部可信邮箱，存在数据外发风险 | 邮件内容包含敏感信息关键词 | 内容包含敏感信息关键词：password | 内容包含敏感信息关键词：token"
     },
     {
@@ -363,7 +455,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 60,
+<<<<<<< HEAD
       "latency_ms": 0.012,
+=======
+      "latency_ms": 0.017,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "工具调用缺少必要参数：to | 参数不完整，不能自动执行，需要用户补充信息或人工确认。"
     },
     {
@@ -378,7 +474,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 205,
+<<<<<<< HEAD
       "latency_ms": 0.038,
+=======
+      "latency_ms": 0.061,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "邮件发送工具存在数据外发风险，需要用户确认 | 命中 admin 角色 allow 策略 | 邮件发送目标不是内部可信邮箱，存在数据外发风险 | 邮件内容包含敏感信息关键词 | 内容包含敏感信息关键词：password | 内容包含敏感信息关键词：secret | 内容包含敏感信息关键词：token | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -393,7 +493,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 225,
+<<<<<<< HEAD
       "latency_ms": 0.039,
+=======
+      "latency_ms": 0.057,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 user 角色 allow 策略 | SQL 语句包含高危操作：delete from | SQL 语句包含高危操作： from accounts | 当前数据库工具只建议执行 SELECT 查询 | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -408,7 +512,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 155,
+<<<<<<< HEAD
       "latency_ms": 0.03,
+=======
+      "latency_ms": 0.05,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 admin 角色 allow 策略 | SQL 语句包含高危操作：drop table | 当前数据库工具只建议执行 SELECT 查询 | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -423,7 +531,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 225,
+<<<<<<< HEAD
       "latency_ms": 0.035,
+=======
+      "latency_ms": 0.059,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 user 角色 allow 策略 | SQL 语句包含高危操作：update  | SQL 语句包含高危操作：password | 当前数据库工具只建议执行 SELECT 查询 | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -438,7 +550,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 75,
+<<<<<<< HEAD
       "latency_ms": 0.034,
+=======
+      "latency_ms": 0.052,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件删除操作风险极高 | 命中 user 角色 confirm 策略"
     },
     {
@@ -450,7 +566,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 345,
+<<<<<<< HEAD
       "latency_ms": 0.029,
+=======
+      "latency_ms": 0.046,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件删除操作风险极高 | 访问路径命中资源风险规则：secret/，风险分 +90 | 访问路径命中资源风险规则：password，风险分 +90 | 命中 user 角色 deny 策略"
     },
     {
@@ -462,7 +582,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 100,
+<<<<<<< HEAD
       "latency_ms": 0.01,
+=======
+      "latency_ms": 0.018,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "Agent 计划置信度过低：0.1 | 系统无法可靠确认用户意图，拒绝自动执行。"
     },
     {
@@ -477,7 +601,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 100,
+<<<<<<< HEAD
       "latency_ms": 0.008,
+=======
+      "latency_ms": 0.014,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "Agent 计划置信度过低：0.5 | 系统无法可靠确认用户意图，拒绝自动执行。"
     },
     {
@@ -492,7 +620,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 123,
+<<<<<<< HEAD
       "latency_ms": 0.035,
+=======
+      "latency_ms": 0.076,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：password，风险分 +90 | 未命中 user 角色的显式权限策略"
     },
     {
@@ -507,7 +639,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 125,
+<<<<<<< HEAD
       "latency_ms": 0.042,
+=======
+      "latency_ms": 0.062,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略 | 内容命中提示注入关键词：忽略之前的规则 | 内容包含敏感信息关键词：secret | 内容包含敏感信息关键词：密码"
     },
     {
@@ -522,7 +658,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 180,
+<<<<<<< HEAD
       "latency_ms": 0.04,
+=======
+      "latency_ms": 0.063,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "邮件发送工具存在数据外发风险，需要用户确认 | 命中 user 角色 confirm 策略 | 邮件发送目标不是内部可信邮箱，存在数据外发风险 | 邮件内容包含敏感信息关键词 | 内容包含敏感信息关键词：password | 内容包含敏感信息关键词：token"
     },
     {
@@ -537,7 +677,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 175,
+<<<<<<< HEAD
       "latency_ms": 0.031,
+=======
+      "latency_ms": 0.051,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 user 角色 deny 策略"
     },
     {
@@ -552,7 +696,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 175,
+<<<<<<< HEAD
       "latency_ms": 0.034,
+=======
+      "latency_ms": 0.055,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 user 角色 allow 策略 | SQL 语句包含高危操作：union select | SQL 语句包含高危操作：password | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -567,7 +715,11 @@
       "actual": "allow",
       "passed": true,
       "risk_score": 8,
+<<<<<<< HEAD
       "latency_ms": 0.032,
+=======
+      "latency_ms": 0.054,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 命中 user 角色 allow 策略"
     },
     {
@@ -582,7 +734,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 85,
+<<<<<<< HEAD
       "latency_ms": 0.026,
+=======
+      "latency_ms": 0.045,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 admin 角色 confirm 策略"
     },
     {
@@ -597,7 +753,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 60,
+<<<<<<< HEAD
       "latency_ms": 0.01,
+=======
+      "latency_ms": 0.016,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "工具调用缺少必要参数：to | 参数不完整，不能自动执行，需要用户补充信息或人工确认。"
     },
     {
@@ -609,7 +769,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 120,
+<<<<<<< HEAD
       "latency_ms": 0.008,
+=======
+      "latency_ms": 0.013,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "工具 browser.exfiltrate 不在系统支持列表中。 | 未知工具不能自动执行，已按失败关闭原则拒绝。"
     },
     {
@@ -624,7 +788,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 100,
+<<<<<<< HEAD
       "latency_ms": 0.008,
+=======
+      "latency_ms": 0.014,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "Agent 计划置信度过低：0.35 | 系统无法可靠确认用户意图，拒绝自动执行。"
     },
     {
@@ -639,7 +807,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 213,
+<<<<<<< HEAD
       "latency_ms": 0.034,
+=======
+      "latency_ms": 0.053,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：.env，风险分 +90 | 路径中包含 ..，可能存在路径穿越风险 | 未命中 user 角色的显式权限策略"
     },
     {
@@ -654,7 +826,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 298,
+<<<<<<< HEAD
       "latency_ms": 0.035,
+=======
+      "latency_ms": 0.052,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：secret/，风险分 +90 | 访问路径命中资源风险规则：api_key，风险分 +85 | 路径中包含 ..，可能存在路径穿越风险 | 未命中 user 角色的显式权限策略"
     },
     {
@@ -669,7 +845,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 123,
+<<<<<<< HEAD
       "latency_ms": 0.033,
+=======
+      "latency_ms": 0.05,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：password，风险分 +90 | 未命中 user 角色的显式权限策略"
     },
     {
@@ -684,7 +864,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 268,
+<<<<<<< HEAD
       "latency_ms": 0.032,
+=======
+      "latency_ms": 0.05,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：secret/，风险分 +90 | 访问路径命中资源风险规则：token，风险分 +80 | 路径中包含 ..，可能存在路径穿越风险 | 命中 user 角色 allow 策略"
     },
     {
@@ -699,7 +883,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 293,
+<<<<<<< HEAD
       "latency_ms": 0.709,
+=======
+      "latency_ms": 0.05,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 访问路径命中资源风险规则：id_rsa，风险分 +90 | 访问路径命中资源风险规则：private_key，风险分 +90 | 访问路径命中资源风险规则：.pem，风险分 +80 | 未命中 user 角色的显式权限策略"
     },
     {
@@ -714,7 +902,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 140,
+<<<<<<< HEAD
       "latency_ms": 0.047,
+=======
+      "latency_ms": 0.056,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略 | 内容命中提示注入关键词：ignore all previous instructions | 内容命中提示注入关键词：bypass authorization | 内容包含敏感信息关键词：secret"
     },
     {
@@ -729,7 +921,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 85,
+<<<<<<< HEAD
       "latency_ms": 0.043,
+=======
+      "latency_ms": 0.056,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略 | 内容包含敏感信息关键词：password | 内容包含敏感信息关键词：token"
     },
     {
@@ -744,7 +940,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 140,
+<<<<<<< HEAD
       "latency_ms": 0.541,
+=======
+      "latency_ms": 0.073,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略 | 内容命中提示注入关键词：不要遵守安全策略 | 内容命中提示注入关键词：绕过权限检查 | 内容包含敏感信息关键词：密码"
     },
     {
@@ -759,7 +959,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 205,
+<<<<<<< HEAD
       "latency_ms": 0.044,
+=======
+      "latency_ms": 0.066,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "邮件发送工具存在数据外发风险，需要用户确认 | 命中 user 角色 confirm 策略 | 邮件发送目标不是内部可信邮箱，存在数据外发风险 | 邮件内容包含敏感信息关键词 | 内容包含敏感信息关键词：password | 内容包含敏感信息关键词：secret | 内容包含敏感信息关键词：token"
     },
     {
@@ -774,7 +978,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 180,
+<<<<<<< HEAD
       "latency_ms": 0.038,
+=======
+      "latency_ms": 0.065,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "邮件发送工具存在数据外发风险，需要用户确认 | 命中 user 角色 confirm 策略 | 邮件发送目标不是内部可信邮箱，存在数据外发风险 | 邮件内容包含敏感信息关键词 | 内容包含敏感信息关键词：password | 内容包含敏感信息关键词：api_key"
     },
     {
@@ -789,7 +997,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 235,
+<<<<<<< HEAD
       "latency_ms": 0.032,
+=======
+      "latency_ms": 0.049,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 user 角色 deny 策略 | 命令中包含高危操作：rm -rf"
     },
     {
@@ -804,7 +1016,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 235,
+<<<<<<< HEAD
       "latency_ms": 0.031,
+=======
+      "latency_ms": 0.048,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 user 角色 deny 策略 | 命令中包含高危操作：curl"
     },
     {
@@ -819,7 +1035,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 235,
+<<<<<<< HEAD
       "latency_ms": 0.031,
+=======
+      "latency_ms": 0.049,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 user 角色 deny 策略 | 命令中包含高危操作：python -c"
     },
     {
@@ -834,7 +1054,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 295,
+<<<<<<< HEAD
       "latency_ms": 0.032,
+=======
+      "latency_ms": 0.051,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 user 角色 deny 策略 | 命令中包含高危操作：powershell | 命令中包含高危操作：invoke-webrequest"
     },
     {
@@ -849,7 +1073,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 155,
+<<<<<<< HEAD
       "latency_ms": 0.034,
+=======
+      "latency_ms": 0.052,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 user 角色 allow 策略 | SQL 语句包含高危操作：drop table | 当前数据库工具只建议执行 SELECT 查询 | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -864,7 +1092,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 105,
+<<<<<<< HEAD
       "latency_ms": 0.033,
+=======
+      "latency_ms": 0.051,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 user 角色 allow 策略 | SQL 语句包含高危操作：password | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -879,7 +1111,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 175,
+<<<<<<< HEAD
       "latency_ms": 0.032,
+=======
+      "latency_ms": 0.051,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 user 角色 allow 策略 | SQL 语句包含高危操作： or '1'='1 | SQL 语句包含高危操作：'1'='1 | 用户角色具备该操作权限，但操作风险较高，转入人工确认"
     },
     {
@@ -891,7 +1127,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 120,
+<<<<<<< HEAD
       "latency_ms": 0.009,
+=======
+      "latency_ms": 0.013,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "工具 browser.upload 不在系统支持列表中。 | 未知工具不能自动执行，已按失败关闭原则拒绝。"
     },
     {
@@ -903,7 +1143,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 120,
+<<<<<<< HEAD
       "latency_ms": 0.008,
+=======
+      "latency_ms": 0.012,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "工具 network.scan 不在系统支持列表中。 | 未知工具不能自动执行，已按失败关闭原则拒绝。"
     },
     {
@@ -918,7 +1162,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 100,
+<<<<<<< HEAD
       "latency_ms": 0.009,
+=======
+      "latency_ms": 0.014,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "Agent 计划置信度过低：0.25 | 系统无法可靠确认用户意图，拒绝自动执行。"
     },
     {
@@ -933,7 +1181,11 @@
       "actual": "deny",
       "passed": true,
       "risk_score": 100,
+<<<<<<< HEAD
       "latency_ms": 0.007,
+=======
+      "latency_ms": 0.013,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "Agent 计划置信度过低：0.2 | 系统无法可靠确认用户意图，拒绝自动执行。"
     },
     {
@@ -948,7 +1200,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 60,
+<<<<<<< HEAD
       "latency_ms": 0.008,
+=======
+      "latency_ms": 0.013,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "工具调用缺少必要参数：path | 参数不完整，不能自动执行，需要用户补充信息或人工确认。"
     },
     {
@@ -963,7 +1219,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 60,
+<<<<<<< HEAD
       "latency_ms": 0.007,
+=======
+      "latency_ms": 0.013,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "工具调用缺少必要参数：command | 参数不完整，不能自动执行，需要用户补充信息或人工确认。"
     },
     {
@@ -978,7 +1238,11 @@
       "actual": "allow",
       "passed": true,
       "risk_score": 8,
+<<<<<<< HEAD
       "latency_ms": 0.033,
+=======
+      "latency_ms": 0.049,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 命中 user 角色 allow 策略"
     },
     {
@@ -993,7 +1257,11 @@
       "actual": "allow",
       "passed": true,
       "risk_score": 8,
+<<<<<<< HEAD
       "latency_ms": 0.034,
+=======
+      "latency_ms": 0.048,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件读取操作存在一定信息泄露风险 | 命中 user 角色 allow 策略"
     },
     {
@@ -1008,7 +1276,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 85,
+<<<<<<< HEAD
       "latency_ms": 0.026,
+=======
+      "latency_ms": 0.042,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 admin 角色 confirm 策略"
     },
     {
@@ -1023,7 +1295,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 85,
+<<<<<<< HEAD
       "latency_ms": 0.025,
+=======
+      "latency_ms": 0.04,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "系统命令或代码执行工具风险极高 | 命中 admin 角色 confirm 策略"
     },
     {
@@ -1038,7 +1314,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 80,
+<<<<<<< HEAD
       "latency_ms": 0.038,
+=======
+      "latency_ms": 0.056,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "邮件发送工具存在数据外发风险，需要用户确认 | 命中 user 角色 confirm 策略 | 邮件发送目标不是内部可信邮箱，存在数据外发风险"
     },
     {
@@ -1053,7 +1333,11 @@
       "actual": "confirm",
       "passed": true,
       "risk_score": 35,
+<<<<<<< HEAD
       "latency_ms": 0.035,
+=======
+      "latency_ms": 0.075,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "文件写入操作可能修改本地数据 | 命中 user 角色 confirm 策略"
     },
     {
@@ -1068,11 +1352,16 @@
       "actual": "allow",
       "passed": true,
       "risk_score": 35,
+<<<<<<< HEAD
       "latency_ms": 0.031,
+=======
+      "latency_ms": 0.054,
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
       "reason": "数据库查询操作存在一定数据泄露风险 | 命中 user 角色 allow 策略"
     }
   ],
   "tests": {
+<<<<<<< HEAD
     "ok": false,
     "returncode": 1,
     "elapsed_ms": 33.31239999988611,
@@ -1095,6 +1384,30 @@
         "name": "pytest passed",
         "passed": false,
         "actual": "FAIL",
+=======
+    "ok": true,
+    "returncode": 0,
+    "elapsed_ms": 1802.790004000002,
+    "output": "........................................................................ [ 48%]\n........................................................................ [ 97%]\n....                                                                     [100%]\n=============================== warnings summary ===============================\n../../../../../opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/fastapi/testclient.py:1\n  /opt/hostedtoolcache/Python/3.11.15/x64/lib/python3.11/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.\n    from starlette.testclient import TestClient as TestClient  # noqa\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n148 passed, 1 warning in 1.05s\n",
+    "command": "python -m pytest tests -q"
+  },
+  "metadata": {
+    "branch": "main",
+    "commit": "e16e31187a63",
+    "run_id": "27116003755",
+    "generated_at": "2026-06-08T04:27:02+00:00",
+    "case_glob": "security_cases/gateway_cases*.json",
+    "project_root": "/home/runner/work/Agent-Authorization/Agent-Authorization"
+  },
+  "quality_gate": {
+    "passed": true,
+    "status": "PASSED",
+    "checks": [
+      {
+        "name": "pytest passed",
+        "passed": true,
+        "actual": "PASS",
+>>>>>>> d5dd7c6ec217e268582c2eca2ebe1d9d8007a0f2
         "expected": "PASS"
       },
       {
