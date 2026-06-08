@@ -209,12 +209,12 @@ Embedding 语义风险
 allow / confirm / deny
 ```
 
-默认情况下，语义检测处于开启状态。首次本地运行时会自动下载 Embedding 模型，下载完成后使用本地缓存。本地演示时可以通过环境变量开启：
+默认情况下，语义检测处于关闭状态，以避免 CI 或无网络环境首次运行时自动下载模型。本地演示时可以通过环境变量开启：
 
 PowerShell：
 
 ```powershell
-$env:SEMANTIC_GUARD_ENABLED="false"
+$env:SEMANTIC_GUARD_ENABLED="true"
 ```
 
 Bash：
@@ -223,16 +223,16 @@ Bash：
 export SEMANTIC_GUARD_ENABLED=true
 ```
 
-如需临时关闭语义检测，可以在 `config/semantic_guard.yaml` 中将：
+也可以在 `config/semantic_guard.yaml` 中将：
 
 ```yaml
-enabled: true
+enabled: false
 ```
 
 改为：
 
 ```yaml
-enabled: false
+enabled: true
 ```
 
 首次启用时，系统会下载：
@@ -716,7 +716,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 默认语义检测关闭。如果需要本地演示语义检测，PowerShell 执行：
 
 ```powershell
-$env:SEMANTIC_GUARD_ENABLED="false"
+$env:SEMANTIC_GUARD_ENABLED="true"
 ```
 
 ### 7.4 启动后端
@@ -924,7 +924,7 @@ http://127.0.0.1:8000/sandbox-evidence/authorized-run
 开启语义检测：
 
 ```powershell
-$env:SEMANTIC_GUARD_ENABLED="false"
+$env:SEMANTIC_GUARD_ENABLED="true"
 ```
 
 然后对 `/gateway/check` 发送类似请求：
