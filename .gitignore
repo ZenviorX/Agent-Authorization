@@ -41,3 +41,7 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Generated dashboard outputs
+Results/Result_*.html
+Results/Result_*.json
+experiments/results/
