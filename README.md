@@ -538,6 +538,29 @@ deny
 
 项目不只写安全样例，还将 `gateway_cases_v4.json` 纳入自动化测试，形成持续回归验证。
 
+<!-- TASK26_RUNTIME_HIGHLIGHT_START -->
+13.9 真实 Stepwise LLM Agent 运行时防护
+
+项目已经接入真实 Stepwise LLM Agent 模式。系统不是一次性执行 Agent 给出的所有工具调用，而是让 LLM 每次只规划下一步，然后立即经过 Capability Contract、Runtime Monitor、Attack Chain Detector 和 Sandbox Executor 的检查。
+
+该模式可以展示更接近真实场景的攻击链：
+
+读取公开文件
+    ↓
+文件内容包含隐藏提示注入
+    ↓
+Agent 被诱导规划危险工具调用
+    ↓
+Runtime Monitor 根据 tainted 标签、任务边界和外发目标阻断攻击链
+
+对应样例库为：
+
+security_cases/llm_runtime_cases.json
+
+当前覆盖 18 条真实 Agent Runtime 规格样例，用于证明系统能够同时处理正常任务、灰区任务和多类攻击任务。
+
+<!-- TASK26_RUNTIME_HIGHLIGHT_END -->
+
 ---
 
 ## 9. 当前边界
