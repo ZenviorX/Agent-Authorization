@@ -1,3 +1,18 @@
+"""
+AgentGuard 方法对比实验计算模块。
+
+本文件只负责计算 no_protection、keyword_filter、single_gateway、
+full_system 等方法在同一批安全样例上的表现。
+
+正式展示入口统一使用：
+    python tests/dashboard/generate_ci_dashboard.py
+
+生成的 HTML 仪表盘位于：
+    Results/Result_*.html
+
+不建议在日常协作中提交 experiments/results/ 下的临时报告。
+"""
+
 import json
 import sys
 import time
