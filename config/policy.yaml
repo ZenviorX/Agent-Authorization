@@ -5,12 +5,13 @@
 # 3. 策略尽量配置化，减少业务代码硬编码
 # 4. 只保留 user / admin 两类身份与角色，保证系统清晰易讲
 #
-# v4-hardening 说明：
+# v4.1-config-hardening 说明：
 # - 本版本只调整后端已支持读取的配置字段，不新增后端未知结构。
 # - 强化路径穿越、敏感文件、Prompt Injection、Shell 高危命令、SQL 风险、邮件外发风险。
 # - 增加 config/policy.yaml 保护，防止 Agent 自动修改安全策略。
+# - 补齐 */config/*、*.env.*、*/.ssh/* 等 fnmatch 路径模式，减少绕过空间。
 
-version: "4.0-config-hardening"
+version: "4.1-config-hardening"
 
 # ============================================================
 # 1. 用户与角色映射
@@ -655,7 +656,23 @@ roles:
       - tool: "*"
         resource: config/secrets/*
       - tool: "*"
+        resource: "*/config/*"
+      - tool: "*"
+        resource: "./config/*"
+      - tool: "*"
         resource: "*.env"
+      - tool: "*"
+        resource: "*.env.*"
+      - tool: "*"
+        resource: ".env.*"
+      - tool: "*"
+        resource: "*/.env"
+      - tool: "*"
+        resource: "*/.env.*"
+      - tool: "*"
+        resource: "*credentials*"
+      - tool: "*"
+        resource: "*secrets*"
       - tool: "*"
         resource: "*.pem"
       - tool: "*"
@@ -702,6 +719,34 @@ roles:
       - tool: file.delete
         resource: config/secrets/*
       - tool: file.write
+        resource: "*/config/*"
+      - tool: file.delete
+        resource: "*/config/*"
+      - tool: file.write
+        resource: "./config/*"
+      - tool: file.delete
+        resource: "./config/*"
+      - tool: file.write
+        resource: "*secrets*"
+      - tool: file.delete
+        resource: "*secrets*"
+      - tool: file.write
+        resource: "*.env"
+      - tool: file.delete
+        resource: "*.env"
+      - tool: file.write
+        resource: "*.env.*"
+      - tool: file.delete
+        resource: "*.env.*"
+      - tool: file.write
+        resource: "*/.env"
+      - tool: file.delete
+        resource: "*/.env"
+      - tool: file.write
+        resource: "*/.env.*"
+      - tool: file.delete
+        resource: "*/.env.*"
+      - tool: file.write
         resource: "*policy*"
       - tool: file.delete
         resource: "*policy*"
@@ -721,6 +766,9 @@ task_contract:
     - browser.open
     - network.request
     - browser.upload
+    - git.push
+    - git.commit
+    - package.install
 
   default_denied_paths:
     - secret/*
@@ -729,14 +777,24 @@ task_contract:
     - credentials/*
     - config/*
     - config/secrets/*
+    - ./config/*
+    - "*/config/*"
+    - "*/config/secrets/*"
     - ../*
     - ..\\*
     - .env
     - .env.*
+    - "*/.env"
+    - "*/.env.*"
+    - "*/.ssh/*"
     - id_rsa
     - id_dsa
     - id_ed25519
     - id_ecdsa
+    - "*id_rsa*"
+    - "*id_ed25519*"
+    - "*private_key*"
+    - "*secret_key*"
     - "*.pem"
     - "*.key"
     - "*.p12"
