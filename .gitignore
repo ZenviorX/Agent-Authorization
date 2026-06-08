@@ -40,3 +40,5 @@ logs/*.jsonl
 Thumbs.db
 .vscode/
 .idea/
+
+Task/
