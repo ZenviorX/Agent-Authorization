@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -6,19 +6,30 @@
     <title>AgentGuard 控制台</title>
     <style>
         :root {
-            --bg: #f3f6fb;
-            --panel: #ffffff;
-            --panel-soft: #f8fafc;
+            --bg: #f6f8fb;
+            --surface: #ffffff;
+            --surface-soft: #f8fafc;
+            --surface-muted: #eef3f8;
             --text: #172033;
+            --text-strong: #0f172a;
+            --text-subtle: #334155;
             --muted: #64748b;
-            --line: #dbe3ef;
-            --primary: #2854c5;
-            --primary-soft: #eaf0ff;
-            --green: #16a34a;
-            --red: #dc2626;
-            --amber: #d97706;
+            --line: #d9e2ec;
+            --line-soft: #e8eef5;
+            --primary: #1f4e79;
+            --primary-hover: #173b5c;
+            --primary-soft: #e8f1f8;
+            --accent: #0f766e;
+            --success: #16794c;
+            --success-soft: #e7f5ee;
+            --danger: #b42318;
+            --danger-soft: #fcebea;
+            --warning: #a15c07;
+            --warning-soft: #fff4df;
             --purple: #7c3aed;
-            --shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+            --radius-lg: 20px;
+            --shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.05);
+            --font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
         }
 
         * {
@@ -27,62 +38,117 @@
 
         body {
             margin: 0;
-            font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+            min-height: 100vh;
+            font-family: var(--font-family);
             color: var(--text);
             background:
-                radial-gradient(circle at top left, rgba(40, 84, 197, 0.12), transparent 34%),
-                linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+                radial-gradient(circle at 8% 0%, rgba(31, 78, 121, 0.08), transparent 28%),
+                radial-gradient(circle at 92% 4%, rgba(15, 118, 110, 0.06), transparent 26%),
+                linear-gradient(180deg, #fbfdff 0%, var(--bg) 48%, #eef3f8 100%);
             font-size: 14px;
+            line-height: 1.7;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
         }
 
         .shell {
             width: min(1180px, calc(100% - 32px));
-            margin: 18px auto 26px;
+            margin: 18px auto 32px;
         }
 
         .hero {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 18px;
-            padding: 18px 22px;
-            border: 1px solid rgba(40, 84, 197, 0.16);
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.82);
-            box-shadow: var(--shadow);
-            backdrop-filter: blur(12px);
+            position: relative;
+            overflow: hidden;
+            padding: 28px 24px 24px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-soft);
         }
 
-        .brand h1 {
+        .hero::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 5px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+        }
+
+        .hero-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            color: var(--primary);
+            background: var(--primary-soft);
+            font-size: 12px;
+            font-weight: 900;
+            line-height: 1.2;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .eyebrow::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--primary);
+        }
+
+        h1 {
             margin: 0;
-            font-size: 22px;
-            letter-spacing: 0.2px;
+            color: var(--text-strong);
+            font-size: 30px;
+            font-weight: 900;
+            line-height: 1.25;
+            letter-spacing: -0.02em;
         }
 
         .brand p {
-            margin: 6px 0 0;
+            max-width: 700px;
+            margin: 10px 0 0;
             color: var(--muted);
-            line-height: 1.5;
+            line-height: 1.7;
         }
 
         .page-tabs {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+            justify-content: flex-end;
+            max-width: 520px;
         }
 
         .page-tab {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
             padding: 9px 13px;
             border: 1px solid var(--line);
             border-radius: 999px;
             color: var(--muted);
             background: #fff;
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 13px;
+            font-size: 13.5px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .page-tab:hover {
+            color: var(--primary);
+            border-color: var(--primary);
+            background: var(--primary-soft);
         }
 
         .page-tab.active {
@@ -91,16 +157,57 @@
             background: var(--primary);
         }
 
+        .hero-meta {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1px;
+            margin-top: 20px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--line);
+        }
+
+        .meta-cell {
+            position: relative;
+            padding: 14px 14px 14px 18px;
+            background: var(--surface-soft);
+        }
+
+        .meta-cell::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 12px;
+            bottom: 12px;
+            width: 3px;
+            border-radius: 999px;
+            background: var(--primary);
+        }
+
+        .meta-cell strong {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-subtle);
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+
+        .meta-cell span {
+            color: var(--muted);
+            font-size: 12.5px;
+            line-height: 1.55;
+        }
+
         .status-strip {
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
             margin: 14px 0;
-            padding: 10px 14px;
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            background: var(--panel);
+            padding: 10px 4px 12px;
+            border-bottom: 1px solid var(--line);
         }
 
         .status-left {
@@ -109,59 +216,109 @@
             gap: 10px;
             flex-wrap: wrap;
             color: var(--muted);
-            font-size: 13px;
+            font-size: 12.5px;
         }
 
-        .status {
+        .status-left strong {
+            color: var(--text-subtle);
+            font-size: 13px;
             font-weight: 800;
         }
 
+        .status {
+            font-weight: 900;
+        }
+
         .status-ok {
-            color: var(--green);
+            color: var(--success);
         }
 
         .status-bad {
-            color: var(--red);
+            color: var(--danger);
         }
 
         .workspace {
             display: grid;
-            grid-template-columns: 390px 1fr;
-            gap: 14px;
+            grid-template-columns: 370px 1fr;
+            gap: 18px;
             align-items: start;
         }
 
-        .card {
+        .section {
             border: 1px solid var(--line);
-            border-radius: 18px;
-            background: var(--panel);
-            box-shadow: var(--shadow);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-soft);
+            overflow: hidden;
         }
 
-        .card-head {
+        .section-head {
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 12px;
-            padding: 14px 16px;
+            padding: 17px 18px;
             border-bottom: 1px solid var(--line);
+            background: var(--surface-soft);
         }
 
-        .card-head h2 {
+        .section-title {
+            position: relative;
             margin: 0;
-            font-size: 17px;
+            padding-left: 12px;
+            color: var(--text-strong);
+            font-size: 18px;
+            font-weight: 900;
+            line-height: 1.35;
         }
 
-        .card-body {
-            padding: 14px 16px 16px;
+        .section-title::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 3px;
+            bottom: 3px;
+            width: 4px;
+            border-radius: 999px;
+            background: var(--primary);
+        }
+
+        .section-desc {
+            margin: 5px 0 0;
+            color: var(--muted);
+            font-size: 12.5px;
+            line-height: 1.55;
+        }
+
+        .section-body {
+            padding: 16px 18px 18px;
+        }
+
+        .subsection {
+            padding: 15px 0;
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .subsection:first-child {
+            padding-top: 0;
+            border-top: 0;
+        }
+
+        .subsection-title {
+            margin: 0 0 9px;
+            color: var(--text-subtle);
+            font-size: 15px;
+            font-weight: 900;
+            line-height: 1.4;
         }
 
         label {
             display: block;
-            margin: 10px 0 6px;
-            color: #334155;
-            font-weight: 700;
+            margin: 11px 0 6px;
+            color: var(--text-subtle);
             font-size: 13px;
+            font-weight: 800;
+            line-height: 1.3;
         }
 
         select,
@@ -174,21 +331,23 @@
             outline: none;
             background: #fff;
             color: var(--text);
+            font-family: var(--font-family);
             font-size: 14px;
+            line-height: 1.5;
         }
 
         textarea {
-            min-height: 86px;
-            max-height: 130px;
+            min-height: 96px;
+            max-height: 150px;
             resize: vertical;
-            line-height: 1.5;
+            line-height: 1.6;
         }
 
         select:focus,
         textarea:focus,
         input:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(40, 84, 197, 0.10);
+            box-shadow: 0 0 0 3px rgba(31, 78, 121, 0.10);
         }
 
         .form-row {
@@ -197,43 +356,45 @@
             gap: 10px;
         }
 
-        .tip {
-            margin-top: 10px;
-            padding: 10px 11px;
-            border: 1px solid #d8e2f6;
-            border-radius: 12px;
+        .note {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-left: 3px solid var(--primary);
+            border-radius: 10px;
             color: #475569;
             background: var(--primary-soft);
-            line-height: 1.55;
             font-size: 12.5px;
+            line-height: 1.55;
         }
 
         .actions {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-            margin-top: 12px;
+            margin-top: 13px;
         }
 
         button {
-            border: 0;
+            border: 1px solid transparent;
             border-radius: 11px;
             padding: 9px 13px;
             background: var(--primary);
             color: #fff;
-            font-weight: 800;
+            font-family: var(--font-family);
+            font-size: 13.5px;
+            font-weight: 900;
+            line-height: 1.2;
             cursor: pointer;
-            transition: transform 0.12s ease, opacity 0.12s ease;
+            transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
         }
 
         button:hover {
-            transform: translateY(-1px);
+            background: var(--primary-hover);
         }
 
         button:disabled {
             opacity: 0.55;
             cursor: not-allowed;
-            transform: none;
         }
 
         .btn-light {
@@ -242,42 +403,17 @@
             background: #fff;
         }
 
+        .btn-light:hover {
+            border-color: var(--primary);
+            background: var(--primary-soft);
+        }
+
         .btn-danger {
-            background: var(--red);
+            background: var(--danger);
         }
 
         .btn-success {
-            background: var(--green);
-        }
-
-        .scenario-title {
-            margin: 14px 0 8px;
-            color: var(--muted);
-            font-size: 13px;
-            font-weight: 800;
-        }
-
-        .scenario-list {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .chip {
-            border: 1px solid var(--line);
-            border-radius: 999px;
-            padding: 7px 10px;
-            background: var(--panel-soft);
-            color: #334155;
-            cursor: pointer;
-            font-size: 12.5px;
-            font-weight: 700;
-        }
-
-        .chip:hover {
-            border-color: var(--primary);
-            color: var(--primary);
-            background: var(--primary-soft);
+            background: var(--success);
         }
 
         .decision-summary {
@@ -285,105 +421,112 @@
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            margin-bottom: 12px;
-            padding: 12px 14px;
+            padding: 13px 14px;
             border-radius: 14px;
             border: 1px solid var(--line);
-            background: var(--panel-soft);
+            background: var(--surface-soft);
+            color: var(--muted);
+            font-size: 13px;
             font-weight: 800;
         }
 
         .decision-summary.allow {
-            color: #166534;
-            border-color: #86efac;
-            background: #ecfdf5;
+            color: var(--success);
+            border-color: #a9d8c1;
+            background: var(--success-soft);
         }
 
         .decision-summary.confirm {
-            color: #92400e;
-            border-color: #fcd34d;
-            background: #fffbeb;
+            color: var(--warning);
+            border-color: #f3cf8b;
+            background: var(--warning-soft);
         }
 
         .decision-summary.deny {
-            color: #991b1b;
-            border-color: #fecaca;
-            background: #fef2f2;
+            color: var(--danger);
+            border-color: #f1b8b2;
+            background: var(--danger-soft);
         }
 
         .decision-summary.confirmed {
-            color: #1d4ed8;
-            border-color: #bfdbfe;
-            background: #eff6ff;
+            color: var(--primary);
+            border-color: #b7cadb;
+            background: var(--primary-soft);
         }
 
-        .decision-summary.rejected,
-        .decision-summary.empty {
-            color: var(--muted);
-        }
-
-        .result-grid {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
-        }
-
-        .result-card {
-            min-width: 0;
+        .result-stack {
+            margin-top: 14px;
             border: 1px solid var(--line);
-            border-radius: 14px;
+            border-radius: 16px;
             overflow: hidden;
             background: #fff;
         }
 
-        .result-card h3 {
-            margin: 0;
-            padding: 10px 11px;
-            border-bottom: 1px solid var(--line);
-            background: var(--panel-soft);
-            font-size: 14px;
+        .result-row {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .result-row:first-child {
+            border-top: 0;
+        }
+
+        .result-label {
+            padding: 12px 13px;
+            color: var(--text-subtle);
+            background: var(--surface-soft);
+            font-size: 13px;
+            font-weight: 800;
+            border-right: 1px solid var(--line-soft);
+        }
+
+        .result-content {
+            min-width: 0;
+            background: #fff;
         }
 
         pre {
             margin: 0;
-            padding: 11px;
+            padding: 12px 13px;
             overflow: auto;
             max-height: 170px;
             white-space: pre-wrap;
             word-break: break-word;
             color: #1e293b;
-            background: #f8fafc;
+            background: #fff;
             font-family: Consolas, "Microsoft YaHei", monospace;
             font-size: 12.5px;
-            line-height: 1.55;
+            line-height: 1.6;
         }
 
         details {
-            margin-top: 10px;
+            margin-top: 12px;
             border: 1px solid var(--line);
             border-radius: 14px;
             overflow: hidden;
+            background: #fff;
         }
 
         summary {
             padding: 10px 12px;
             cursor: pointer;
             color: var(--primary);
-            background: #fff;
+            background: var(--surface-soft);
+            font-size: 13px;
             font-weight: 800;
         }
 
-        .panel {
-            margin-top: 14px;
-            overflow: hidden;
+        .info-area {
+            margin-top: 18px;
+            padding: 0 2px;
         }
 
         .tabbar {
             display: flex;
             gap: 8px;
-            padding: 10px;
+            padding-bottom: 10px;
             border-bottom: 1px solid var(--line);
-            background: var(--panel-soft);
         }
 
         .tab {
@@ -392,8 +535,13 @@
             padding: 7px 12px;
             background: #fff;
             color: var(--muted);
-            font-weight: 800;
+            font-size: 13.5px;
+            font-weight: 900;
             cursor: pointer;
+        }
+
+        .tab:hover {
+            background: var(--primary-soft);
         }
 
         .tab.active {
@@ -404,7 +552,7 @@
 
         .panel-body {
             display: none;
-            padding: 12px 14px;
+            padding: 12px 0 0;
             max-height: 320px;
             overflow: auto;
         }
@@ -417,20 +565,28 @@
             padding: 12px;
             border-radius: 12px;
             color: var(--muted);
-            background: var(--panel-soft);
+            background: var(--surface-soft);
+            line-height: 1.7;
         }
 
         .item {
-            padding: 12px;
-            border: 1px solid var(--line);
-            border-radius: 13px;
-            background: #fff;
-            margin-bottom: 10px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--line-soft);
+        }
+
+        .item:last-child {
+            border-bottom: 0;
         }
 
         .item p {
             margin: 6px 0;
-            line-height: 1.55;
+            line-height: 1.7;
+        }
+
+        .item strong {
+            color: var(--text-subtle);
+            font-size: 13px;
+            font-weight: 800;
         }
 
         .badge,
@@ -441,14 +597,15 @@
             padding: 4px 9px;
             border-radius: 999px;
             color: #fff;
-            font-weight: 800;
             font-size: 12px;
+            font-weight: 900;
+            line-height: 1.2;
         }
 
-        .allow { background: var(--green); }
-        .confirm { background: var(--amber); }
-        .deny { background: var(--red); }
-        .confirmed { background: #2563eb; }
+        .allow { background: var(--success); }
+        .confirm { background: var(--warning); }
+        .deny { background: var(--danger); }
+        .confirmed { background: var(--primary); }
         .rejected { background: #64748b; }
         .agent-fake { background: var(--primary); }
         .agent-llm { background: var(--purple); }
@@ -456,76 +613,84 @@
         .reason-list {
             margin: 6px 0 0;
             padding-left: 20px;
+            line-height: 1.7;
         }
 
         .muted {
             color: var(--muted);
         }
 
+        code {
+            padding: 1px 5px;
+            border-radius: 6px;
+            background: var(--primary-soft);
+            color: var(--text-subtle);
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            font-size: 12px;
+        }
+
         @media (max-width: 980px) {
-            .hero,
+            .hero-main,
             .status-strip {
                 align-items: flex-start;
                 flex-direction: column;
             }
 
-            .workspace {
+            .page-tabs {
+                justify-content: flex-start;
+                max-width: none;
+            }
+
+            .hero-meta,
+            .workspace,
+            .form-row,
+            .result-row {
                 grid-template-columns: 1fr;
             }
 
-            .result-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
+            .result-label {
+                border-right: 0;
+                border-bottom: 1px solid var(--line-soft);
             }
         }
     </style>
-
-<style id="security-dashboard-link-style">
-  .security-dashboard-link {
-    position: fixed;
-    top: 18px;
-    right: 18px;
-    z-index: 9999;
-    display: inline-block;
-    padding: 10px 16px;
-    border-radius: 999px;
-    background: #1e293b;
-    color: #ffffff;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    border: 1px solid #475569;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
-  }
-
-  .security-dashboard-link:hover {
-    background: #334155;
-    color: #ffffff;
-  }
-</style>
-
 </head>
 
 <body>
-
-<a class="security-dashboard-link" href="/security-dashboard" target="_blank">
-  安全总览
-</a>
-
-
 <div class="shell">
     <header class="hero">
-        <div class="brand">
-            <h1>AgentGuard 控制台</h1>
-            <p>AI Agent 工具调用的授权、风险评分、人工确认与审计追踪。</p>
+        <div class="hero-main">
+            <div class="brand">
+                <div class="eyebrow">Agent Authorization Gateway</div>
+                <h1>AgentGuard 控制台</h1>
+                <p>
+                    面向 AI Agent 工具调用的任务级授权与安全防护系统。当前页面用于演示单次工具调用如何经过 Gateway 判断。
+                </p>
+            </div>
+
+            <nav class="page-tabs">
+                <a class="page-tab" href="/showcase">展示入口</a>
+                <a class="page-tab active" href="/">单步网关</a>
+                <a class="page-tab" href="/task-chain">多步任务链</a>
+                <a class="page-tab" href="/sandbox-dashboard">沙箱运行态</a>
+                <a class="page-tab" href="/security-dashboard">安全总览</a>
+            </nav>
         </div>
-        <nav class="page-tabs">
-            <a class="page-tab active" href="/">单步网关</a>
-            <a class="page-tab" href="/task-chain">多步任务链</a>
-        </nav>
+
+        <div class="hero-meta">
+            <div class="meta-cell">
+                <strong>前置授权</strong>
+                <span>Agent 不直接执行工具调用，先经过 Gateway 检查。</span>
+            </div>
+            <div class="meta-cell">
+                <strong>动态风险</strong>
+                <span>综合工具、路径、参数、角色与任务边界计算风险。</span>
+            </div>
+            <div class="meta-cell">
+                <strong>可审计复盘</strong>
+                <span>保留决策、原因、执行状态与原始请求证据。</span>
+            </div>
+        </div>
     </header>
 
     <section class="status-strip">
@@ -539,71 +704,81 @@
     </section>
 
     <main class="workspace">
-        <section class="card">
-            <div class="card-head">
-                <h2>任务输入</h2>
+        <section class="section">
+            <div class="section-head">
+                <div>
+                    <h2 class="section-title">任务输入</h2>
+                    <p class="section-desc">输入自然语言任务，模拟 Agent 生成工具调用。</p>
+                </div>
                 <span class="badge agent-fake" id="agentBadge">FakeAgent</span>
             </div>
-            <div class="card-body">
-                <div class="form-row">
-                    <div>
-                        <label>Agent 类型</label>
-                        <select id="agentType" onchange="updateAgentTip()">
-                            <option value="fake">FakeAgent 稳定演示</option>
-                            <option value="llm">LLM 真实大模型</option>
-                        </select>
+
+            <div class="section-body">
+                <div class="subsection">
+                    <h3 class="subsection-title">执行主体</h3>
+                    <div class="form-row">
+                        <div>
+                            <label>Agent 类型</label>
+                            <select id="agentType" onchange="updateAgentTip()">
+                                <option value="fake">FakeAgent 稳定演示</option>
+                                <option value="llm">LLM 真实大模型</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>用户身份</label>
+                            <select id="user">
+                                <option value="user">user</option>
+                                <option value="admin">admin</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <label>用户身份</label>
-                        <select id="user">
-                            <option value="user">user</option>
-                            <option value="admin">admin</option>
-                        </select>
+
+                    <div id="agentModeTip" class="note">
+                        FakeAgent：基于规则生成工具调用，适合比赛稳定演示。
                     </div>
                 </div>
 
-                <label>自然语言任务</label>
-                <textarea
-                    id="userInput"
-                    placeholder="请输入任意自然语言任务，例如：读取 public/notice.txt 并发送给 admin@sdu.edu.cn"
-                ></textarea>
+                <div class="subsection">
+                    <h3 class="subsection-title">自然语言任务</h3>
+                    <textarea id="userInput" placeholder="例如：读取 public/notice.txt 并发送给 admin@sdu.edu.cn"></textarea>
 
-                <div id="agentModeTip" class="tip">
-                    FakeAgent：基于规则生成工具调用，适合比赛稳定演示。
+                    <div class="actions">
+                        <button id="submitBtn" onclick="simulateAgent()">提交检测</button>
+                        <button class="btn-light" onclick="clearResult()">清空</button>
+                        <button class="btn-light" onclick="location.href='/task-chain'">打开任务链</button>
+                    </div>
                 </div>
-
-                <div class="actions">
-                    <button id="submitBtn" onclick="simulateAgent()">提交检测</button>
-                    <button class="btn-light" onclick="clearResult()">清空</button>
-                    <button class="btn-light" onclick="location.href='/task-chain'">打开任务链</button>
-                </div>
-
             </div>
         </section>
 
-        <section class="card">
-            <div class="card-head">
-                <h2>网关判断结果</h2>
-                <span class="muted">Agent → Gateway → ToolExecutor</span>
+        <section class="section">
+            <div class="section-head">
+                <div>
+                    <h2 class="section-title">网关判断结果</h2>
+                    <p class="section-desc">Agent → Gateway → ToolExecutor</p>
+                </div>
             </div>
-            <div class="card-body">
+
+            <div class="section-body">
                 <div id="decisionSummary" class="decision-summary empty">
                     <span>暂无结果，请先提交任务。</span>
                     <span>risk: -</span>
                 </div>
 
-                <div class="result-grid">
-                    <div class="result-card">
-                        <h3>Agent 工具调用</h3>
-                        <pre id="toolCallView">暂无数据</pre>
+                <div class="result-stack">
+                    <div class="result-row">
+                        <div class="result-label">Agent 工具调用</div>
+                        <div class="result-content"><pre id="toolCallView">暂无数据</pre></div>
                     </div>
-                    <div class="result-card">
-                        <h3>Gateway 风险判断</h3>
-                        <pre id="riskView">暂无数据</pre>
+
+                    <div class="result-row">
+                        <div class="result-label">Gateway 风险判断</div>
+                        <div class="result-content"><pre id="riskView">暂无数据</pre></div>
                     </div>
-                    <div class="result-card">
-                        <h3>最终处置</h3>
-                        <pre id="actionView">暂无数据</pre>
+
+                    <div class="result-row">
+                        <div class="result-label">最终处置</div>
+                        <div class="result-content"><pre id="actionView">暂无数据</pre></div>
                     </div>
                 </div>
 
@@ -615,7 +790,7 @@
         </section>
     </main>
 
-    <section class="card panel">
+    <section class="info-area">
         <div class="tabbar">
             <button class="tab active" onclick="switchPanel('pending', this)">人工确认</button>
             <button class="tab" onclick="switchPanel('audit', this)">审计日志</button>
@@ -638,7 +813,8 @@
 
         <div id="panel-help" class="panel-body">
             <div class="empty">
-                <strong>设计说明：</strong>当前页面只负责单步工具调用演示；多步提示注入攻击链、敏感数据传播和上下文风险累计，请切换到“多步任务链”标签页。
+                <strong>设计说明：</strong>
+                当前页面只负责单步工具调用演示。多步提示注入攻击链、敏感数据传播和上下文风险累计，请切换到“多步任务链”页面。
             </div>
         </div>
     </section>
@@ -679,19 +855,19 @@
     }
 
     function getDecisionClass(decision) {
-        if (!decision) return "empty";
-        const normalized = String(decision).toLowerCase();
+        const normalized = String(decision || "").toLowerCase();
+
         if (normalized.includes("confirmed")) return "confirmed";
         if (normalized.includes("rejected")) return "rejected";
         if (normalized.includes("allow")) return "allow";
         if (normalized.includes("confirm")) return "confirm";
         if (normalized.includes("deny")) return "deny";
+
         return "empty";
     }
 
     function getAgentClass(agentName) {
-        const lower = String(agentName || "").toLowerCase();
-        return lower.includes("llm") ? "agent-llm" : "agent-fake";
+        return String(agentName || "").toLowerCase().includes("llm") ? "agent-llm" : "agent-fake";
     }
 
     function escapeHtml(value) {
@@ -707,9 +883,11 @@
         if (data === undefined || data === null || data === "") {
             return "暂无数据";
         }
+
         if (typeof data === "string") {
             return data;
         }
+
         return JSON.stringify(data, null, 2);
     }
 
@@ -782,7 +960,7 @@
             confidence: agentResult.confidence,
             missing_params: agentResult.missing_params,
             clarification_question: agentResult.clarification_question,
-            plan_guard: planGuard   
+            plan_guard: planGuard
         });
 
         actionView.textContent = formatJson({
@@ -822,6 +1000,7 @@
 
         submitBtn.disabled = true;
         submitBtn.textContent = agentType === "llm" ? "调用 LLM 中..." : "检测中...";
+
         renderGatewayResult({
             decision: "confirm",
             risk_score: "running",
