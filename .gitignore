@@ -41,6 +41,7 @@ Thumbs.db
 .vscode/
 .idea/
 
+<<<<<<< HEAD
 # Local environment files
 .env
 .env.*
@@ -71,3 +72,9 @@ config/secrets/
 secrets/
 *.bak-*
 *.backup-*
+=======
+# Generated dashboard outputs
+Results/Result_*.html
+Results/Result_*.json
+experiments/results/
+>>>>>>> 95a117d8e2b57fdd834ad21b89a57cb1a1a9817a
