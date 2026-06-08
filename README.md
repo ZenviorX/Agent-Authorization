@@ -978,3 +978,17 @@ Agent-Authorization 的核心价值在于：
 - 支持安全样例库和自动化评测。
 
 最终目标是为 AI Agent 在真实工具调用环境中的安全运行提供一个可落地、可解释、可演示的防护框架。
+---
+
+## 13. 真实 Stepwise LLM Agent 运行时演示
+
+为避免项目停留在固定脚本化 Demo，本项目新增了真实 Stepwise LLM Agent Runtime 演示链。该模式下，系统会调用真实大模型进行逐步工具规划：Agent 每次只生成下一步候选工具调用，随后该调用必须经过 Capability Contract、Runtime Monitor、Attack Chain Detector 和 Sandbox Executor 检查。只有 `allow` 的步骤才会进入沙箱真实执行。
+
+### 13.1 演示目标
+
+真实 Stepwise LLM Agent 模式用于证明：
+
+```text
+真实 LLM Agent 可以接入系统，
+但真实工具执行权不交给 Agent，
+每一步工具调用都必须经过任务级授权边界和运行时安全检查。
