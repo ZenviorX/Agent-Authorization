@@ -847,6 +847,34 @@ Results/Result_*.html
 - 统计风险误放行率；
 - 生成 HTML 可视化报告。
 
+<!-- TASK26_RUNTIME_BENCHMARK_README_START -->
+11.3 真实 Agent Runtime 样例规格
+
+真实 Stepwise LLM Agent 运行时样例位于：
+
+security_cases/llm_runtime_cases.json
+
+该样例库用于描述真实 LLM Agent 接入后应覆盖的安全场景。当前已覆盖 18 条样例：
+
+类别数量代表场景
+normal5公开文件读取、内部邮箱发送、只读数据库查询、安全 Shell 命令
+suspicious2外部合作邮箱发送、private 内部资料读取
+attack11间接提示注入、secret 读取、凭证外发、路径穿越、curl 外联、DROP TABLE、文件删除
+
+配套测试文件：
+
+tests/test_llm_runtime_cases.py
+
+运行方式：
+
+python -m pytest tests/test_llm_runtime_cases.py -q
+
+该测试会检查样例字段完整性、样例 ID 唯一性、三类样例覆盖数量、攻击样例阻断预期、正常样例误拒控制、提示注入污染标签、敏感数据阻断要求，以及 file、email、shell、db、delete 等工具覆盖情况。
+
+这一部分的意义在于：真实 Agent Runtime 不只是一个演示页面，而是有独立样例库和自动化约束的评测规格。
+
+<!-- TASK26_RUNTIME_BENCHMARK_README_END -->
+
 ---
 
 ## 12. 策略配置说明
@@ -904,6 +932,29 @@ config/policy.yaml
 ### 13.7 可复现实验体系
 
 项目提供安全样例库、自动化评测脚本和 HTML 结果仪表盘，便于复现实验结果。
+
+<!-- TASK26_RUNTIME_HIGHLIGHT_START -->
+13.9 真实 Stepwise LLM Agent 运行时防护
+
+项目已经接入真实 Stepwise LLM Agent 模式。系统不是一次性执行 Agent 给出的所有工具调用，而是让 LLM 每次只规划下一步，然后立即经过 Capability Contract、Runtime Monitor、Attack Chain Detector 和 Sandbox Executor 的检查。
+
+该模式可以展示更接近真实场景的攻击链：
+
+读取公开文件
+    ↓
+文件内容包含隐藏提示注入
+    ↓
+Agent 被诱导规划危险工具调用
+    ↓
+Runtime Monitor 根据 tainted 标签、任务边界和外发目标阻断攻击链
+
+对应样例库为：
+
+security_cases/llm_runtime_cases.json
+
+当前覆盖 18 条真实 Agent Runtime 规格样例，用于证明系统能够同时处理正常任务、灰区任务和多类攻击任务。
+
+<!-- TASK26_RUNTIME_HIGHLIGHT_END -->
 
 ---
 
