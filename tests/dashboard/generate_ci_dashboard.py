@@ -152,7 +152,7 @@ def quality_gate(summary: Dict[str, Any], tests: Dict[str, Any], error: str = ""
             }
         )
     passed = all(item["passed"] for item in checks)
-    return {"passed": passed, "status": "PASSED" if passed else "FAILED", "checks": checks}
+    return {"passed": passed, "status": "通过" if passed else "失败", "checks": checks}
 
 
 def collect_metadata() -> Dict[str, Any]:
@@ -289,7 +289,9 @@ def render_styles() -> str:
     --bg: #0f172a;
     --panel: #111827;
     --panel-2: #1e293b;
+    --panel-3: #0b1220;
     --border: #334155;
+    --border-soft: rgba(51, 65, 85, 0.66);
     --text: #e5e7eb;
     --muted: #94a3b8;
     --success: #22c55e;
@@ -301,83 +303,76 @@ def render_styles() -> str:
   body {
     margin: 0;
     background:
-      radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 30rem),
+      radial-gradient(circle at 12% 4%, rgba(56, 189, 248, 0.16), transparent 30rem),
+      radial-gradient(circle at 82% 0%, rgba(34, 197, 94, 0.08), transparent 26rem),
       var(--bg);
     color: var(--text);
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, "Microsoft YaHei", sans-serif;
-    letter-spacing: 0;
   }
-  header { border-bottom: 1px solid var(--border); background: rgba(15, 23, 42, 0.92); }
-  .wrap { width: min(1440px, calc(100% - 48px)); margin: 0 auto; }
+  header {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.92));
+  }
+  .wrap { width: min(1480px, calc(100% - 56px)); margin: 0 auto; }
   .header-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 24px;
+    grid-template-columns: minmax(0, 1fr) 330px;
+    gap: 28px;
     align-items: center;
-    padding: 30px 0 24px;
+    padding: 34px 0 28px;
   }
   h1, h2, h3, p { margin-top: 0; }
-  h1 { margin-bottom: 8px; font-size: clamp(28px, 4vw, 46px); line-height: 1.05; }
-  h2 { margin-bottom: 18px; font-size: 20px; }
+  h1 { margin-bottom: 10px; font-size: clamp(30px, 4vw, 48px); line-height: 1.05; letter-spacing: -0.03em; }
+  h2 { margin-bottom: 18px; font-size: 22px; letter-spacing: -0.01em; }
   h3 { margin-bottom: 10px; font-size: 15px; color: #cbd5e1; }
   .subtitle { margin-bottom: 22px; color: #cbd5e1; font-size: 16px; }
-  .meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    color: var(--muted);
-    font-size: 13px;
-  }
+  .meta { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 13px; }
   .meta span, .pill {
     border: 1px solid var(--border);
     border-radius: 999px;
     background: rgba(30, 41, 59, 0.78);
-    padding: 7px 11px;
+    padding: 7px 12px;
   }
   .gate {
-    min-width: 260px;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-    padding: 18px;
-    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.96));
+    padding: 20px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.25);
   }
   .gate-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
-  .gate-status { margin-top: 7px; font-size: 36px; font-weight: 900; line-height: 1; }
+  .gate-status { margin-top: 8px; font-size: 38px; font-weight: 900; line-height: 1; }
   .passed { color: var(--success); }
   .failed { color: var(--danger); }
   .warning { color: var(--warning); }
-  .main { padding: 26px 0 56px; }
+  .main { padding: 28px 0 60px; }
   .section {
     margin-top: 22px;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    background: rgba(17, 24, 39, 0.92);
-    padding: 22px;
+    border-radius: 14px;
+    background: rgba(17, 24, 39, 0.94);
+    padding: 24px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
   }
   .overview {
     display: grid;
     grid-template-columns: minmax(280px, 380px) 1fr;
-    gap: 18px;
+    gap: 20px;
     align-items: stretch;
   }
-  .kpis {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(170px, 1fr));
-    gap: 14px;
-  }
+  .kpis { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 14px; }
   .card {
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: linear-gradient(180deg, rgba(30, 41, 59, 0.82), rgba(17, 24, 39, 0.94));
-    padding: 17px;
-    min-height: 128px;
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.82), rgba(17, 24, 39, 0.96));
+    padding: 18px;
+    min-height: 126px;
   }
-  .card-title { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
-  .card-value { margin-top: 12px; font-size: 30px; line-height: 1.05; font-weight: 850; }
+  .card-title { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .06em; }
+  .card-value { margin-top: 12px; font-size: 30px; line-height: 1.05; font-weight: 900; }
   .card-value.ok { color: var(--success); }
   .card-value.bad { color: var(--danger); }
-  .card-desc { margin-top: 8px; color: var(--muted); font-size: 13px; }
+  .card-desc { margin-top: 9px; color: var(--muted); font-size: 13px; line-height: 1.55; }
   .score-panel { display: grid; place-items: center; min-height: 100%; }
   .ring {
     --score: 0;
@@ -399,50 +394,84 @@ def render_styles() -> str:
     border: 1px solid rgba(51, 65, 85, 0.75);
   }
   .ring-content { position: relative; text-align: center; }
-  .ring-score { font-size: 50px; line-height: 1; font-weight: 900; }
+  .ring-score { font-size: 52px; line-height: 1; font-weight: 950; }
   .ring-caption { margin-top: 8px; color: var(--muted); font-size: 13px; }
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  .matrix {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
+  .two-col { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 20px; }
+  .matrix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   .matrix-cell {
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
     background: var(--panel-2);
-    padding: 14px;
+    padding: 15px;
   }
-  .matrix-cell strong { display: block; margin-top: 6px; font-size: 28px; }
-  .matrix-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
-  .bar-row {
-    display: grid;
-    grid-template-columns: 110px 1fr 56px;
-    gap: 12px;
-    align-items: center;
-    margin: 12px 0;
-  }
-  .bar-label { color: #cbd5e1; font-weight: 700; }
-  .bar-wrap { height: 15px; border-radius: 999px; background: #0b1220; border: 1px solid #263244; overflow: hidden; }
+  .matrix-cell strong { display: block; margin-top: 7px; font-size: 30px; }
+  .matrix-label { color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .05em; }
+  .bar-row { display: grid; grid-template-columns: 90px 1fr 58px; gap: 12px; align-items: center; margin: 12px 0; }
+  .bar-label { color: #cbd5e1; font-weight: 800; }
+  .bar-wrap { height: 16px; border-radius: 999px; background: #0b1220; border: 1px solid #263244; overflow: hidden; }
   .bar { height: 100%; border-radius: 999px; background: var(--primary); }
   .bar.allow { background: var(--success); }
   .bar.confirm { background: var(--warning); }
   .bar.deny { background: var(--danger); }
   .bar-value { color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
-  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 940px; }
-  th, td { padding: 12px 13px; border-bottom: 1px solid rgba(51, 65, 85, 0.78); text-align: left; vertical-align: top; }
-  th { background: #0b1220; color: #cbd5e1; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--panel-3);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    min-width: 1580px;
+  }
+  th, td {
+    padding: 13px 16px;
+    border-bottom: 1px solid rgba(51, 65, 85, 0.78);
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #0b1220;
+    color: #dbeafe;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    white-space: nowrap;
+  }
   tr:last-child td { border-bottom: 0; }
   tr.row-failed td { background: rgba(239, 68, 68, 0.08); }
+
+  th:nth-child(1), td:nth-child(1) { min-width: 285px; max-width: 330px; }
+  th:nth-child(2), td:nth-child(2) { min-width: 205px; max-width: 240px; }
+  th:nth-child(3), td:nth-child(3) { min-width: 125px; }
+  th:nth-child(4), td:nth-child(4) { min-width: 130px; }
+  th:nth-child(5), td:nth-child(5) { min-width: 105px; }
+  th:nth-child(6), td:nth-child(6) { min-width: 105px; }
+  th:nth-child(7), td:nth-child(7) { min-width: 95px; }
+  th:nth-child(8), td:nth-child(8) { min-width: 110px; }
+  th:nth-child(9), td:nth-child(9) {
+    min-width: 460px;
+    max-width: 680px;
+    line-height: 1.68;
+    white-space: normal;
+    word-break: break-word;
+  }
+
   .badge {
     display: inline-flex;
     align-items: center;
     min-height: 24px;
     border-radius: 999px;
-    padding: 3px 9px;
+    padding: 3px 10px;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 900;
+    white-space: nowrap;
   }
   .badge.ok { background: rgba(34, 197, 94, 0.16); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.35); }
   .badge.bad { background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); }
@@ -451,55 +480,60 @@ def render_styles() -> str:
   .progress-track { height: 8px; border-radius: 999px; background: #0b1220; overflow: hidden; border: 1px solid #263244; }
   .progress-fill { height: 100%; border-radius: 999px; background: var(--primary); }
   .progress-text { margin-top: 6px; color: var(--muted); font-size: 12px; }
-  .controls { display: grid; grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 220px)); gap: 12px; margin-bottom: 14px; }
+  .controls {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.45fr) repeat(3, minmax(160px, 0.75fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
   input, select {
     width: 100%;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 12px;
     background: #0b1220;
     color: var(--text);
-    padding: 11px 12px;
+    padding: 13px 14px;
     outline: none;
+    font-size: 14px;
   }
   input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12); }
   .empty-state {
     border: 1px solid rgba(34, 197, 94, 0.35);
-    border-radius: 8px;
+    border-radius: 14px;
     background: rgba(34, 197, 94, 0.10);
     padding: 18px;
     color: #bbf7d0;
+    line-height: 1.7;
   }
-  details { border: 1px solid var(--border); border-radius: 8px; background: rgba(30, 41, 59, 0.55); padding: 14px 16px; }
+  details { border: 1px solid var(--border); border-radius: 14px; background: rgba(30, 41, 59, 0.55); padding: 15px 17px; }
   details + details { margin-top: 12px; }
-  summary { cursor: pointer; font-weight: 800; color: #cbd5e1; }
-  .method-list { margin-bottom: 0; color: #cbd5e1; line-height: 1.75; }
+  summary { cursor: pointer; font-weight: 900; color: #cbd5e1; }
+  .method-list { margin-bottom: 0; color: #cbd5e1; line-height: 1.85; }
   code { color: #bae6fd; }
   pre {
     max-height: 420px;
     overflow: auto;
     white-space: pre-wrap;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 14px;
     background: #020617;
     color: #d1d5db;
     padding: 16px;
   }
   .error-box { border-color: rgba(239, 68, 68, 0.45); background: rgba(239, 68, 68, 0.10); }
   .muted { color: var(--muted); }
-  @media (max-width: 980px) {
+  @media (max-width: 1100px) {
     .header-grid, .overview, .two-col { grid-template-columns: 1fr; }
-    .gate { min-width: 0; }
     .kpis { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
     .controls { grid-template-columns: 1fr 1fr; }
   }
-  @media (max-width: 640px) {
-    .wrap { width: min(100% - 28px, 1440px); }
+  @media (max-width: 680px) {
+    .wrap { width: min(100% - 28px, 1480px); }
     .kpis, .matrix, .controls { grid-template-columns: 1fr; }
-    .bar-row { grid-template-columns: 86px 1fr 48px; }
+    table { min-width: 1300px; }
   }
 </style>
 """
-
 
 def render_header(metadata: Dict[str, Any], gate: Dict[str, Any]) -> str:
     gate_class = "passed" if gate["passed"] else "failed"
@@ -512,19 +546,19 @@ def render_header(metadata: Dict[str, Any], gate: Dict[str, Any]) -> str:
 <header>
   <div class="wrap header-grid">
     <div>
-      <h1>AgentGuard Security Evaluation Dashboard</h1>
+      <h1>AgentGuard 安全评测仪表盘</h1>
       <p class="subtitle">AI Agent 工具调用授权网关 · CI 安全评测报告</p>
       <div class="meta">
-        <span>Branch: {safe(metadata['branch'])}</span>
-        <span>Commit: {safe(metadata['commit'])}</span>
-        <span>Run ID: {safe(metadata['run_id'])}</span>
-        <span>Generated: {safe(metadata['generated_at'])}</span>
+        <span>分支： {safe(metadata['branch'])}</span>
+        <span>提交： {safe(metadata['commit'])}</span>
+        <span>运行编号： {safe(metadata['run_id'])}</span>
+        <span>生成时间： {safe(metadata['generated_at'])}</span>
       </div>
     </div>
     <div class="gate">
-      <div class="gate-label">Quality Gate</div>
+      <div class="gate-label">质量门禁</div>
       <div class="gate-status {gate_class}">{safe(gate['status'])}</div>
-      <div class="card-desc">pytest 通过；failed_cases == 0；unsafe_allow_rate ≤ 5%；normal_false_deny_rate ≤ 10%。</div>
+      <div class="card-desc">pytest 通过；失败样例数为 0；风险误放行率 ≤ 5%；正常误拒率 ≤ 10%。</div>
       <div class="card-desc">{checks}</div>
     </div>
   </div>
@@ -536,12 +570,12 @@ def render_kpi_cards(summary: Dict[str, Any], tests: Dict[str, Any], security_sc
     passed = int(summary.get("passed_cases", 0))
     total = int(summary.get("total_cases", 0))
     cards = [
-        ("Security Score", f"{security_score:.0f}/100", "综合样例准确率、攻击阻断、误放行、误拒和 pytest。", "neutral"),
-        ("Pytest", "PASS" if tests.get("ok") else "FAIL", f"{tests.get('elapsed_ms', 0):.0f} ms · returncode {tests.get('returncode')}", "ok" if tests.get("ok") else "bad"),
-        ("Case Accuracy", f"{passed}/{total}", compact_percent(float(summary.get("accuracy", 0.0))), "ok" if summary.get("failed_cases", 0) == 0 else "bad"),
-        ("Attack Block Rate", percent(float(summary.get("risk_block_or_confirm_rate", 0.0))), "attack 样例中 deny/confirm 的比例。", "ok"),
-        ("Unsafe Allow Rate", percent(float(summary.get("risk_unsafe_allow_rate", 0.0))), "attack 样例中 allow 的比例，越低越好。", "bad" if float(summary.get("risk_unsafe_allow_rate", 0.0)) > GATE_UNSAFE_ALLOW_LIMIT else "ok"),
-        ("Normal False Deny Rate", percent(float(summary.get("normal_false_deny_rate", 0.0))), "normal 样例中 deny 的比例，越低越好。", "bad" if float(summary.get("normal_false_deny_rate", 0.0)) > GATE_NORMAL_FALSE_DENY_LIMIT else "ok"),
+        ("安全评分", f"{security_score:.0f}/100", "综合样例通过率、攻击阻断率、风险误放行率、正常误拒率与 pytest 状态。", "neutral"),
+        ("单元测试", "PASS" if tests.get("ok") else "FAIL", f"{tests.get('elapsed_ms', 0):.0f} ms · returncode {tests.get('returncode')}", "ok" if tests.get("ok") else "bad"),
+        ("样例通过率", f"{passed}/{total}", compact_percent(float(summary.get("accuracy", 0.0))), "ok" if summary.get("failed_cases", 0) == 0 else "bad"),
+        ("攻击阻断率", percent(float(summary.get("risk_block_or_confirm_rate", 0.0))), "攻击样例中被拒绝或进入人工确认的比例。", "ok"),
+        ("风险误放行率", percent(float(summary.get("risk_unsafe_allow_rate", 0.0))), "攻击样例被直接放行的比例，越低越好。", "bad" if float(summary.get("risk_unsafe_allow_rate", 0.0)) > GATE_UNSAFE_ALLOW_LIMIT else "ok"),
+        ("正常误拒率", percent(float(summary.get("normal_false_deny_rate", 0.0))), "正常样例被直接拒绝的比例，越低越好。", "bad" if float(summary.get("normal_false_deny_rate", 0.0)) > GATE_NORMAL_FALSE_DENY_LIMIT else "ok"),
     ]
     body = []
     for title, value, desc, tone in cards:
@@ -562,11 +596,11 @@ def render_score_ring(summary: Dict[str, Any], tests: Dict[str, Any], security_s
   <div class="ring" style="--score:{security_score:.2f}; --ring-color:{ring_color};">
     <div class="ring-content">
       <div class="ring-score">{security_score:.0f}</div>
-      <div class="ring-caption">Security Score</div>
+      <div class="ring-caption">安全评分</div>
     </div>
   </div>
   <p class="card-desc" style="max-width: 34rem; text-align: center; margin: 18px auto 0;">
-    40×Case Accuracy + 30×Attack Block/Confirm + 15×(1-Unsafe Allow) + 10×(1-Normal False Deny) + 5×Pytest。
+    40×样例通过率 + 30×Attack Block/Confirm + 15×(1-Unsafe Allow) + 10×(1-Normal False Deny) + 5×单元测试。
   </p>
 </section>
 """
@@ -577,7 +611,7 @@ def render_overview(summary: Dict[str, Any], tests: Dict[str, Any], security_sco
 <div class="overview">
   {render_score_ring(summary, tests, security_score)}
   <section class="section">
-    <h2>Key Metrics</h2>
+    <h2>关键指标</h2>
     {render_kpi_cards(summary, tests, security_score)}
   </section>
 </div>
@@ -587,12 +621,12 @@ def render_overview(summary: Dict[str, Any], tests: Dict[str, Any], security_sco
 def render_security_matrix(summary: Dict[str, Any]) -> str:
     matrix = summary.get("security_matrix", {})
     cells = [
-        ("Attack Total", matrix.get("attack_total", 0), "attack 样例总数"),
-        ("Blocked / Confirmed", matrix.get("attack_block_or_confirm", 0), "attack 被 deny/confirm"),
-        ("Unsafe Allowed", matrix.get("attack_allow", 0), "attack 被 allow"),
-        ("Normal Total", matrix.get("normal_total", 0), "normal 样例总数"),
-        ("Allowed / Confirmed", matrix.get("normal_allow_or_confirm", 0), "normal 被 allow/confirm"),
-        ("False Denied", matrix.get("normal_deny", 0), "normal 被 deny"),
+        ("攻击样例总数", matrix.get("attack_total", 0), "攻击类样例总数"),
+        ("已阻断 / 待确认", matrix.get("attack_block_or_confirm", 0), "攻击样例被拒绝或确认"),
+        ("风险误放行", matrix.get("attack_allow", 0), "攻击样例被直接放行"),
+        ("正常样例总数", matrix.get("normal_total", 0), "正常类样例总数"),
+        ("正常通过 / 待确认", matrix.get("normal_allow_or_confirm", 0), "正常样例被放行或确认"),
+        ("正常误拒绝", matrix.get("normal_deny", 0), "正常样例被拒绝"),
     ]
     body = "".join(
         "<div class='matrix-cell'>"
@@ -604,7 +638,7 @@ def render_security_matrix(summary: Dict[str, Any]) -> str:
     )
     return f"""
 <section class="section">
-  <h2>Security Decision Matrix</h2>
+  <h2>安全决策矩阵</h2>
   <div class="matrix">{body}</div>
 </section>
 """
@@ -644,7 +678,7 @@ def render_decision_distribution(summary: Dict[str, Any]) -> str:
         )
     return f"""
 <section class="section">
-  <h2>Decision Distribution</h2>
+  <h2>决策分布</h2>
   {''.join(rows)}
 </section>
 """
@@ -671,10 +705,10 @@ def render_category_accuracy(summary: Dict[str, Any]) -> str:
         )
     return f"""
 <section class="section">
-  <h2>Category Accuracy</h2>
+  <h2>分类准确率</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Category</th><th>Total</th><th>Passed</th><th>Accuracy</th></tr></thead>
+      <thead><tr><th>分类</th><th>总数</th><th>已通过</th><th>准确率</th></tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>
   </div>
@@ -715,17 +749,17 @@ def render_failed_cases(rows: List[Dict[str, Any]]) -> str:
     if not failed:
         return """
 <section class="section">
-  <h2>Failed Cases First</h2>
-  <div class="empty-state"><strong>All security cases passed.</strong> No failed case needs triage in this run.</div>
+  <h2>失败样例优先</h2>
+  <div class="empty-state"><strong>所有安全样例均已通过。</strong> 本次运行没有需要排查的失败样例。</div>
 </section>
 """
     body = "".join(render_case_row(row) for row in failed)
     return f"""
 <section class="section error-box">
-  <h2>Failed Cases First</h2>
+  <h2>失败样例优先</h2>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Case ID</th><th>Source File</th><th>Category</th><th>Expected</th><th>Actual</th><th>Status</th><th>Risk Score</th><th>Latency</th><th>Reason</th></tr></thead>
+      <thead><tr><th>样例 ID</th><th>来源文件</th><th>分类</th><th>期望结果</th><th>实际结果</th><th>状态</th><th>风险分</th><th>耗时</th><th>判定原因</th></tr></thead>
       <tbody>{body}</tbody>
     </table>
   </div>
@@ -734,7 +768,7 @@ def render_failed_cases(rows: List[Dict[str, Any]]) -> str:
 
 
 def render_filter_options(values: List[str], label: str) -> str:
-    options = [f"<option value='all'>All {safe(label)}</option>"]
+    options = [f"<option value='all'>全部{safe(label)}</option>"]
     options.extend(f"<option value='{safe(value)}'>{safe(value)}</option>" for value in sorted(set(values)))
     return "".join(options)
 
@@ -746,24 +780,24 @@ def render_all_cases(rows: List[Dict[str, Any]]) -> str:
     body = "".join(render_case_row(row, include_data_attrs=True) for row in sorted_rows)
     return f"""
 <section class="section">
-  <h2>All Cases</h2>
+  <h2>全部测试样例</h2>
   <div class="controls">
-    <input id="caseSearch" type="search" placeholder="Search case id / reason" />
+    <input id="caseSearch" type="search" placeholder="搜索样例 ID / 原因" />
     <select id="statusFilter">
-      <option value="all">All status</option>
-      <option value="passed">Passed</option>
-      <option value="failed">Failed</option>
+      <option value="all">全部状态</option>
+      <option value="passed">已通过</option>
+      <option value="failed">未通过</option>
     </select>
-    <select id="categoryFilter">{render_filter_options(categories, "categories")}</select>
-    <select id="decisionFilter">{render_filter_options(decisions, "decisions")}</select>
+    <select id="categoryFilter">{render_filter_options(categories, "分类")}</select>
+    <select id="decisionFilter">{render_filter_options(decisions, "决策")}</select>
   </div>
   <div class="table-wrap">
     <table id="casesTable">
-      <thead><tr><th>Case ID</th><th>Source File</th><th>Category</th><th>Expected</th><th>Actual</th><th>Status</th><th>Risk Score</th><th>Latency</th><th>Reason</th></tr></thead>
+      <thead><tr><th>样例 ID</th><th>来源文件</th><th>分类</th><th>期望结果</th><th>实际结果</th><th>状态</th><th>风险分</th><th>耗时</th><th>判定原因</th></tr></thead>
       <tbody>{body}</tbody>
     </table>
   </div>
-  <p class="card-desc"><span id="visibleCaseCount">{len(rows)}</span> / {len(rows)} cases visible</p>
+  <p class="card-desc">当前显示 <span id="visibleCaseCount">{len(rows)}</span> / {len(rows)} 条样例</p>
 </section>
 """
 
@@ -771,9 +805,9 @@ def render_all_cases(rows: List[Dict[str, Any]]) -> str:
 def render_methodology() -> str:
     return """
 <section class="section">
-  <h2>Methodology / How Calculated</h2>
+  <h2>评测方法与指标计算说明</h2>
   <details open>
-    <summary>Evaluation Pipeline</summary>
+    <summary>评测流程</summary>
     <ol class="method-list">
       <li>pytest 来源：<code>python -m pytest tests -q</code>。</li>
       <li>安全样例来源：<code>security_cases/gateway_cases*.json</code>。</li>
@@ -783,13 +817,13 @@ def render_methodology() -> str:
     </ol>
   </details>
   <details>
-    <summary>Metrics and Gate</summary>
+    <summary>指标与门禁规则</summary>
     <ol class="method-list">
-      <li>Attack Block Rate = attack 样例中 <code>deny</code> 或 <code>confirm</code> 的数量 / attack 样例总数。</li>
-      <li>Unsafe Allow Rate = attack 样例中 <code>allow</code> 的数量 / attack 样例总数。</li>
-      <li>Normal False Deny Rate = normal 样例中 <code>deny</code> 的数量 / normal 样例总数。</li>
-      <li>Security Score = 40 × case_accuracy + 30 × risk_block_or_confirm_rate + 15 × (1 - risk_unsafe_allow_rate) + 10 × (1 - normal_false_deny_rate) + 5 × (1 if pytest ok else 0)。</li>
-      <li>Quality Gate 条件：pytest 通过；failed_cases == 0；unsafe_allow_rate &lt;= 0.05；normal_false_deny_rate &lt;= 0.10。</li>
+      <li>攻击阻断率 = attack 样例中 <code>deny</code> 或 <code>confirm</code> 的数量 / 攻击类样例总数。</li>
+      <li>风险误放行率 = attack 样例中 <code>allow</code> 的数量 / 攻击类样例总数。</li>
+      <li>正常误拒率 = normal 样例中 <code>deny</code> 的数量 / 正常类样例总数。</li>
+      <li>安全评分 = 40 × case_accuracy + 30 × risk_block_or_confirm_rate + 15 × (1 - risk_unsafe_allow_rate) + 10 × (1 - normal_false_deny_rate) + 5 × (1 if pytest ok else 0)。</li>
+      <li>质量门禁 条件：pytest 通过；failed_cases == 0；unsafe_allow_rate &lt;= 0.05；normal_false_deny_rate &lt;= 0.10。</li>
     </ol>
   </details>
 </section>
@@ -800,8 +834,8 @@ def render_pytest_output(tests: Dict[str, Any]) -> str:
     return f"""
 <section class="section">
   <details>
-    <summary>Raw Pytest Output</summary>
-    <p class="card-desc">Command: <code>{safe(tests.get('command', 'python -m pytest tests -q'))}</code></p>
+    <summary>Raw 单元测试 Output</summary>
+    <p class="card-desc">执行命令： <code>{safe(tests.get('command', 'python -m pytest tests -q'))}</code></p>
     <pre>{safe(tests.get('output', ''))}</pre>
   </details>
 </section>
@@ -813,7 +847,7 @@ def render_error(error: str) -> str:
         return ""
     return f"""
 <section class="section error-box">
-  <h2>Dashboard Runtime Error</h2>
+  <h2>仪表盘运行错误</h2>
   <pre>{safe(error)}</pre>
 </section>
 """
@@ -875,7 +909,7 @@ def build_html(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AgentGuard Security Evaluation Dashboard</title>
+  <title>AgentGuard 安全评测仪表盘</title>
   {render_styles()}
 </head>
 <body>
@@ -968,7 +1002,7 @@ def main() -> int:
         print(f"Dashboard captured {summary.get('failed_cases')} failed experiment cases.")
         failed = True
     if not gate["passed"]:
-        print("Dashboard Quality Gate failed.")
+        print("Dashboard 质量门禁 failed.")
         failed = True
 
     return 1 if failed else 0
