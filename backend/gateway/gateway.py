@@ -118,6 +118,26 @@ def build_gateway_result(
     }
 
 
+def _is_path_bypass_keyword(keyword: str) -> bool:
+    """
+    判断 dangerous_keywords.path 命中的词是否属于路径穿越/编码绕过类硬风险。
+    这类命中应当直接进入 hard_deny，而不是只加风险分。
+    """
+    normalized = str(keyword).lower().replace("\\", "/")
+    bypass_markers = (
+        "../",
+        "%2e%2e",
+        "%252e%252e",
+        "%2f",
+        "%5c",
+        "%252f",
+        "%255c",
+        "....//",
+        "..././",
+    )
+    return any(marker in normalized for marker in bypass_markers)
+
+
 def check_tool_call(request: ToolCallRequest):
     """
     授权网关核心逻辑：
@@ -366,6 +386,27 @@ def check_tool_call(request: ToolCallRequest):
         risk_score += get_risk_score("absolute_path", 40)
         hard_deny = True
         reason.append("路径疑似绝对路径，存在越权访问风险")
+
+    # 3.5 路径关键词风险判断：
+    # 从 config/policy.yaml 的 dangerous_keywords.path / sensitive_path 中读取。
+    # 这一步让策略文件中的路径关键词真正参与 Gateway 决策。
+    dangerous_path_keywords = get_dangerous_keywords("path")
+    matched_path_keywords = match_keywords(path, dangerous_path_keywords)
+
+    for word in matched_path_keywords:
+        risk_score += get_risk_score("path_keyword", 55)
+        reason.append(f"路径命中高危关键词：{word}")
+
+        if _is_path_bypass_keyword(word):
+            hard_deny = True
+            reason.append(f"路径关键词 {word} 表明存在路径穿越或编码绕过风险")
+
+    sensitive_path_keywords = get_dangerous_keywords("sensitive_path")
+    matched_sensitive_paths = match_keywords(path, sensitive_path_keywords)
+
+    for word in matched_sensitive_paths:
+        risk_score += get_risk_score("sensitive_path_keyword", 40)
+        reason.append(f"路径命中敏感资源关键词：{word}")
 
     # 4. 角色权限策略判断：
     # 从 config/policy.yaml 的 roles 中读取
