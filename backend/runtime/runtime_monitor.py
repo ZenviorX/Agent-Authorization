@@ -176,12 +176,139 @@ def _should_apply_chain_risk(
     return False
 
 
+
+def _unique_values(values: List[Any]) -> List[Any]:
+    """
+    保持顺序去重。
+    """
+    result: List[Any] = []
+    seen = set()
+
+    for value in values:
+        marker = repr(value)
+        if marker in seen:
+            continue
+        result.append(value)
+        seen.add(marker)
+
+    return result
+
+
+def _merge_input_labels_from_steps(
+    state: RuntimeTaskState,
+    input_labels: Optional[List[str]],
+    input_from_steps: Optional[List[int]],
+) -> List[str]:
+    """
+    将显式输入标签与历史步骤输出标签合并。
+
+    这使 Runtime Monitor 本身具备数据流追踪能力，
+    而不是完全依赖路由层提前合并标签。
+    """
+    merged = list(input_labels or [])
+
+    for step_index in input_from_steps or []:
+        inherited_labels = state.data_labels_by_step.get(step_index, [])
+
+        for label in inherited_labels:
+            if label not in merged:
+                merged.append(label)
+
+    return merged
+
+
+def _build_label_sources(
+    state: RuntimeTaskState,
+    input_labels: List[str],
+    input_from_steps: Optional[List[int]],
+) -> Dict[str, List[str]]:
+    """
+    为每个输入标签记录来源。
+
+    示例：
+    {
+      "public": ["step:1"],
+      "prompt_injection": ["step:1"],
+      "unknown": ["direct_input"]
+    }
+    """
+    sources: Dict[str, List[str]] = {}
+
+    inherited_labels = set()
+
+    for step_index in input_from_steps or []:
+        for label in state.data_labels_by_step.get(step_index, []):
+            inherited_labels.add(label)
+            sources.setdefault(label, []).append(f"step:{step_index}")
+
+    for label in input_labels:
+        if label not in inherited_labels:
+            sources.setdefault(label, []).append("direct_input")
+
+    return {
+        label: [str(item) for item in _unique_values(source_list)]
+        for label, source_list in sources.items()
+    }
+
+
+def _record_data_lineage_edges(
+    state: RuntimeTaskState,
+    target_step: int,
+    input_labels: List[str],
+    input_from_steps: Optional[List[int]],
+) -> None:
+    """
+    记录跨步骤数据流边。
+
+    这一步是 AgentGuard 从“单步授权网关”升级为
+    “数据流感知安全运行时”的核心。
+    """
+    inherited_labels = set()
+
+    for source_step in input_from_steps or []:
+        labels = state.data_labels_by_step.get(source_step, [])
+        if not labels:
+            continue
+
+        inherited_labels.update(labels)
+
+        state.data_lineage_edges.append(
+            {
+                "source": f"step:{source_step}",
+                "source_step": source_step,
+                "target": f"step:{target_step}",
+                "target_step": target_step,
+                "labels": labels,
+                "edge_type": "step_output_to_step_input",
+            }
+        )
+
+    direct_labels = [
+        label
+        for label in input_labels
+        if label not in inherited_labels
+    ]
+
+    if direct_labels:
+        state.data_lineage_edges.append(
+            {
+                "source": "direct_input",
+                "source_step": None,
+                "target": f"step:{target_step}",
+                "target_step": target_step,
+                "labels": direct_labels,
+                "edge_type": "direct_input_to_step",
+            }
+        )
+
+
 def run_runtime_step(
     state: RuntimeTaskState,
     tool: str,
     params: Dict[str, Any],
     input_labels: Optional[List[str]] = None,
     output_content: Optional[str] = None,
+    input_from_steps: Optional[List[int]] = None,
 ) -> CapabilityCheckResult:
     """
     在运行时状态中执行一次工具调用检查，并记录结果。
@@ -192,7 +319,12 @@ def run_runtime_step(
     3. 记录 RuntimeStepRecord，形成任务执行链。
     """
 
-    input_labels = input_labels or []
+    input_from_steps = input_from_steps or []
+    input_labels = _merge_input_labels_from_steps(
+        state=state,
+        input_labels=input_labels,
+        input_from_steps=input_from_steps,
+    )
 
     if state.is_blocked:
         return CapabilityCheckResult(
@@ -303,12 +435,20 @@ def run_runtime_step(
         reason=final_reason,
     )
 
+    label_sources = _build_label_sources(
+        state=state,
+        input_labels=input_labels,
+        input_from_steps=input_from_steps,
+    )
+
     step_record = RuntimeStepRecord(
         step_index=next_step,
         tool=tool,
         params=params,
+        input_from_steps=input_from_steps,
         input_labels=input_labels,
         output_labels=output_labels,
+        label_sources=label_sources,
         decision=final_result.decision,
         risk_score=final_result.risk_score,
         reason=final_result.reason,
@@ -322,6 +462,13 @@ def run_runtime_step(
     )
 
     state.steps.append(step_record)
+
+    _record_data_lineage_edges(
+        state=state,
+        target_step=next_step,
+        input_labels=input_labels,
+        input_from_steps=input_from_steps,
+    )
 
     if final_result.decision == "allow":
         state.current_step = next_step
@@ -340,6 +487,208 @@ def run_runtime_step(
         state.violations.extend(final_result.reason)
 
     return final_result
+
+
+
+def build_runtime_security_graph(state: RuntimeTaskState) -> Dict[str, Any]:
+    """
+    构建 Runtime Security Graph。
+
+    该图把运行时状态转换成可展示、可审计的数据流安全图：
+    - nodes：任务、步骤、直接输入；
+    - edges：跨步骤数据流边；
+    - high_risk_flows：污染/敏感数据流向危险工具的证据；
+    - summary：图谱统计信息。
+
+    这是 AgentGuard 从“记录标签”升级为“生成数据流安全证据图”的核心接口。
+    """
+    sink_tools = {
+        "email.send",
+        "shell.run",
+        "file.write",
+        "file.delete",
+        "db.query",
+        "http.post",
+        "code.exec",
+    }
+
+    external_sink_tools = {
+        "email.send",
+        "http.post",
+    }
+
+    risky_labels = {
+        "tainted",
+        "prompt_injection",
+        "unknown",
+        "sensitive",
+        "secret",
+    }
+
+    critical_labels = {
+        "sensitive",
+        "secret",
+    }
+
+    nodes: List[Dict[str, Any]] = [
+        {
+            "id": f"task:{state.task_id}",
+            "type": "task",
+            "label": state.original_task,
+            "risk": state.used_risk,
+            "decision": state.final_decision,
+        }
+    ]
+
+    if any(edge.get("source") == "direct_input" for edge in state.data_lineage_edges):
+        nodes.append(
+            {
+                "id": "direct_input",
+                "type": "input",
+                "label": "Direct User / Agent Input",
+                "risk": 0,
+                "decision": "allow",
+            }
+        )
+
+    step_by_index = {}
+
+    for step in state.steps:
+        step_by_index[step.step_index] = step
+
+        node_risk = "low"
+
+        if step.decision == "deny":
+            node_risk = "critical"
+        elif step.decision == "confirm":
+            node_risk = "high"
+        elif set(step.input_labels or []) & risky_labels:
+            node_risk = "medium"
+
+        nodes.append(
+            {
+                "id": f"step:{step.step_index}",
+                "type": "step",
+                "step_index": step.step_index,
+                "tool": step.tool,
+                "label": f"Step {step.step_index}: {step.tool}",
+                "decision": step.decision,
+                "risk_score": step.risk_score,
+                "risk": node_risk,
+                "input_labels": step.input_labels,
+                "output_labels": step.output_labels,
+                "input_from_steps": step.input_from_steps,
+                "label_sources": step.label_sources,
+                "requires_confirmation": step.requires_confirmation,
+                "blocked": step.blocked,
+                "executed": step.executed,
+            }
+        )
+
+    edges: List[Dict[str, Any]] = []
+    high_risk_flows: List[Dict[str, Any]] = []
+
+    for raw_edge in state.data_lineage_edges:
+        labels = list(raw_edge.get("labels", []))
+        target_step = raw_edge.get("target_step")
+        target_step_record = step_by_index.get(target_step)
+
+        edge_risky_labels = sorted(set(labels) & risky_labels)
+        edge_critical_labels = sorted(set(labels) & critical_labels)
+
+        edge_risk = "low"
+
+        if edge_critical_labels:
+            edge_risk = "critical"
+        elif edge_risky_labels:
+            edge_risk = "high"
+
+        edge = {
+            "source": raw_edge.get("source"),
+            "target": raw_edge.get("target"),
+            "source_step": raw_edge.get("source_step"),
+            "target_step": target_step,
+            "labels": labels,
+            "edge_type": raw_edge.get("edge_type"),
+            "risk": edge_risk,
+            "risky_labels": edge_risky_labels,
+        }
+
+        edges.append(edge)
+
+        if not target_step_record:
+            continue
+
+        target_tool = target_step_record.tool
+
+        if target_tool not in sink_tools:
+            continue
+
+        if not edge_risky_labels:
+            continue
+
+        severity = "high"
+        reason = "Tainted or unknown data reaches a high-risk tool."
+
+        if edge_critical_labels and target_tool in external_sink_tools:
+            severity = "critical"
+            reason = "Sensitive or secret data reaches an external output tool."
+        elif edge_critical_labels:
+            severity = "critical"
+            reason = "Sensitive or secret data reaches a high-risk tool."
+        elif "prompt_injection" in edge_risky_labels and target_tool in external_sink_tools:
+            severity = "high"
+            reason = "Prompt-injection-tainted data reaches an external output tool."
+
+        high_risk_flows.append(
+            {
+                "source": edge["source"],
+                "target": edge["target"],
+                "source_step": edge["source_step"],
+                "target_step": edge["target_step"],
+                "target_tool": target_tool,
+                "labels": labels,
+                "risky_labels": edge_risky_labels,
+                "severity": severity,
+                "reason": reason,
+                "target_decision": target_step_record.decision,
+                "target_risk_score": target_step_record.risk_score,
+            }
+        )
+
+    severity_order = {
+        "low": 0,
+        "medium": 1,
+        "high": 2,
+        "critical": 3,
+    }
+
+    graph_risk_level = "low"
+
+    for item in high_risk_flows:
+        severity = item.get("severity", "low")
+        if severity_order.get(severity, 0) > severity_order.get(graph_risk_level, 0):
+            graph_risk_level = severity
+
+    return {
+        "task_id": state.task_id,
+        "final_decision": state.final_decision,
+        "is_blocked": state.is_blocked,
+        "used_risk": state.used_risk,
+        "risk_budget": state.contract.risk_budget,
+        "graph_risk_level": graph_risk_level,
+        "nodes": nodes,
+        "edges": edges,
+        "high_risk_flows": high_risk_flows,
+        "summary": {
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "step_count": len(state.steps),
+            "high_risk_flow_count": len(high_risk_flows),
+            "blocked_step_count": sum(1 for step in state.steps if step.blocked),
+            "confirm_step_count": sum(1 for step in state.steps if step.requires_confirmation),
+        },
+    }
 
 
 def get_step_output_labels(
