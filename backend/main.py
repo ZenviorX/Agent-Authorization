@@ -16,6 +16,7 @@ from backend.routes.security_overview_routes import router as security_overview_
 from backend.routes.demo_routes import router as demo_router
 from backend.routes.sandbox_evidence_routes import router as sandbox_evidence_router
 from backend.routes.showcase_report_routes import router as showcase_report_router
+from backend.routes.agent_runtime_routes import router as agent_runtime_router
 
 
 app = FastAPI(
@@ -80,6 +81,7 @@ app.include_router(attack_chain_router)
 app.include_router(security_overview_router)
 app.include_router(sandbox_evidence_router)
 app.include_router(showcase_report_router)
+app.include_router(agent_runtime_router)
 
 
 # -----------------------------
@@ -137,7 +139,7 @@ def security_dashboard_page():
 def sandbox_dashboard_page():
     return _serve_frontend_html(
         FRONTEND_SANDBOX_DASHBOARD,
-        "Sandbox dashboard frontend file is missing",
+        "Sandbox frontend file is missing",
     )
 
 
@@ -159,8 +161,27 @@ def api_status():
         "message": "AI Agent Auth Gateway is running",
         "version": "0.5.0",
         "architecture": {
-            "core": "External caller -> Gateway -> ToolExecutor",
+            "core": (
+                "External caller -> Agent Runtime / Gateway -> "
+                "Runtime Monitor -> ToolExecutor"
+            ),
+            "real_agent": (
+                "MultiStepLLMAgent -> Capability Contract -> "
+                "Runtime Monitor -> Sandbox Executor"
+            ),
             "demo": "FakeAgent -> Demo API -> Gateway -> ToolExecutor",
         },
-        "note": "FakeAgent is demo-only and is not part of the core gateway API.",
+        "registered_core_features": [
+            "gateway",
+            "capability_contract",
+            "runtime_monitor",
+            "attack_chain_detector",
+            "sandbox_evidence",
+            "showcase_report",
+            "agent_runtime",
+        ],
+        "note": (
+            "FakeAgent is demo-only. Real Agent runtime APIs are exposed under "
+            "/agent-runtime and still require Gateway / Runtime Monitor checks."
+        ),
     }

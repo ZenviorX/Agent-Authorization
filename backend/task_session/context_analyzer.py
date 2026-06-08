@@ -1,9 +1,106 @@
+import re
 from typing import Dict, List
 
 from backend.gateway.policy_loader import (
     get_dangerous_keywords,
     get_external_output_tools,
 )
+
+
+SECRET_VALUE_PATTERNS = [
+    r"\bpassword\s*[:=]\s*\S+",
+    r"\bpasswd\s*[:=]\s*\S+",
+    r"\bapi_key\s*[:=]\s*\S+",
+    r"\bapikey\s*[:=]\s*\S+",
+    r"\baccess_key\s*[:=]\s*\S+",
+    r"\bprivate_key\s*[:=]\s*\S+",
+    r"\btoken\s*[:=]\s*\S+",
+    r"\bcredential\s*[:=]\s*\S+",
+    r"密钥\s*[:：=]\s*\S+",
+    r"密码\s*[:：=]\s*\S+",
+    r"令牌\s*[:：=]\s*\S+",
+]
+
+
+SENSITIVE_DATA_KEYWORDS = [
+    "身份证",
+    "手机号",
+    "银行卡",
+    "住址",
+    "家庭住址",
+    "id_card",
+    "phone_number",
+    "bank_card",
+    "credential=",
+    "password=",
+    "passwd=",
+    "token=",
+    "api_key=",
+    "apikey=",
+    "private_key=",
+]
+
+
+PROMPT_INJECTION_PATH_PATTERNS = [
+    "secret/",
+    "private/",
+    "../",
+    "secret\\",
+    "private\\",
+]
+
+
+def _matches_secret_value(text: str) -> bool:
+    """
+    判断文本里是否真的包含 secret/password/token 等敏感值。
+
+    注意：
+    这里区分两种情况：
+
+    1. secret/password.txt
+       这只是一个路径诱导，不应该直接算敏感数据泄露；
+       应该更偏向 tainted / prompt_injection。
+
+    2. password=xxx / token=xxx / api_key=xxx
+       这才是真正的敏感值，应标记 sensitive。
+    """
+
+    for pattern in SECRET_VALUE_PATTERNS:
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            return True
+
+    return False
+
+
+def _contains_sensitive_data_keyword(text: str) -> bool:
+    """
+    判断文本是否包含真正的数据型敏感关键词。
+
+    不再把单独的 secret、password 路径词当作 sensitive。
+    """
+
+    lower_text = text.lower()
+
+    for keyword in SENSITIVE_DATA_KEYWORDS:
+        if keyword.lower() in lower_text:
+            return True
+
+    return False
+
+
+def _contains_prompt_injection_path(text: str) -> bool:
+    """
+    判断文本是否包含诱导访问敏感路径的内容。
+    这类内容更适合标记为 tainted，而不是 sensitive。
+    """
+
+    lower_text = text.lower()
+
+    for pattern in PROMPT_INJECTION_PATH_PATTERNS:
+        if pattern in lower_text:
+            return True
+
+    return False
 
 
 def analyze_text_security(text: str) -> Dict[str, object]:
@@ -16,7 +113,13 @@ def analyze_text_security(text: str) -> Dict[str, object]:
         "tainted": True/False,
         "reasons": [...]
     }
+
+    设计原则：
+    1. 真的出现 password=xxx / token=xxx / api_key=xxx，才标记 sensitive；
+    2. 只是出现 secret/password.txt 这种路径诱导，标记 tainted；
+    3. 出现忽略规则、绕过授权、发送给攻击者等内容，标记 tainted。
     """
+
     result = {
         "sensitive": False,
         "tainted": False,
@@ -29,13 +132,15 @@ def analyze_text_security(text: str) -> Dict[str, object]:
     lower_text = text.lower()
     reasons: List[str] = []
 
-    sensitive_keywords = get_dangerous_keywords("sensitive_content")
     prompt_injection_keywords = get_dangerous_keywords("prompt_injection")
 
-    for keyword in sensitive_keywords:
-        if keyword.lower() in lower_text:
-            result["sensitive"] = True
-            reasons.append(f"工具输出内容命中敏感关键词：{keyword}")
+    if _matches_secret_value(text) or _contains_sensitive_data_keyword(text):
+        result["sensitive"] = True
+        reasons.append("工具输出内容疑似包含真实敏感值，例如 password/token/api_key 等")
+
+    if _contains_prompt_injection_path(text):
+        result["tainted"] = True
+        reasons.append("工具输出内容包含敏感路径诱导，例如 secret/private/../")
 
     for keyword in prompt_injection_keywords:
         if keyword.lower() in lower_text:
