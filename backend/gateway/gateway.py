@@ -1,4 +1,4 @@
-from backend.schemas import ToolCallRequest, GatewayResponse
+from backend.schemas import ToolCallRequest
 from backend.gateway.policy_loader import (
     get_tool_risk,
     get_decision_threshold,
@@ -14,6 +14,11 @@ from backend.gateway.policy_loader import (
     get_internal_email_domains,
 )
 from backend.gateway.semantic_guard import semantic_check_tool_call
+from backend.gateway.result_builder import build_gateway_result
+from backend.gateway.security_detectors import (
+    is_destructive_sql_keyword as _is_destructive_sql_keyword,
+    is_path_bypass_keyword as _is_path_bypass_keyword,
+)
 from backend.utils import (
     normalize_tool_name,
     normalize_params,
@@ -35,155 +40,6 @@ TOOL_REASON_MAP = {
     "file.read": "文件读取操作存在一定信息泄露风险",
     "db.query": "数据库查询操作存在一定数据泄露风险",
 }
-
-
-def get_risk_level(score: int) -> str:
-    """
-    将风险分转换为风险等级，便于前端展示、人工确认和审计分析。
-    """
-    if score >= 80:
-        return "critical"
-    if score >= 60:
-        return "high"
-    if score >= 30:
-        return "medium"
-    return "low"
-
-
-def build_explanations(reason: list[str]) -> list[dict]:
-    """
-    将原有 reason 文本转换为结构化解释。
-    这样既保留原有判断逻辑，又能让前端和审计模块展示风险来源。
-    """
-    explanations = []
-
-    for item in reason:
-        text = str(item)
-
-        if "语义检测" in text:
-            factor = "semantic_guard"
-        elif "路径" in text or "secret" in text or "资源风险" in text or "访问路径" in text:
-            factor = "resource_path"
-        elif "角色" in text or "权限" in text or "user" in text or "admin" in text:
-            factor = "role_policy"
-        elif "邮件" in text or "外发" in text or "接收人" in text:
-            factor = "external_output"
-        elif "提示注入" in text or "ignore previous" in text or "忽略" in text:
-            factor = "prompt_injection"
-        elif "命令" in text or "shell" in text or "高危操作" in text:
-            factor = "command"
-        elif "SQL" in text or "数据库" in text or "SELECT" in text:
-            factor = "database"
-        elif "Agent" in text or "置信度" in text or "计划" in text:
-            factor = "agent_plan"
-        elif "任务授权合约" in text or "Capability Contract" in text or "合约" in text:
-            factor = "task_contract"
-        elif "工具" in text:
-            factor = "tool"
-        elif "参数" in text:
-            factor = "params"
-        else:
-            factor = "general"
-
-        explanations.append(
-            {
-                "factor": factor,
-                "reason": text,
-            }
-        )
-
-    return explanations
-
-
-def _default_semantic_guard_result() -> dict:
-    """
-    构造默认语义检测结果，保证 Gateway 响应始终具备 semantic_guard 字段。
-    """
-    return {
-        "enabled": False,
-        "risk_score": 0,
-        "force_confirm": False,
-        "hard_deny": False,
-        "labels": [],
-        "matches": [],
-        "reasons": [],
-    }
-
-
-def build_gateway_result(
-    decision: str,
-    risk_score: int,
-    reason: list[str],
-    user: str,
-    role: str,
-    tool: str,
-    params: dict,
-    semantic_guard: dict = None,
-) -> dict:
-    """
-    统一构造 Gateway 返回值，保证所有提前 return 和最终 return 字段一致。
-
-    semantic_guard 单独结构化返回，便于前端、审计和测试直接读取语义检测结果，
-    不再只能从 reason 文本中解析。
-    """
-    if semantic_guard is None:
-        semantic_guard = _default_semantic_guard_result()
-
-    return {
-        "decision": decision,
-        "risk_score": risk_score,
-        "risk_level": get_risk_level(risk_score),
-        "reason": reason,
-        "explanations": build_explanations(reason),
-        "semantic_guard": semantic_guard,
-        "user": user,
-        "role": role,
-        "normalized_tool": tool,
-        "normalized_params": params,
-    }
-
-
-def _is_path_bypass_keyword(keyword: str) -> bool:
-    """
-    判断 dangerous_keywords.path 命中的词是否属于路径穿越/编码绕过类硬风险。
-    这类命中应当直接进入 hard_deny，而不是只加风险分。
-    """
-    normalized = str(keyword).lower().replace("\\", "/")
-    bypass_markers = (
-        "../",
-        "%2e%2e",
-        "%252e%252e",
-        "%2f",
-        "%5c",
-        "%252f",
-        "%255c",
-        "....//",
-        "..././",
-    )
-    return any(marker in normalized for marker in bypass_markers)
-
-
-def _is_destructive_sql_keyword(keyword: str) -> bool:
-    """
-    判断 SQL 关键词是否属于破坏性数据库操作。
-    这类操作即使由 admin 发起，也不应被角色 allow 降级为 confirm。
-    """
-    normalized = str(keyword).lower().strip()
-    destructive_markers = (
-        "drop",
-        "truncate",
-        "delete",
-        "update",
-        "insert",
-        "alter",
-        "grant",
-        "revoke",
-        "xp_cmdshell",
-        "outfile",
-        "load_file",
-        "load_extension",
-    )
-    return any(marker in normalized for marker in destructive_markers)
 
 
 def check_tool_call(request: ToolCallRequest):
