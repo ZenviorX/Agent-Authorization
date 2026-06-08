@@ -36,10 +36,13 @@ def handle_tool_request(
         tool=normalized_tool,
         params=normalized_params,
         task_contract=request.task_contract,
+        input_labels=request.input_labels,
+        current_step=request.current_step,
+        used_risk=request.used_risk,
         agent_confidence=request.agent_confidence,
         plan_status=request.plan_status,
         plan_warnings=request.plan_warnings,
-)
+    )
     check_result = check_tool_call(normalized_request)
 
     # deny：直接拦截
