@@ -1,0 +1,128 @@
+{
+  "metadata": {
+    "branch": "main",
+    "commit": "310dd7563b53",
+    "run_id": "27136986333",
+    "generated_at": "2026-06-08T12:16:18+00:00",
+    "gateway_case_glob": "security_cases/gateway_cases*.json",
+    "llm_runtime_case_file": "security_cases/llm_runtime_cases.json",
+    "project_root": "/home/runner/work/Agent-Authorization/Agent-Authorization"
+  },
+  "security_score": 100.0,
+  "quality_gate": {
+    "passed": true,
+    "status": "通过",
+    "checks": [
+      {
+        "name": "pytest passed",
+        "passed": true,
+        "actual": "PASS",
+        "expected": "PASS"
+      },
+      {
+        "name": "failed_cases == 0",
+        "passed": true,
+        "actual": 0,
+        "expected": 0
+      },
+      {
+        "name": "unsafe_allow_rate <= 0.05",
+        "passed": true,
+        "actual": "0.00%",
+        "expected": "<= 5.00%"
+      },
+      {
+        "name": "normal_false_deny_rate <= 0.10",
+        "passed": true,
+        "actual": "0.00%",
+        "expected": "<= 10.00%"
+      }
+    ]
+  },
+  "gateway_summary": {
+    "total_cases": 70,
+    "passed_cases": 70,
+    "failed_cases": 0,
+    "accuracy": 1.0,
+    "avg_latency_ms": 0.5273340285839367,
+    "decision_distribution": {
+      "allow": 6,
+      "confirm": 36,
+      "deny": 28
+    },
+    "source_distribution": {
+      "gateway_cases.json": 30,
+      "gateway_cases_v2.json": 10,
+      "gateway_cases_v3.json": 30
+    },
+    "category_distribution": {
+      "normal": 15,
+      "attack": 49,
+      "suspicious": 6
+    },
+    "category_accuracy": {
+      "attack": {
+        "total": 49,
+        "passed": 49,
+        "accuracy": 1.0
+      },
+      "normal": {
+        "total": 15,
+        "passed": 15,
+        "accuracy": 1.0
+      },
+      "suspicious": {
+        "total": 6,
+        "passed": 6,
+        "accuracy": 1.0
+      }
+    },
+    "risk_total": 49,
+    "risk_block_or_confirm_rate": 1.0,
+    "risk_unsafe_allow_rate": 0.0,
+    "normal_total": 15,
+    "normal_false_deny_rate": 0.0,
+    "security_matrix": {
+      "attack_total": 49,
+      "attack_block_or_confirm": 49,
+      "attack_allow": 0,
+      "attack_deny": 25,
+      "attack_confirm": 24,
+      "normal_total": 15,
+      "normal_allow_or_confirm": 15,
+      "normal_deny": 0,
+      "normal_allow": 6,
+      "normal_confirm": 9
+    }
+  },
+  "llm_runtime_summary": {
+    "total_cases": 5,
+    "valid_cases": 5,
+    "invalid_cases": 0,
+    "valid_rate": 1.0,
+    "category_distribution": {
+      "normal": 1,
+      "attack": 3,
+      "suspicious": 1
+    },
+    "type_distribution": {
+      "stepwise_llm_runtime": 5
+    },
+    "attack_total": 3,
+    "normal_total": 1,
+    "suspicious_total": 1,
+    "expected_deny_attack_cases": 3,
+    "prompt_injection_cases": 2,
+    "data_exfiltration_cases": 1,
+    "sensitive_resource_cases": 4,
+    "internal_email_cases": 1,
+    "total_evaluation_points": 20,
+    "note": "LLM runtime cases are evaluated as a benchmark specification here. They are not executed in CI because real LLM calls require API keys and stable network access."
+  },
+  "pytest": {
+    "ok": true,
+    "returncode": 0,
+    "elapsed_ms": 1989.4617929999185,
+    "command": "python -m pytest tests -q"
+  }
+}
