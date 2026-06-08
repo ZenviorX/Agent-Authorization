@@ -60,7 +60,9 @@ def build_explanations(reason: list[str]) -> list[dict]:
     for item in reason:
         text = str(item)
 
-        if "路径" in text or "secret" in text or "资源风险" in text or "访问路径" in text:
+        if "语义检测" in text:
+            factor = "semantic_guard"
+        elif "路径" in text or "secret" in text or "资源风险" in text or "访问路径" in text:
             factor = "resource_path"
         elif "角色" in text or "权限" in text or "user" in text or "admin" in text:
             factor = "role_policy"
@@ -93,6 +95,21 @@ def build_explanations(reason: list[str]) -> list[dict]:
     return explanations
 
 
+def _default_semantic_guard_result() -> dict:
+    """
+    构造默认语义检测结果，保证 Gateway 响应始终具备 semantic_guard 字段。
+    """
+    return {
+        "enabled": False,
+        "risk_score": 0,
+        "force_confirm": False,
+        "hard_deny": False,
+        "labels": [],
+        "matches": [],
+        "reasons": [],
+    }
+
+
 def build_gateway_result(
     decision: str,
     risk_score: int,
@@ -101,21 +118,72 @@ def build_gateway_result(
     role: str,
     tool: str,
     params: dict,
+    semantic_guard: dict = None,
 ) -> dict:
     """
     统一构造 Gateway 返回值，保证所有提前 return 和最终 return 字段一致。
+
+    semantic_guard 单独结构化返回，便于前端、审计和测试直接读取语义检测结果，
+    不再只能从 reason 文本中解析。
     """
+    if semantic_guard is None:
+        semantic_guard = _default_semantic_guard_result()
+
     return {
         "decision": decision,
         "risk_score": risk_score,
         "risk_level": get_risk_level(risk_score),
         "reason": reason,
         "explanations": build_explanations(reason),
+        "semantic_guard": semantic_guard,
         "user": user,
         "role": role,
         "normalized_tool": tool,
         "normalized_params": params,
     }
+
+
+def _is_path_bypass_keyword(keyword: str) -> bool:
+    """
+    判断 dangerous_keywords.path 命中的词是否属于路径穿越/编码绕过类硬风险。
+    这类命中应当直接进入 hard_deny，而不是只加风险分。
+    """
+    normalized = str(keyword).lower().replace("\\", "/")
+    bypass_markers = (
+        "../",
+        "%2e%2e",
+        "%252e%252e",
+        "%2f",
+        "%5c",
+        "%252f",
+        "%255c",
+        "....//",
+        "..././",
+    )
+    return any(marker in normalized for marker in bypass_markers)
+
+
+def _is_destructive_sql_keyword(keyword: str) -> bool:
+    """
+    判断 SQL 关键词是否属于破坏性数据库操作。
+    这类操作即使由 admin 发起，也不应被角色 allow 降级为 confirm。
+    """
+    normalized = str(keyword).lower().strip()
+    destructive_markers = (
+        "drop",
+        "truncate",
+        "delete",
+        "update",
+        "insert",
+        "alter",
+        "grant",
+        "revoke",
+        "xp_cmdshell",
+        "outfile",
+        "load_file",
+        "load_extension",
+    )
+    return any(marker in normalized for marker in destructive_markers)
 
 
 def check_tool_call(request: ToolCallRequest):
@@ -295,6 +363,7 @@ def check_tool_call(request: ToolCallRequest):
                         role=role,
                         tool=tool,
                         params=params,
+                        semantic_guard=semantic_result,
                     )
 
                 if contract_result.decision == "confirm":
@@ -322,6 +391,7 @@ def check_tool_call(request: ToolCallRequest):
                         role=role,
                         tool=tool,
                         params=params,
+                        semantic_guard=semantic_result,
                     )
 
         except Exception as e:
@@ -337,6 +407,7 @@ def check_tool_call(request: ToolCallRequest):
                 role=role,
                 tool=tool,
                 params=params,
+                semantic_guard=semantic_result,
             )
 
     # 1. 工具自身风险判断：
@@ -366,6 +437,27 @@ def check_tool_call(request: ToolCallRequest):
         risk_score += get_risk_score("absolute_path", 40)
         hard_deny = True
         reason.append("路径疑似绝对路径，存在越权访问风险")
+
+    # 3.5 路径关键词风险判断：
+    # 从 config/policy.yaml 的 dangerous_keywords.path / sensitive_path 中读取。
+    # 这一步让策略文件中的路径关键词真正参与 Gateway 决策。
+    dangerous_path_keywords = get_dangerous_keywords("path")
+    matched_path_keywords = match_keywords(path, dangerous_path_keywords)
+
+    for word in matched_path_keywords:
+        risk_score += get_risk_score("path_keyword", 55)
+        reason.append(f"路径命中高危关键词：{word}")
+
+        if _is_path_bypass_keyword(word):
+            hard_deny = True
+            reason.append(f"路径关键词 {word} 表明存在路径穿越或编码绕过风险")
+
+    sensitive_path_keywords = get_dangerous_keywords("sensitive_path")
+    matched_sensitive_paths = match_keywords(path, sensitive_path_keywords)
+
+    for word in matched_sensitive_paths:
+        risk_score += get_risk_score("sensitive_path_keyword", 40)
+        reason.append(f"路径命中敏感资源关键词：{word}")
 
     # 4. 角色权限策略判断：
     # 从 config/policy.yaml 的 roles 中读取
@@ -436,6 +528,12 @@ def check_tool_call(request: ToolCallRequest):
                 risk_score += get_risk_score("sql_keyword", 50)
                 reason.append(f"SQL 语句包含高危操作：{keyword}")
 
+                if _is_destructive_sql_keyword(keyword):
+                    hard_deny = True
+                    reason.append(
+                        f"SQL 关键词 {keyword} 属于破坏性数据库操作，本次查询进入拒绝路径。"
+                    )
+
         if sql_lower and not sql_lower.strip().startswith("select"):
             risk_score += get_risk_score("non_select_sql", 30)
             reason.append("当前数据库工具只建议执行 SELECT 查询")
@@ -491,4 +589,5 @@ def check_tool_call(request: ToolCallRequest):
         role=role,
         tool=tool,
         params=params,
+        semantic_guard=semantic_result,
     )

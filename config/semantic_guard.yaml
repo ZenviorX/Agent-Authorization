@@ -1,4 +1,4 @@
-version: "1.0"
+version: "1.1"
 
 # ============================================================
 # Embedding 语义检测配置
@@ -6,10 +6,12 @@ version: "1.0"
 # policy.yaml：确定性硬策略，例如角色、工具、路径、关键词。
 # semantic_guard.yaml：语义风险样例和阈值，例如数据外发、策略绕过、提示注入变体。
 #
-# 默认 enabled=false，避免 CI/离线环境首次运行时自动下载模型。
-# 本地演示时推荐使用环境变量启用：
-#   PowerShell: $env:SEMANTIC_GUARD_ENABLED="true"
-#   Bash:       export SEMANTIC_GUARD_ENABLED=true
+# 当前项目默认启用语义检测。首次本地运行时会自动下载 embedding 模型，
+# 下载完成后会使用本地缓存。
+#
+# 如需临时关闭语义检测，可以使用环境变量覆盖：
+#   PowerShell: $env:SEMANTIC_GUARD_ENABLED="false"
+#   Bash:       export SEMANTIC_GUARD_ENABLED=false
 #
 # 检测原则：
 # - 语义检测只增加风险，不降低原有 Gateway 风险。
@@ -17,7 +19,7 @@ version: "1.0"
 # - 相似度 >= deny_score 且 hard_deny=true：进入拒绝路径。
 # - benign 标签只作为对照样例，不参与风险加分。
 
-enabled: false
+enabled: true
 fail_closed: false
 
 model:
