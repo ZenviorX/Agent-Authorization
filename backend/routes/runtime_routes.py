@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from backend.capability.capability_compiler import compile_capability_contract
 from backend.runtime.runtime_monitor import (
+    build_runtime_security_graph,
     create_runtime_state,
     get_step_output_labels,
     run_runtime_step,
@@ -19,6 +20,10 @@ from backend.runtime.runtime_store import (
     get_runtime_state,
     list_runtime_states,
     save_runtime_state,
+)
+from backend.runtime.evidence_package import (
+    build_runtime_evidence_package,
+    save_runtime_evidence_package,
 )
 from backend.tools.tool_executor import (
     DB_PATH,
@@ -126,6 +131,7 @@ def run_step(task_id: str, request: RuntimeStepRequest):
         params=request.params,
         input_labels=merged_input_labels,
         output_content=request.output_content,
+        input_from_steps=request.input_from_steps,
     )
 
     save_runtime_state(state)
@@ -135,6 +141,89 @@ def run_step(task_id: str, request: RuntimeStepRequest):
         "task_id": task_id,
         "result": result.model_dump(),
         "state": state.model_dump(),
+        "security_graph": build_runtime_security_graph(state),
+    }
+
+
+
+@router.get("/{task_id}/graph")
+def read_runtime_security_graph(task_id: str):
+    """
+    读取指定 Runtime 任务的数据流安全图谱。
+
+    该接口用于展示：
+    1. 每一步工具调用节点；
+    2. direct_input / step_output 到后续步骤的边；
+    3. tainted / prompt_injection / sensitive / secret 数据流；
+    4. 高风险数据流向外发或高危工具的证据。
+    """
+    state = get_runtime_state(task_id)
+
+    if state is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Runtime task {task_id} not found.",
+        )
+
+    return {
+        "message": "Runtime security graph loaded successfully.",
+        "task_id": task_id,
+        "security_graph": build_runtime_security_graph(state),
+    }
+
+
+
+@router.get("/{task_id}/evidence")
+def read_runtime_evidence_package(task_id: str):
+    """
+    读取指定 Runtime 任务的证据包。
+
+    证据包包含：
+    1. Capability Contract；
+    2. 每一步工具调用记录；
+    3. data_lineage_edges 数据流边；
+    4. Runtime Security Graph；
+    5. 高风险数据流；
+    6. SHA256 完整性哈希。
+    """
+    state = get_runtime_state(task_id)
+
+    if state is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Runtime task {task_id} not found.",
+        )
+
+    return {
+        "message": "Runtime evidence package built successfully.",
+        "task_id": task_id,
+        "evidence_package": build_runtime_evidence_package(state),
+    }
+
+
+@router.post("/{task_id}/evidence/export")
+def export_runtime_evidence_package(task_id: str):
+    """
+    导出指定 Runtime 任务的证据包到 runtime_workspace/evidence。
+
+    该接口用于审计取证和比赛展示。
+    """
+    state = get_runtime_state(task_id)
+
+    if state is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Runtime task {task_id} not found.",
+        )
+
+    result = save_runtime_evidence_package(state)
+
+    return {
+        "message": "Runtime evidence package exported successfully.",
+        "task_id": task_id,
+        "evidence_id": result["evidence_id"],
+        "path": result["path"],
+        "evidence_package": result["package"],
     }
 
 

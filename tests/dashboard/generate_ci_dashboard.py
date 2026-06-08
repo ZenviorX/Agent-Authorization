@@ -26,6 +26,11 @@ except Exception:
     COMPARE_METHODS = {}
     evaluate_compare_method = None
 
+try:
+    from experiments.runtime_flow_eval import evaluate_runtime_flows
+except Exception:
+    evaluate_runtime_flows = None
+
 
 CASE_DIR = PROJECT_ROOT / "security_cases"
 RESULTS_DIR = PROJECT_ROOT / "Results"
@@ -317,6 +322,24 @@ def run_compare_eval() -> Dict[str, Any]:
         "total_cases": len(cases),
         "methods": method_results,
     }
+
+
+
+def run_runtime_flow_eval_dashboard() -> Dict[str, Any]:
+    """
+    运行 Runtime 多步流程评测。
+
+    该评测不同于单步 Gateway case：
+    它会执行完整的多步 Agent 工具调用链，并检查数据流溯源图、
+    高风险数据流、阻断状态和最终任务决策。
+    """
+    if evaluate_runtime_flows is None:
+        raise RuntimeError(
+            "experiments.runtime_flow_eval is not available. "
+            "Please check experiments/runtime_flow_eval.py."
+        )
+
+    return evaluate_runtime_flows()
 
 
 def render_styles() -> str:
@@ -934,6 +957,152 @@ def render_compare_methods(compare_report: Optional[Dict[str, Any]]) -> str:
 """
 
 
+
+def render_runtime_flow_eval(runtime_report: Optional[Dict[str, Any]]) -> str:
+    """
+    渲染 Runtime 多步流程评测板块。
+
+    该板块展示的是更接近真实 Agent 行为的多步骤评测：
+    Step 1 读取数据，Step 2 使用前一步输出，系统追踪标签继承、
+    数据流边和高风险流向。
+    """
+    if not runtime_report:
+        return """
+<section class="section">
+  <h2>Runtime 多步流程评测</h2>
+  <div class="empty-state">
+    <strong>暂无 Runtime Flow 评测数据。</strong>
+    当前仪表盘尚未运行多步流程评测。
+  </div>
+</section>
+"""
+
+    if runtime_report.get("error"):
+        return f"""
+<section class="section error-box">
+  <h2>Runtime 多步流程评测</h2>
+  <pre>{safe(runtime_report.get("error"))}</pre>
+</section>
+"""
+
+    summary = runtime_report.get("summary", {})
+    rows = runtime_report.get("rows", [])
+
+    cards = [
+        (
+            "流程样例通过率",
+            f"{safe(summary.get('passed_cases', 0))}/{safe(summary.get('total_cases', 0))}",
+            percent(float(summary.get("accuracy", 0.0))),
+            "ok" if int(summary.get("failed_cases", 0)) == 0 else "bad",
+        ),
+        (
+            "攻击流程样例",
+            str(summary.get("attack_total", 0)),
+            "多步攻击链 / 越权访问 / 数据外发相关流程。",
+            "neutral",
+        ),
+        (
+            "阻断流程数",
+            str(summary.get("blocked_total", 0)),
+            "Runtime 最终进入 blocked 状态的流程数量。",
+            "neutral",
+        ),
+        (
+            "高风险数据流",
+            str(summary.get("high_risk_flow_total", 0)),
+            "prompt_injection / tainted / secret 等标签流向高危工具的证据数。",
+            "bad" if int(summary.get("high_risk_flow_total", 0)) > 0 else "ok",
+        ),
+    ]
+
+    card_html = []
+
+    for title, value, desc, tone in cards:
+        tone_class = tone if tone in {"ok", "bad"} else ""
+        card_html.append(
+            "<div class='card'>"
+            f"<div class='card-title'>{safe(title)}</div>"
+            f"<div class='card-value {tone_class}'>{safe(value)}</div>"
+            f"<div class='card-desc'>{safe(desc)}</div>"
+            "</div>"
+        )
+
+    table_rows = []
+
+    for row in rows:
+        row_summary = row.get("summary", {})
+        checks = row.get("checks", [])
+        failed_checks = [
+            item
+            for item in checks
+            if not item.get("passed")
+        ]
+
+        status_class = "ok" if row.get("passed") else "bad"
+        status_text = "PASS" if row.get("passed") else "FAIL"
+
+        check_desc = "全部检查通过"
+        if failed_checks:
+            check_desc = "；".join(
+                f"{item.get('name')}: actual={item.get('actual')}, expected={item.get('expected')}"
+                for item in failed_checks
+            )
+
+        table_rows.append(
+            "<tr>"
+            f"<td>{safe(row.get('id', ''))}<div class='card-desc'>{safe(row.get('description', ''))}</div></td>"
+            f"<td>{safe(row.get('category', ''))}</td>"
+            f"<td><span class='badge {status_class}'>{status_text}</span></td>"
+            f"<td>{safe(row_summary.get('final_decision', ''))}</td>"
+            f"<td>{safe(row_summary.get('is_blocked', ''))}</td>"
+            f"<td>{safe(row_summary.get('recorded_step_count', ''))}</td>"
+            f"<td>{safe(row_summary.get('executed_step_count', ''))}</td>"
+            f"<td>{safe(row_summary.get('high_risk_flow_count', ''))}</td>"
+            f"<td>{safe(row_summary.get('graph_risk_level', ''))}</td>"
+            f"<td>{safe(check_desc)}</td>"
+            "</tr>"
+        )
+
+    return f"""
+<section class="section">
+  <h2>Runtime 多步流程评测</h2>
+  <p class="card-desc">
+    本板块评测完整 Agent 工具调用链，而不是单次工具调用。
+    它会检查 Capability Contract、跨步骤标签继承、data_lineage_edges、
+    Runtime Security Graph 和高风险数据流。
+  </p>
+
+  <div class="kpis">{''.join(card_html)}</div>
+
+  <div class="table-wrap" style="margin-top:16px;">
+    <table>
+      <thead>
+        <tr>
+          <th>流程样例</th>
+          <th>分类</th>
+          <th>状态</th>
+          <th>最终决策</th>
+          <th>是否阻断</th>
+          <th>记录步骤</th>
+          <th>执行步骤</th>
+          <th>高风险流</th>
+          <th>图风险等级</th>
+          <th>检查摘要</th>
+        </tr>
+      </thead>
+      <tbody>{''.join(table_rows)}</tbody>
+    </table>
+  </div>
+
+  <p class="card-desc">
+    说明：Runtime Flow Benchmark 的目标是证明系统不仅能判断单步工具调用，
+    还能追踪多步任务中的数据来源、标签传播和高风险外发链路。
+  </p>
+</section>
+"""
+
+
+
 def render_methodology() -> str:
     return """
 <section class="section">
@@ -1033,6 +1202,7 @@ def build_html(
     metadata: Dict[str, Any],
     error: str = "",
     compare_report: Optional[Dict[str, Any]] = None,
+    runtime_flow_report: Optional[Dict[str, Any]] = None,
 ) -> str:
     security_score = calculate_security_score(summary, tests)
     summary["security_score"] = security_score
@@ -1050,6 +1220,7 @@ def build_html(
   <main class="wrap main">
     {render_overview(summary, tests, security_score)}
     {render_compare_methods(compare_report)}
+    {render_runtime_flow_eval(runtime_flow_report)}
     <div class="two-col">
       {render_security_matrix(summary)}
       {render_decision_distribution(summary)}
@@ -1076,6 +1247,7 @@ def write_json_report(
     gate: Dict[str, Any],
     error: str = "",
     compare_report: Optional[Dict[str, Any]] = None,
+    runtime_flow_report: Optional[Dict[str, Any]] = None,
 ) -> None:
     payload = {
         "summary": summary,
@@ -1085,6 +1257,7 @@ def write_json_report(
         "quality_gate": gate,
         "error": error,
         "compare_report": compare_report or {},
+        "runtime_flow_report": runtime_flow_report or {},
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -1112,6 +1285,7 @@ def main() -> int:
     }
     rows: List[Dict[str, Any]] = []
     compare_report: Dict[str, Any] = {}
+    runtime_flow_report: Dict[str, Any] = {}
 
     try:
         summary, rows = run_gateway_eval()
@@ -1130,16 +1304,52 @@ def main() -> int:
         }
         error = f"{error}\n{compare_error}" if error else compare_error
 
+    try:
+        runtime_flow_report = run_runtime_flow_eval_dashboard()
+        runtime_failed = int(
+            runtime_flow_report.get("summary", {}).get("failed_cases", 0)
+        )
+        if runtime_failed > 0:
+            runtime_error = f"runtime_flow_eval failed_cases={runtime_failed}"
+            error = f"{error}\n{runtime_error}" if error else runtime_error
+    except Exception as exc:
+        runtime_error = f"runtime_flow_eval failed: {exc!r}"
+        runtime_flow_report = {
+            "enabled": False,
+            "error": runtime_error,
+            "summary": {},
+            "rows": [],
+        }
+        error = f"{error}\n{runtime_error}" if error else runtime_error
+
     summary["security_score"] = calculate_security_score(summary, tests)
     gate = quality_gate(summary, tests, error)
 
     out_html = get_next_result_path()
     out_json = out_html.with_suffix(".json")
     out_html.write_text(
-        build_html(summary, rows, tests, metadata, error, compare_report),
+        build_html(
+            summary,
+            rows,
+            tests,
+            metadata,
+            error,
+            compare_report,
+            runtime_flow_report,
+        ),
         encoding="utf-8",
     )
-    write_json_report(out_json, summary, rows, tests, metadata, gate, error, compare_report)
+    write_json_report(
+        out_json,
+        summary,
+        rows,
+        tests,
+        metadata,
+        gate,
+        error,
+        compare_report,
+        runtime_flow_report,
+    )
     print(f"HTML dashboard: {out_html}")
     print(f"JSON dashboard data: {out_json}")
 
