@@ -216,6 +216,16 @@ def build_dashboard_payload(report_path: Path, report: Dict[str, Any]) -> Dict[s
 
     integrity_result = verify_report_integrity(report)
 
+    effectiveness = report.get("effectiveness", {})
+    if not isinstance(effectiveness, dict):
+        effectiveness = {}
+
+    effectiveness_summary = effectiveness.get("summary", {})
+    if not isinstance(effectiveness_summary, dict):
+        effectiveness_summary = {}
+
+    summary["effectiveness"] = effectiveness_summary
+
     summary["report_file"] = report_path.name
     summary["report_path"] = str(report_path)
     summary["attack_case_count"] = len(attack_cases)
@@ -348,3 +358,21 @@ def view_latest_case_security_graph(case_id: str):
         status_code=404,
         detail=f"Case {case_id} not found in latest benchmark report.",
     )
+
+@router.get("/latest/effectiveness")
+def get_latest_benchmark_effectiveness():
+    try:
+        report_path, report = find_latest_benchmark_report()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    effectiveness = report.get("effectiveness", {})
+
+    if not isinstance(effectiveness, dict):
+        effectiveness = {}
+
+    return {
+        "message": "Latest benchmark effectiveness report loaded successfully.",
+        "report_file": report_path.name,
+        "effectiveness": effectiveness,
+    }

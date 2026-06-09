@@ -340,3 +340,57 @@ def test_latest_benchmark_case_security_graph_view_endpoint(tmp_path, monkeypatc
     assert "Runtime Security Graph" in response.text
     assert "<svg" in response.text
     assert "email.send" in response.text
+
+
+
+def test_latest_benchmark_effectiveness_endpoint(tmp_path, monkeypatch):
+    report = {
+        "summary": {
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "pass_rate": 1.0,
+            "by_category": {"attack": 1},
+            "passed_by_category": {"attack": 1},
+        },
+        "effectiveness": {
+            "version": "1.0",
+            "summary": {
+                "total_cases": 1,
+                "attack_like_cases": 1,
+                "mitigated_attack_like_cases": 1,
+                "attack_neutralization_rate": 1.0,
+                "normal_availability_rate": 0.0,
+                "high_risk_flow_mitigation_rate": 1.0,
+                "overall_effectiveness_score": 80.0,
+                "prevented_risky_execution_count": 2,
+            },
+            "cases": [],
+        },
+        "cases": [
+            {
+                "id": "effectiveness_case",
+                "category": "attack",
+                "description": "effectiveness case",
+                "passed": True,
+                "final_decision": "deny",
+                "status": "blocked",
+                "steps": [],
+            }
+        ],
+    }
+
+    (tmp_path / "Result_013.json").write_text(
+        json.dumps(attach_integrity_manifest(report), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(benchmark_routes, "RESULTS_DIR", tmp_path)
+
+    latest_response = client.get("/benchmark/latest")
+    assert latest_response.status_code == 200
+    assert latest_response.json()["summary"]["effectiveness"]["overall_effectiveness_score"] == 80.0
+
+    effectiveness_response = client.get("/benchmark/latest/effectiveness")
+    assert effectiveness_response.status_code == 200
+    assert effectiveness_response.json()["effectiveness"]["summary"]["attack_neutralization_rate"] == 1.0

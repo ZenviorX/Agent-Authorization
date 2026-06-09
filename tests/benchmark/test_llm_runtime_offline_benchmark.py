@@ -21,6 +21,9 @@ def test_offline_llm_runtime_benchmark_runs_all_cases_without_real_llm():
     assert "security_graph" in first_case
     assert "summary" in first_case["security_graph"]
     assert first_case["security_graph"]["summary"]["node_count"] >= 2
+    assert "effectiveness" in report
+    assert report["effectiveness"]["summary"]["total_cases"] == summary["total"]
+    assert report["effectiveness"]["summary"]["overall_effectiveness_score"] >= 0
 
 
 def test_offline_llm_runtime_benchmark_writes_reports(tmp_path: Path):

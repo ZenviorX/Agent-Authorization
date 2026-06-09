@@ -18,6 +18,7 @@ from typing import Any, Dict, List
 from backend.agents.offline_runtime_agent import OfflineRuntimeAgent
 from backend.evidence.integrity import attach_integrity_manifest
 from backend.evidence.security_graph import build_case_security_graph
+from backend.evidence.effectiveness import build_effectiveness_report
 from backend.task_session.session_executor import execute_task_session
 
 
@@ -287,6 +288,8 @@ def run_benchmark(
         "cases": case_results,
     }
 
+    report["effectiveness"] = build_effectiveness_report(report)
+
     report = attach_integrity_manifest(report)
 
     if write_reports:
@@ -350,6 +353,29 @@ def _render_html_report(report: Dict[str, Any]) -> str:
             "</tr>"
         )
 
+    effectiveness = report.get("effectiveness", {})
+    effectiveness_summary = effectiveness.get("summary", {}) if isinstance(effectiveness, dict) else {}
+
+    effectiveness_block = f"""
+  <div class="card">
+    <h2>AgentGuard vs Naive Baseline</h2>
+    <p>
+      Effectiveness Score:
+      <b>{escape(str(effectiveness_summary.get("overall_effectiveness_score", "-")))}</b>
+    </p>
+    <p>
+      Attack Neutralization:
+      <b>{escape(str(effectiveness_summary.get("mitigated_attack_like_cases", 0)))}</b> /
+      {escape(str(effectiveness_summary.get("attack_like_cases", 0)))}
+      ? Normal Availability:
+      <b>{escape(str(effectiveness_summary.get("available_normal_cases", 0)))}</b> /
+      {escape(str(effectiveness_summary.get("normal_cases", 0)))}
+      ? Prevented Risky Executions:
+      <b>{escape(str(effectiveness_summary.get("prevented_risky_execution_count", 0)))}</b>
+    </p>
+  </div>
+"""
+
     return f"""<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -398,6 +424,8 @@ def _render_html_report(report: Dict[str, Any]) -> str:
     </p>
     <p>By category: {escape(json.dumps(summary["by_category"], ensure_ascii=False))}</p>
   </div>
+
+  {effectiveness_block}
 
   <div class="card">
     <h2>Case Results</h2>
