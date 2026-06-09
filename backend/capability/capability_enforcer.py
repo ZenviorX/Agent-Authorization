@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fnmatch import fnmatch
 from typing import Any, Dict, List, Optional
@@ -17,15 +17,6 @@ EXTERNAL_WRITE_MODE = "external_write"
 
 
 def _normalize_path(path: str) -> str:
-    """
-    将路径统一成系统内部格式。
-
-    例如：
-    public/notice.txt -> data/public/notice.txt
-    secret/password.txt -> data/secret/password.txt
-    ../secret/password.txt -> ../secret/password.txt
-    """
-
     path = str(path).strip().replace("\\", "/")
     path = path.strip("'\"，。；;,. ")
 
@@ -42,11 +33,6 @@ def _normalize_path(path: str) -> str:
 
 
 def _match_any(value: str, patterns: List[str]) -> bool:
-    """
-    判断 value 是否匹配任意一个 pattern。
-    支持 data/public/* 这种通配符。
-    """
-
     if not patterns:
         return True
 
@@ -54,16 +40,6 @@ def _match_any(value: str, patterns: List[str]) -> bool:
 
 
 def _extract_resource(params: Dict[str, Any]) -> Optional[str]:
-    """
-    从工具参数中提取资源路径。
-
-    兼容不同字段名：
-    - path
-    - file_path
-    - resource
-    - filename
-    """
-
     for key in ["path", "file_path", "resource", "filename"]:
         value = params.get(key)
         if value:
@@ -73,16 +49,6 @@ def _extract_resource(params: Dict[str, Any]) -> Optional[str]:
 
 
 def _extract_recipient(params: Dict[str, Any]) -> Optional[str]:
-    """
-    从工具参数中提取外发目标。
-
-    兼容不同字段名：
-    - to
-    - recipient
-    - email
-    - to_email
-    """
-
     for key in ["to", "recipient", "email", "to_email"]:
         value = params.get(key)
         if value:
@@ -109,15 +75,23 @@ def _resource_matches_rule(
 ) -> bool:
     """
     检查资源型工具是否匹配能力规则。
+
+    修复点：
+    - db.query 的 SQL 参数通常没有 path/resource 字段，不能因为 resource=None 就匹配失败。
+    - shell.run / execute 类工具也不依赖文件 resource。
     """
 
     if rule.tool != tool:
         return False
 
-    if rule.mode in RESOURCE_MODES:
+    if rule.mode == "query":
+        if not resource:
+            return True
+        return _match_any(resource, rule.resource_patterns)
+
+    if rule.mode in {"read", "write", "delete"}:
         if not resource:
             return False
-
         return _match_any(resource, rule.resource_patterns)
 
     return True
@@ -127,10 +101,6 @@ def _recipient_matches_rule(
     rule: CapabilityRule,
     recipient: Optional[str],
 ) -> bool:
-    """
-    检查外发目标是否匹配能力规则。
-    """
-
     if rule.mode != EXTERNAL_WRITE_MODE:
         return True
 
@@ -149,10 +119,6 @@ def _find_matching_rule(
     resource: Optional[str],
     recipient: Optional[str],
 ) -> Optional[CapabilityRule]:
-    """
-    在合约中找到可以覆盖当前工具调用的能力规则。
-    """
-
     for rule in contract.capabilities:
         if rule.tool != tool:
             continue
@@ -176,18 +142,6 @@ def enforce_capability_contract(
     current_step: int = 1,
     used_risk: int = 0,
 ) -> CapabilityCheckResult:
-    """
-    检查某一次工具调用是否符合 CapabilityContract v2。
-
-    参数说明：
-    - contract：任务级能力合约
-    - tool：当前请求调用的工具，例如 file.read / email.send
-    - params：工具参数，例如 {"path": "public/notice.txt"}
-    - input_labels：输入数据标签，例如 ["public"] / ["tainted"] / ["secret"]
-    - current_step：当前是第几步工具调用
-    - used_risk：任务目前已经消耗的风险预算
-    """
-
     input_labels = input_labels or []
     reasons: List[str] = []
 
