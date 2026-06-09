@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from backend.agents.offline_runtime_agent import OfflineRuntimeAgent
+from backend.evidence.integrity import attach_integrity_manifest
 from backend.task_session.session_executor import execute_task_session
 
 
@@ -270,10 +271,19 @@ def run_benchmark(
         "passed_by_category": dict(passed_by_category),
     }
 
+    if write_reports:
+        if result_json is None or result_html is None:
+            result_json, result_html = _next_result_paths()
+
+        summary["json_report"] = str(result_json)
+        summary["html_report"] = str(result_html)
+
     report = {
         "summary": summary,
         "cases": case_results,
     }
+
+    report = attach_integrity_manifest(report)
 
     if write_reports:
         if result_json is None or result_html is None:
@@ -292,8 +302,6 @@ def run_benchmark(
             encoding="utf-8",
         )
 
-        summary["json_report"] = str(result_json)
-        summary["html_report"] = str(result_html)
 
     return report
 

@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 
+from backend.evidence.integrity import verify_report_integrity
+
 
 router = APIRouter(
     prefix="/benchmark",
@@ -192,6 +194,8 @@ def build_dashboard_payload(report_path: Path, report: Dict[str, Any]) -> Dict[s
         if case.get("final_decision") in {"allow", "confirm"}
     )
 
+    integrity_result = verify_report_integrity(report)
+
     summary["report_file"] = report_path.name
     summary["report_path"] = str(report_path)
     summary["attack_case_count"] = len(attack_cases)
@@ -199,11 +203,16 @@ def build_dashboard_payload(report_path: Path, report: Dict[str, Any]) -> Dict[s
     summary["suspicious_case_count"] = len(suspicious_cases)
     summary["blocked_or_confirmed_attack"] = blocked_or_confirmed_attack
     summary["normal_available"] = normal_available
+    summary["integrity_valid"] = integrity_result.get("valid")
+    summary["integrity_root_hash"] = integrity_result.get("root_hash")
+    summary["integrity_report_hash"] = integrity_result.get("report_hash_without_integrity")
+    summary["integrity_reason"] = integrity_result.get("reason", [])
 
     return {
         "message": "Latest LLM runtime benchmark report loaded successfully.",
         "summary": summary,
         "cases": case_cards,
+        "integrity": integrity_result,
         "raw_report": report,
     }
 
@@ -250,3 +259,16 @@ def get_latest_benchmark_report():
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return build_dashboard_payload(report_path, report)
+
+@router.get("/latest/integrity")
+def verify_latest_benchmark_integrity():
+    try:
+        report_path, report = find_latest_benchmark_report()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {
+        "message": "Latest benchmark report integrity verified.",
+        "report_file": report_path.name,
+        "integrity": verify_report_integrity(report),
+    }
