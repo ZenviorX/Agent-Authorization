@@ -61,6 +61,19 @@ def test_benchmark_dashboard_route_loads_latest_numbered_report(tmp_path, monkey
                         "requires_confirmation": False,
                     }
                 ],
+                "security_graph": {
+                    "summary": {
+                        "node_count": 2,
+                        "edge_count": 1,
+                        "high_risk_flow_count": 0,
+                        "sink_count": 0,
+                        "tainted_step_count": 0,
+                        "sensitive_step_count": 0
+                    },
+                    "nodes": [],
+                    "edges": [],
+                    "high_risk_flows": []
+                },
             },
             {
                 "id": "case_new_attack",
@@ -170,3 +183,160 @@ def test_latest_benchmark_integrity_endpoint_verifies_report(tmp_path, monkeypat
     assert data["report_file"] == "Result_010.json"
     assert data["integrity"]["valid"] is True
     assert data["integrity"]["root_hash"]
+
+
+
+def test_latest_benchmark_case_security_graph_endpoint(tmp_path, monkeypatch):
+    report = {
+        "summary": {
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "pass_rate": 1.0,
+            "by_category": {"attack": 1},
+            "passed_by_category": {"attack": 1},
+        },
+        "cases": [
+            {
+                "id": "graph_case",
+                "category": "attack",
+                "description": "graph case",
+                "passed": True,
+                "final_decision": "confirm",
+                "status": "confirm_required",
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "tool": "file.read",
+                        "decision": "allow",
+                        "risk_score": 10,
+                        "executed": True,
+                        "blocked": False,
+                        "requires_confirmation": False,
+                        "output_labels": ["public", "tainted"],
+                    },
+                    {
+                        "step_id": 2,
+                        "tool": "email.send",
+                        "decision": "confirm",
+                        "risk_score": 60,
+                        "executed": False,
+                        "blocked": False,
+                        "requires_confirmation": True,
+                        "input_from_steps": [1],
+                        "input_labels": ["tainted"],
+                    },
+                ],
+                "security_graph": {
+                    "summary": {
+                        "node_count": 3,
+                        "edge_count": 1,
+                        "high_risk_flow_count": 1,
+                        "sink_count": 1,
+                        "tainted_step_count": 2,
+                        "sensitive_step_count": 0
+                    },
+                    "nodes": [{"id": "case:graph_case"}],
+                    "edges": [{"source": "step:1", "target": "step:2"}],
+                    "high_risk_flows": [{"tool": "email.send"}]
+                },
+            }
+        ],
+    }
+
+    (tmp_path / "Result_011.json").write_text(
+        json.dumps(attach_integrity_manifest(report), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(benchmark_routes, "RESULTS_DIR", tmp_path)
+
+    latest_response = client.get("/benchmark/latest")
+    assert latest_response.status_code == 200
+    assert latest_response.json()["cases"][0]["graph_summary"]["high_risk_flow_count"] == 1
+
+    graph_response = client.get("/benchmark/latest/graph/graph_case")
+    assert graph_response.status_code == 200
+    assert graph_response.json()["security_graph"]["summary"]["high_risk_flow_count"] == 1
+
+
+
+def test_latest_benchmark_case_security_graph_view_endpoint(tmp_path, monkeypatch):
+    report = {
+        "summary": {
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "pass_rate": 1.0,
+            "by_category": {"attack": 1},
+            "passed_by_category": {"attack": 1},
+        },
+        "cases": [
+            {
+                "id": "visual_graph_case",
+                "category": "attack",
+                "description": "visual graph case",
+                "passed": True,
+                "final_decision": "confirm",
+                "status": "confirm_required",
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "tool": "file.read",
+                        "decision": "allow",
+                        "risk_score": 10,
+                        "executed": True,
+                        "blocked": False,
+                        "requires_confirmation": False,
+                        "output_labels": ["tainted"],
+                    },
+                    {
+                        "step_id": 2,
+                        "tool": "email.send",
+                        "decision": "confirm",
+                        "risk_score": 60,
+                        "executed": False,
+                        "blocked": False,
+                        "requires_confirmation": True,
+                        "input_from_steps": [1],
+                        "input_labels": ["tainted"],
+                    },
+                ],
+                "security_graph": {
+                    "summary": {
+                        "node_count": 3,
+                        "edge_count": 1,
+                        "high_risk_flow_count": 1,
+                        "sink_count": 1,
+                        "tainted_step_count": 2,
+                        "sensitive_step_count": 0
+                    },
+                    "nodes": [
+                        {"id": "case:visual_graph_case", "type": "case", "label": "visual_graph_case", "risk": "medium"},
+                        {"id": "step:1", "type": "step", "step_id": 1, "tool": "file.read", "label": "Step 1: file.read", "risk": "low"},
+                        {"id": "step:2", "type": "step", "step_id": 2, "tool": "email.send", "label": "Step 2: email.send", "risk": "high"},
+                    ],
+                    "edges": [
+                        {"source": "step:1", "target": "step:2", "labels": ["tainted"], "risk": "high"}
+                    ],
+                    "high_risk_flows": [
+                        {"source": "step:1", "target": "step:2", "tool": "email.send", "risky_labels": ["tainted"], "decision": "confirm", "risk": "high"}
+                    ]
+                },
+            }
+        ],
+    }
+
+    (tmp_path / "Result_012.json").write_text(
+        json.dumps(attach_integrity_manifest(report), ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(benchmark_routes, "RESULTS_DIR", tmp_path)
+
+    response = client.get("/benchmark/latest/graph/visual_graph_case/view")
+
+    assert response.status_code == 200
+    assert "Runtime Security Graph" in response.text
+    assert "<svg" in response.text
+    assert "email.send" in response.text

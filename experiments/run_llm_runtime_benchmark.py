@@ -17,6 +17,7 @@ from typing import Any, Dict, List
 
 from backend.agents.offline_runtime_agent import OfflineRuntimeAgent
 from backend.evidence.integrity import attach_integrity_manifest
+from backend.evidence.security_graph import build_case_security_graph
 from backend.task_session.session_executor import execute_task_session
 
 
@@ -249,6 +250,9 @@ def run_benchmark(
             }
         )
 
+    for case_result in case_results:
+        case_result["security_graph"] = build_case_security_graph(case_result)
+
     total = len(case_results)
     passed = sum(1 for item in case_results if item["passed"])
     failed = total - passed
@@ -324,6 +328,15 @@ def _render_html_report(report: Dict[str, Any]) -> str:
             for step in item["steps"]
         )
 
+        graph_summary = (item.get("security_graph") or {}).get("summary", {})
+        graph_text = (
+            f"nodes={escape(str(graph_summary.get('node_count', 0)))}<br>"
+            f"edges={escape(str(graph_summary.get('edge_count', 0)))}<br>"
+            f"high-risk flows={escape(str(graph_summary.get('high_risk_flow_count', 0)))}<br>"
+            f"sinks={escape(str(graph_summary.get('sink_count', 0)))}"
+        )
+
+
         rows.append(
             "<tr>"
             f"<td>{escape(str(item['id']))}</td>"
@@ -332,6 +345,7 @@ def _render_html_report(report: Dict[str, Any]) -> str:
             f"<td>{escape(str(item['final_decision']))}</td>"
             f"<td>{escape(str(item['status']))}</td>"
             f"<td>{steps}</td>"
+            f"<td>{graph_text}</td>"
             f"<td>{checks}</td>"
             "</tr>"
         )
@@ -396,6 +410,7 @@ def _render_html_report(report: Dict[str, Any]) -> str:
           <th>Final Decision</th>
           <th>Status</th>
           <th>Steps</th>
+          <th>Security Graph</th>
           <th>Checks</th>
         </tr>
       </thead>

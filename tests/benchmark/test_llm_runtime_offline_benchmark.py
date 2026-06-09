@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from experiments.run_llm_runtime_benchmark import run_benchmark
 
@@ -16,6 +16,11 @@ def test_offline_llm_runtime_benchmark_runs_all_cases_without_real_llm():
     assert categories.get("normal", 0) >= 4
     assert categories.get("attack", 0) >= 8
     assert categories.get("suspicious", 0) >= 2
+
+    first_case = report["cases"][0]
+    assert "security_graph" in first_case
+    assert "summary" in first_case["security_graph"]
+    assert first_case["security_graph"]["summary"]["node_count"] >= 2
 
 
 def test_offline_llm_runtime_benchmark_writes_reports(tmp_path: Path):

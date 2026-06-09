@@ -5,8 +5,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
 
 from backend.evidence.integrity import verify_report_integrity
+from backend.evidence.graph_renderer import render_security_graph_html
 
 
 router = APIRouter(
@@ -135,6 +137,18 @@ def summarize_case(case: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(step, dict) and step.get("requires_confirmation") is True
     )
 
+    graph = case.get("security_graph", {})
+    if not isinstance(graph, dict):
+        graph = {}
+
+    graph_summary = graph.get("summary", {})
+    if not isinstance(graph_summary, dict):
+        graph_summary = {}
+
+    high_risk_flows = graph.get("high_risk_flows", [])
+    if not isinstance(high_risk_flows, list):
+        high_risk_flows = []
+
     return {
         "id": case.get("id"),
         "category": case.get("category"),
@@ -148,6 +162,12 @@ def summarize_case(case: Dict[str, Any]) -> Dict[str, Any]:
         "executed_count": executed_count,
         "blocked_count": blocked_count,
         "confirm_count": confirm_count,
+        "graph_summary": graph_summary,
+        "high_risk_flow_count": graph_summary.get("high_risk_flow_count", 0),
+        "sink_count": graph_summary.get("sink_count", 0),
+        "tainted_step_count": graph_summary.get("tainted_step_count", 0),
+        "sensitive_step_count": graph_summary.get("sensitive_step_count", 0),
+        "high_risk_flows_preview": high_risk_flows[:3],
     }
 
 
@@ -272,3 +292,59 @@ def verify_latest_benchmark_integrity():
         "report_file": report_path.name,
         "integrity": verify_report_integrity(report),
     }
+
+@router.get("/latest/graph/{case_id}")
+def get_latest_case_security_graph(case_id: str):
+    try:
+        report_path, report = find_latest_benchmark_report()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    cases = report.get("cases", [])
+    if not isinstance(cases, list):
+        cases = []
+
+    for case in cases:
+        if not isinstance(case, dict):
+            continue
+
+        if str(case.get("id")) == case_id:
+            return {
+                "message": "Case security graph loaded successfully.",
+                "report_file": report_path.name,
+                "case_id": case_id,
+                "security_graph": case.get("security_graph", {}),
+            }
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Case {case_id} not found in latest benchmark report.",
+    )
+
+@router.get("/latest/graph/{case_id}/view", response_class=HTMLResponse)
+def view_latest_case_security_graph(case_id: str):
+    try:
+        report_path, report = find_latest_benchmark_report()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    cases = report.get("cases", [])
+    if not isinstance(cases, list):
+        cases = []
+
+    for case in cases:
+        if not isinstance(case, dict):
+            continue
+
+        if str(case.get("id")) == case_id:
+            html = render_security_graph_html(
+                case.get("security_graph", {}),
+                report_file=report_path.name,
+                case_id=case_id,
+            )
+            return HTMLResponse(content=html)
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Case {case_id} not found in latest benchmark report.",
+    )

@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
@@ -369,6 +369,21 @@
       return passed ? badge("PASS", "pass") : badge("FAIL", "fail");
     }
 
+    function graphSummaryCell(item) {
+      const graph = item.graph_summary || {};
+      const highRisk = Number(graph.high_risk_flow_count || 0);
+      const sinkCount = Number(graph.sink_count || 0);
+      const tainted = Number(graph.tainted_step_count || 0);
+      const sensitive = Number(graph.sensitive_step_count || 0);
+
+      return `
+        <div class="small">nodes: ${escapeHtml(graph.node_count || 0)}, edges: ${escapeHtml(graph.edge_count || 0)}</div>
+        <div class="small">sinks: ${escapeHtml(sinkCount)}, high-risk flows: ${escapeHtml(highRisk)}</div>
+        <div class="small">tainted: ${escapeHtml(tainted)}, sensitive: ${escapeHtml(sensitive)}</div>
+        <button class="button secondary" style="margin-top: 8px; padding: 6px 10px;" onclick="openCaseGraph('${escapeHtml(item.id)}')">???? JSON</button>
+      `;
+    }
+
     function percent(value) {
       const number = Number(value || 0);
       return `${Math.round(number * 1000) / 10}%`;
@@ -444,6 +459,7 @@
             <td>${resultBadge(item.passed)}</td>
             <td>${decisionBadge(item.final_decision)}</td>
             <td class="mono">${tools}</td>
+            <td>${graphSummaryCell(item)}</td>
             <td>
               <div class="small">steps: ${escapeHtml(item.step_count)}</div>
               <div class="small">decisions: ${decisions}</div>
