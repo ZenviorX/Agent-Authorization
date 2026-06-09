@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>AgentGuard Benchmark Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #182033;
+      --muted: #6d778c;
+      --line: #e6eaf2;
+      --blue: #3468f6;
+      --green: #14a46c;
+      --red: #d94343;
+      --yellow: #b88200;
+      --purple: #7057ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at top left, #eaf0ff 0, var(--bg) 380px);
+      color: var(--text);
+    }
+
+    header {
+      padding: 32px 40px 18px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 0.2px;
+    }
+
+    header p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .container {
+      padding: 0 40px 42px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 10px 0 20px;
+    }
+
+    .button {
+      border: none;
+      background: var(--blue);
+      color: white;
+      padding: 10px 16px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: 0 8px 20px rgba(52, 104, 246, 0.24);
+    }
+
+    .button.secondary {
+      background: white;
+      color: var(--blue);
+      border: 1px solid #cdd8ff;
+      box-shadow: none;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .summary-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 26px rgba(25, 38, 70, 0.08);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 30px;
+      font-weight: 800;
+    }
+
+    .metric-value.green {
+      color: var(--green);
+    }
+
+    .metric-value.red {
+      color: var(--red);
+    }
+
+    .metric-value.blue {
+      color: var(--blue);
+    }
+
+    .metric-value.purple {
+      color: var(--purple);
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 22px 0 12px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    th, td {
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      background: #eef3ff;
+      color: #24314d;
+      font-size: 13px;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.pass {
+      background: #e7f8f0;
+      color: #087449;
+    }
+
+    .badge.fail {
+      background: #ffecec;
+      color: #b42323;
+    }
+
+    .badge.allow {
+      background: #e7f8f0;
+      color: #087449;
+    }
+
+    .badge.confirm {
+      background: #fff5d8;
+      color: #8a5b00;
+    }
+
+    .badge.deny {
+      background: #ffecec;
+      color: #b42323;
+    }
+
+    .badge.attack {
+      background: #ffecec;
+      color: #b42323;
+    }
+
+    .badge.normal {
+      background: #e7f8f0;
+      color: #087449;
+    }
+
+    .badge.suspicious {
+      background: #fff5d8;
+      color: #8a5b00;
+    }
+
+    .mono {
+      font-family: Consolas, Monaco, monospace;
+      font-size: 13px;
+    }
+
+    .case-id {
+      font-weight: 700;
+      color: #24314d;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .error {
+      background: #ffecec;
+      color: #9b1c1c;
+      border: 1px solid #ffc9c9;
+      padding: 14px;
+      border-radius: 12px;
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      header, .container {
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .summary-grid {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AgentGuard Benchmark Dashboard</h1>
+    <p>
+      展示最新 <span class="mono">Results/Result_XXX.json</span> 离线真实 Agent Runtime 评测结果：
+      通过率、攻击阻断、正常任务可用性、样例步骤证据。
+    </p>
+  </header>
+
+  <main class="container">
+    <div class="toolbar">
+      <div>
+        <div class="muted" id="reportMeta">正在加载最新 Benchmark 报告...</div>
+      </div>
+      <div>
+        <button class="button secondary" onclick="loadBenchmark()">刷新数据</button>
+        <button class="button" onclick="openLatestHtml()">打开 HTML 报告</button>
+      </div>
+    </div>
+
+    <div class="error" id="errorBox"></div>
+
+    <section class="grid summary-grid">
+      <div class="card">
+        <div class="metric-label">总样例数</div>
+        <div class="metric-value blue" id="totalCases">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">通过率</div>
+        <div class="metric-value green" id="passRate">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">攻击确认/阻断</div>
+        <div class="metric-value red" id="attackBlocked">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">正常任务可用</div>
+        <div class="metric-value purple" id="normalAvailable">-</div>
+      </div>
+    </section>
+
+    <section class="grid summary-grid">
+      <div class="card">
+        <div class="metric-label">Normal</div>
+        <div class="metric-value green" id="normalCount">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">Suspicious</div>
+        <div class="metric-value" style="color: var(--yellow)" id="suspiciousCount">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">Attack</div>
+        <div class="metric-value red" id="attackCount">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-label">失败样例数</div>
+        <div class="metric-value red" id="failedCount">-</div>
+      </div>
+    </section>
+
+    <div class="section-title">
+      <h2>样例执行结果</h2>
+      <span class="muted">每一行对应一个 Runtime Case</span>
+    </div>
+
+    <div class="card" style="padding: 0; overflow: hidden;">
+      <table>
+        <thead>
+          <tr>
+            <th>Case</th>
+            <th>类别</th>
+            <th>结果</th>
+            <th>最终决策</th>
+            <th>工具链</th>
+            <th>证据摘要</th>
+          </tr>
+        </thead>
+        <tbody id="caseTableBody">
+          <tr>
+            <td colspan="6" class="muted">正在加载...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    let latestReportFile = "";
+
+    function badge(text, type) {
+      return `<span class="badge ${type || ""}">${text}</span>`;
+    }
+
+    function decisionBadge(decision) {
+      const value = String(decision || "unknown");
+      return badge(value, value);
+    }
+
+    function categoryBadge(category) {
+      const value = String(category || "unknown");
+      return badge(value, value);
+    }
+
+    function resultBadge(passed) {
+      return passed ? badge("PASS", "pass") : badge("FAIL", "fail");
+    }
+
+    function graphSummaryCell(item) {
+      const graph = item.graph_summary || {};
+      const highRisk = Number(graph.high_risk_flow_count || 0);
+      const sinkCount = Number(graph.sink_count || 0);
+      const tainted = Number(graph.tainted_step_count || 0);
+      const sensitive = Number(graph.sensitive_step_count || 0);
+
+      return `
+        <div class="small">nodes: ${escapeHtml(graph.node_count || 0)}, edges: ${escapeHtml(graph.edge_count || 0)}</div>
+        <div class="small">sinks: ${escapeHtml(sinkCount)}, high-risk flows: ${escapeHtml(highRisk)}</div>
+        <div class="small">tainted: ${escapeHtml(tainted)}, sensitive: ${escapeHtml(sensitive)}</div>
+        <button class="button secondary" style="margin-top: 8px; padding: 6px 10px;" onclick="openCaseGraph('${escapeHtml(item.id)}')">???? JSON</button>
+      `;
+    }
+
+    function percent(value) {
+      const number = Number(value || 0);
+      return `${Math.round(number * 1000) / 10}%`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    async function loadBenchmark() {
+      const errorBox = document.getElementById("errorBox");
+      errorBox.style.display = "none";
+      errorBox.textContent = "";
+
+      try {
+        const response = await fetch("/benchmark/latest");
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+        }
+
+        const payload = await response.json();
+        const summary = payload.summary || {};
+        const cases = payload.cases || [];
+
+        latestReportFile = summary.report_file || "";
+
+        document.getElementById("reportMeta").textContent =
+          `当前报告：${summary.report_file || "-"} ｜ 生成时间：${summary.generated_at || "-"}`;
+
+        document.getElementById("totalCases").textContent = summary.total ?? "-";
+        document.getElementById("passRate").textContent = percent(summary.pass_rate);
+        document.getElementById("attackBlocked").textContent =
+          `${summary.blocked_or_confirmed_attack ?? 0}/${summary.attack_case_count ?? 0}`;
+        document.getElementById("normalAvailable").textContent =
+          `${summary.normal_available ?? 0}/${summary.normal_case_count ?? 0}`;
+
+        document.getElementById("normalCount").textContent = summary.normal_case_count ?? 0;
+        document.getElementById("suspiciousCount").textContent = summary.suspicious_case_count ?? 0;
+        document.getElementById("attackCount").textContent = summary.attack_case_count ?? 0;
+        document.getElementById("failedCount").textContent = summary.failed ?? 0;
+
+        renderCases(cases);
+      } catch (error) {
+        errorBox.textContent = `加载 Benchmark Dashboard 失败：${error.message}`;
+        errorBox.style.display = "block";
+      }
+    }
+
+    function renderCases(cases) {
+      const tbody = document.getElementById("caseTableBody");
+
+      if (!cases.length) {
+        tbody.innerHTML = `<tr><td colspan="6" class="muted">暂无 Benchmark 样例结果</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = cases.map((item) => {
+        const tools = (item.tools || []).map(escapeHtml).join(" → ") || "-";
+        const decisions = (item.decisions || []).map(escapeHtml).join(" → ") || "-";
+
+        return `
+          <tr>
+            <td>
+              <div class="case-id">${escapeHtml(item.id)}</div>
+              <div class="small">${escapeHtml(item.description)}</div>
+            </td>
+            <td>${categoryBadge(item.category)}</td>
+            <td>${resultBadge(item.passed)}</td>
+            <td>${decisionBadge(item.final_decision)}</td>
+            <td class="mono">${tools}</td>
+            <td>${graphSummaryCell(item)}</td>
+            <td>
+              <div class="small">steps: ${escapeHtml(item.step_count)}</div>
+              <div class="small">decisions: ${decisions}</div>
+              <div class="small">executed: ${escapeHtml(item.executed_count)}, blocked: ${escapeHtml(item.blocked_count)}, confirm: ${escapeHtml(item.confirm_count)}</div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function openLatestHtml() {
+      if (!latestReportFile) {
+        alert("还没有加载到最新报告。");
+        return;
+      }
+
+      const htmlFile = latestReportFile.replace(".json", ".html");
+      window.open(`/Results/${htmlFile}`, "_blank");
+    }
+
+    loadBenchmark();
+  </script>
+</body>
+</html>

@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.routes.approval_routes import router as approval_router
 from backend.routes.audit_routes import router as audit_router
@@ -17,6 +18,7 @@ from backend.routes.demo_routes import router as demo_router
 from backend.routes.sandbox_evidence_routes import router as sandbox_evidence_router
 from backend.routes.showcase_report_routes import router as showcase_report_router
 from backend.routes.agent_runtime_routes import router as agent_runtime_router
+from backend.routes.benchmark_dashboard_routes import router as benchmark_dashboard_router
 
 
 app = FastAPI(
@@ -31,6 +33,8 @@ app = FastAPI(
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+app.mount("/Results", StaticFiles(directory=BASE_DIR / "Results"), name="results")
+
 FRONTEND_INDEX = BASE_DIR / "frontend" / "index.html"
 FRONTEND_TASK_CHAIN = BASE_DIR / "frontend" / "task_chain.html"
 FRONTEND_SECURITY_DASHBOARD = BASE_DIR / "frontend" / "security_dashboard.html"
@@ -38,6 +42,7 @@ FRONTEND_ATTACK_CHAIN_RUNTIME = BASE_DIR / "frontend" / "attack_chain_runtime.ht
 FRONTEND_SANDBOX_DASHBOARD = BASE_DIR / "frontend" / "sandbox_dashboard.html"
 FRONTEND_AUTHORIZED_EVIDENCE = BASE_DIR / "frontend" / "authorized_evidence.html"
 FRONTEND_SHOWCASE = BASE_DIR / "frontend" / "showcase.html"
+FRONTEND_BENCHMARK_DASHBOARD = BASE_DIR / "frontend" / "benchmark_dashboard.html"
 
 
 def _serve_frontend_html(path: Path, missing_message: str):
@@ -82,6 +87,7 @@ app.include_router(security_overview_router)
 app.include_router(sandbox_evidence_router)
 app.include_router(showcase_report_router)
 app.include_router(agent_runtime_router)
+app.include_router(benchmark_dashboard_router)
 
 
 # -----------------------------
@@ -108,6 +114,14 @@ def showcase_page():
     return _serve_frontend_html(
         FRONTEND_SHOWCASE,
         "Showcase frontend file is missing",
+    )
+
+
+@app.get("/benchmark-dashboard")
+def benchmark_dashboard_page():
+    return _serve_frontend_html(
+        FRONTEND_BENCHMARK_DASHBOARD,
+        "Benchmark dashboard frontend file is missing",
     )
 
 
@@ -179,6 +193,7 @@ def api_status():
             "sandbox_evidence",
             "showcase_report",
             "agent_runtime",
+            "benchmark_dashboard",
         ],
         "note": (
             "FakeAgent is demo-only. Real Agent runtime APIs are exposed under "

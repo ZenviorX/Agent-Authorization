@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 import uuid
@@ -19,6 +19,54 @@ PATH_PATTERN = re.compile(
     r"|"
     r"\.\./[A-Za-z0-9_\-./]+"
 )
+
+
+DESTRUCTIVE_SQL_KEYWORDS = [
+    "drop",
+    "delete",
+    "truncate",
+    "update",
+    "insert",
+    "alter",
+    "grant",
+    "revoke",
+    "attach database",
+    "load_extension",
+    "xp_cmdshell",
+]
+
+DANGEROUS_SHELL_KEYWORDS = [
+    "rm -rf",
+    "del /s",
+    "format",
+    "shutdown",
+    "reboot",
+    "curl",
+    "wget",
+    "nc ",
+    "netcat",
+    "powershell",
+    "cmd.exe",
+    "certutil",
+    "bitsadmin",
+    "ssh ",
+    "scp ",
+    "ftp ",
+    "sudo",
+    "su -",
+    "chmod 777",
+    "chown",
+    "python -c",
+    "bash -c",
+    "sh -c",
+]
+
+SAFE_ADMIN_SHELL_COMMANDS = [
+    "pwd",
+    "dir",
+    "ls",
+    "whoami",
+]
 
 
 def _new_task_id() -> str:
@@ -66,6 +114,16 @@ def _normalize_path(path: str) -> str:
         return f"data/{path}"
 
     return path
+
+
+def _contains_path_traversal(path: str) -> bool:
+    normalized = str(path).replace("\\", "/").lower()
+    return (
+        "../" in normalized
+        or "/.." in normalized
+        or "%2e%2e" in normalized
+        or "%252e%252e" in normalized
+    )
 
 
 def extract_emails(text: str) -> List[str]:
@@ -134,6 +192,98 @@ def _is_send_intent(text: str, emails: List[str]) -> bool:
     return bool(emails) or _contains_any(text, send_keywords)
 
 
+def _is_db_query_intent(text: str) -> bool:
+    """
+    判断用户任务是否有数据库查询意图。
+    """
+
+    db_keywords = [
+        "数据库",
+        "查询",
+        "sql",
+        "select",
+        "notices 表",
+        "notices",
+        "db.query",
+        "table",
+    ]
+
+    return _contains_any(text, db_keywords)
+
+
+def _is_safe_db_select_intent(text: str) -> bool:
+    """
+    只给明显的只读数据库查询授予 db.query 能力。
+
+    破坏性 SQL 即使由 admin 发起，也不应该进入自动授权能力。
+    """
+
+    text_lower = text.lower()
+
+    if not _is_db_query_intent(text_lower):
+        return False
+
+    if _contains_any(text_lower, DESTRUCTIVE_SQL_KEYWORDS):
+        return False
+
+    safe_select_keywords = [
+        "select",
+        "查询",
+        "公开",
+        "总结",
+        "notices",
+        "只读",
+    ]
+
+    return _contains_any(text_lower, safe_select_keywords)
+
+
+def _is_shell_intent(text: str) -> bool:
+    """
+    判断用户任务是否有 shell 命令执行意图。
+    """
+
+    shell_keywords = [
+        "shell",
+        "命令",
+        "执行",
+        "运行",
+        "pwd",
+        "dir",
+        "ls",
+        "whoami",
+        "curl",
+        "wget",
+        "powershell",
+    ]
+
+    return _contains_any(text, shell_keywords)
+
+
+def _is_safe_admin_shell_intent(user: str, text: str) -> bool:
+    """
+    只允许管理员在任务合约中申请极少数低风险 shell 能力。
+
+    注意：
+    - 普通 user 不授予 shell.run。
+    - 出现 curl/wget/rm 等危险关键词时不授予 shell.run。
+    - 即使是安全命令，也设置 require_approval=True，让 Runtime 进入人工确认。
+    """
+
+    text_lower = text.lower()
+
+    if user != "admin":
+        return False
+
+    if not _is_shell_intent(text_lower):
+        return False
+
+    if _contains_any(text_lower, DANGEROUS_SHELL_KEYWORDS):
+        return False
+
+    return _contains_any(text_lower, SAFE_ADMIN_SHELL_COMMANDS)
+
+
 def _split_paths_by_sensitivity(paths: List[str]) -> tuple[List[str], List[str]]:
     """
     将路径分成允许候选和禁止候选。
@@ -146,7 +296,9 @@ def _split_paths_by_sensitivity(paths: List[str]) -> tuple[List[str], List[str]]
     forbidden = []
 
     for path in paths:
-        if path.startswith(("data/public/", "data/course/")):
+        if _contains_path_traversal(path):
+            forbidden.append(path)
+        elif path.startswith(("data/public/", "data/course/")):
             allowed.append(path)
         elif path.startswith(("data/secret/", "data/private/", "../")):
             forbidden.append(path)
@@ -166,9 +318,13 @@ def compile_capability_contract(
     """
     将用户任务编译为 CapabilityContract v2。
 
-    这是主干升级的关键入口：
-    用户不是直接拿到所有工具权限，
-    而是根据本次任务获得一个最小能力边界。
+    本版本增强点：
+    1. 继续保持 secret/private/path traversal 默认禁止；
+    2. 对明确的公开文件读取授予最小 file.read 能力；
+    3. 对明确邮箱发送任务授予限定收件人的 email.send 能力；
+    4. 对明显安全的只读 SELECT 查询授予 db.query 能力；
+    5. 对管理员低风险 shell 命令授予 shell.run 能力，但必须人工确认；
+    6. 对 DROP/curl/rm 等高危数据库或 shell 行为继续禁止。
     """
 
     task_id = task_id or _new_task_id()
@@ -183,6 +339,10 @@ def compile_capability_contract(
 
     has_read_intent = _is_read_intent(original_task, paths)
     has_send_intent = _is_send_intent(original_task, emails)
+    has_safe_db_query_intent = _is_safe_db_select_intent(original_task)
+    has_db_query_intent = _is_db_query_intent(original_task)
+    has_safe_admin_shell_intent = _is_safe_admin_shell_intent(user, original_task)
+    has_shell_intent = _is_shell_intent(original_task)
 
     if has_read_intent:
         if allowed_paths:
@@ -232,18 +392,64 @@ def compile_capability_contract(
             )
         )
 
+    if has_safe_db_query_intent:
+        capabilities.append(
+            CapabilityRule(
+                tool="db.query",
+                mode="query",
+                resource_patterns=["*"],
+                allowed_input_labels=[],
+                output_labels=["public"],
+                risk_cost=15,
+                require_approval=False,
+            )
+        )
+        reasons.append(
+            "Detected safe read-only database query intent, grant db.query for SELECT-like public query."
+        )
+    elif has_db_query_intent:
+        reasons.append(
+            "Detected database intent but it is not a clear safe SELECT query, keep db.query forbidden."
+        )
+
+    if has_safe_admin_shell_intent:
+        capabilities.append(
+            CapabilityRule(
+                tool="shell.run",
+                mode="execute",
+                resource_patterns=[],
+                allowed_input_labels=[],
+                output_labels=["public"],
+                risk_cost=35,
+                require_approval=True,
+            )
+        )
+        reasons.append(
+            "Detected admin low-risk shell intent, grant shell.run with human approval required."
+        )
+    elif has_shell_intent:
+        reasons.append(
+            "Detected shell intent but it is not a safe admin shell command, keep shell.run forbidden."
+        )
+
     forbidden_tools = [
-        "shell.run",
         "code.exec",
-        "db.query",
         "run_code",
     ]
+
+    if not has_safe_admin_shell_intent:
+        forbidden_tools.append("shell.run")
+
+    if not has_safe_db_query_intent:
+        forbidden_tools.append("db.query")
 
     forbidden_resources = _unique(
         [
             "data/secret/*",
             "data/private/*",
             "../*",
+            "data/public/../*",
+            "data/course/../*",
         ]
         + forbidden_paths_from_task
     )
@@ -276,4 +482,3 @@ def compile_capability_contract(
         ],
         reason=reasons,
     )
-    
