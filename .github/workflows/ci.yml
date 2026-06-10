@@ -2,12 +2,9 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-      - improve-risk-policy
+    branches: [main, improve-risk-policy]
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -17,11 +14,23 @@ jobs:
   basic-test:
     name: Basic tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Run unit tests
+        run: python -m pytest tests -q
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with
+  dashboard:
+    name: Generate dashboard report
+    runs-on: ubuntu-latest
+    needs: basic-test
+    if: always()
+    continue-on-error: true
+    steps:
+     
