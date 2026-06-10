@@ -61,3 +61,53 @@ def test_gateway_requires_confirmation_for_shell_command():
     )
 
     assert get_decision(result) == "confirm"
+
+def test_gateway_denies_url_encoded_path_traversal():
+    result = check(
+        user="user",
+        tool="file.read",
+        params={"path": "public/%2e%2e/secret/password.txt"},
+    )
+
+    assert get_decision(result) == "deny"
+
+
+def test_gateway_denies_double_encoded_path_traversal():
+    result = check(
+        user="user",
+        tool="file.read",
+        params={"path": "public/%252e%252e%252fsecret/password.txt"},
+    )
+
+    assert get_decision(result) == "deny"
+
+
+def test_gateway_denies_windows_absolute_path():
+    result = check(
+        user="admin",
+        tool="file.read",
+        params={"path": "C:\\Users\\admin\\.ssh\\id_rsa"},
+    )
+
+    assert get_decision(result) == "deny"
+
+
+def test_gateway_denies_unix_absolute_path():
+    result = check(
+        user="admin",
+        tool="file.read",
+        params={"path": "/etc/passwd"},
+    )
+
+    assert get_decision(result) == "deny"
+
+
+def test_gateway_denies_unc_path():
+    result = check(
+        user="admin",
+        tool="file.read",
+        params={"path": "\\\\server\\share\\secret.txt"},
+    )
+
+    assert get_decision(result) == "deny"
+

@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +19,7 @@ from backend.routes.sandbox_evidence_routes import router as sandbox_evidence_ro
 from backend.routes.showcase_report_routes import router as showcase_report_router
 from backend.routes.agent_runtime_routes import router as agent_runtime_router
 from backend.routes.benchmark_dashboard_routes import router as benchmark_dashboard_router
+from backend.routes.tool_proxy_routes import router as tool_proxy_router
 
 
 app = FastAPI(
@@ -43,6 +44,7 @@ FRONTEND_SANDBOX_DASHBOARD = BASE_DIR / "frontend" / "sandbox_dashboard.html"
 FRONTEND_AUTHORIZED_EVIDENCE = BASE_DIR / "frontend" / "authorized_evidence.html"
 FRONTEND_SHOWCASE = BASE_DIR / "frontend" / "showcase.html"
 FRONTEND_BENCHMARK_DASHBOARD = BASE_DIR / "frontend" / "benchmark_dashboard.html"
+FRONTEND_TOOL_PROXY = BASE_DIR / "frontend" / "tool_proxy.html"
 
 
 def _serve_frontend_html(path: Path, missing_message: str):
@@ -88,6 +90,7 @@ app.include_router(sandbox_evidence_router)
 app.include_router(showcase_report_router)
 app.include_router(agent_runtime_router)
 app.include_router(benchmark_dashboard_router)
+app.include_router(tool_proxy_router)
 
 
 # -----------------------------
@@ -122,6 +125,14 @@ def benchmark_dashboard_page():
     return _serve_frontend_html(
         FRONTEND_BENCHMARK_DASHBOARD,
         "Benchmark dashboard frontend file is missing",
+    )
+
+
+@app.get("/tool-proxy")
+def tool_proxy_page():
+    return _serve_frontend_html(
+        FRONTEND_TOOL_PROXY,
+        "Tool Proxy frontend file is missing",
     )
 
 
@@ -194,9 +205,11 @@ def api_status():
             "showcase_report",
             "agent_runtime",
             "benchmark_dashboard",
+            "tool_proxy",
         ],
         "note": (
             "FakeAgent is demo-only. Real Agent runtime APIs are exposed under "
             "/agent-runtime and still require Gateway / Runtime Monitor checks."
         ),
     }
+
