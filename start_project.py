@@ -120,7 +120,7 @@ def print_header():
     print("=" * 72)
     print(f"Project root          : {PROJECT_ROOT}")
     print(f"Virtual environment   : {VENV_DIR}")
-    print("Default open pages    : showcase + benchmark")
+    print("Default open pages    : showcase only")
     print("-" * 72)
     for label, url in DISPLAY_PAGES:
         print(f"{label:<22}: {url}")
@@ -309,15 +309,10 @@ def initialize_runtime_environment():
 
 
 def open_pages():
-    print("[5/5] Opening browser pages...")
+    print("[5/5] Opening browser page...")
 
     print(f"Open showcase overview: {SHOWCASE_URL}")
     webbrowser.open(SHOWCASE_URL)
-
-    time.sleep(0.6)
-
-    print(f"Open benchmark dashboard: {BENCHMARK_DASHBOARD_URL}")
-    webbrowser.open(BENCHMARK_DASHBOARD_URL)
 
 
 def print_project_links():
