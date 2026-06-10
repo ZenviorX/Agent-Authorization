@@ -1,6 +1,61 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>AgentGuard 旧版运行页</title><style>
 :root{--bg:#f5f7fb;--panel:#fff;--text:#172033;--muted:#667085;--line:#dfe4ee;--primary:#245bdb;--primary-soft:#eaf0ff;--green:#11875d;--red:#c23535;--amber:#a86500;--shadow:0 12px 30px rgba(21,35,64,.08);--radius:14px}*{box-sizing:border-box}body{margin:0;font-family:Arial,"Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg)}.top-nav{position:sticky;top:0;z-index:50;min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 28px;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}.brand{display:flex;align-items:center;gap:10px;min-width:210px;font-weight:900;white-space:nowrap}.brand-mark{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--primary);color:#fff;font-weight:900}.nav-links{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;overflow-x:auto}.nav-links a{position:relative;flex:0 0 auto;padding:9px 12px;border-radius:9px;color:var(--muted);text-decoration:none;font-size:14px;font-weight:800;transition:.18s ease}.nav-links a:hover{color:var(--primary);background:var(--primary-soft)}.nav-links a.active{color:#fff;background:var(--primary)}.transition-label{min-width:118px;text-align:right;color:var(--muted);font-size:12px;white-space:nowrap}.transition-dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:999px;background:var(--green);animation:pulse 1.8s ease infinite}.page-shell{max-width:1220px;margin:0 auto;padding:28px 28px 48px;animation:pageIn .28s ease both}body.page-leaving .page-shell{animation:pageOut .18s ease both}.hero{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.85fr);gap:18px;margin-bottom:18px}.hero-main,.hero-side,.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.hero-main{padding:26px}.hero-side{padding:20px}.panel{padding:18px;margin-bottom:16px}.eyebrow{color:var(--primary);font-size:13px;font-weight:900;margin-bottom:8px}h1{margin:0;font-size:32px;line-height:1.25}h2{margin:0 0 14px;font-size:20px}h3{margin:0 0 10px;font-size:16px}.subtitle{margin:12px 0 0;color:var(--muted);line-height:1.7}.muted{color:var(--muted)}button,.btn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 14px;border-radius:9px;border:1px solid transparent;background:var(--primary);color:#fff;font-weight:900;font-size:14px;text-decoration:none;cursor:pointer}button.secondary,.btn.secondary{background:#fff;color:var(--primary);border-color:#c8d4ff}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.status-pill,.badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:900;background:#eef2f8;color:var(--muted)}.ok,.badge.allow,.badge.pass{background:#e8f7ef;color:var(--green)}.warn,.badge.confirm{background:#fff4d8;color:var(--amber)}.bad,.badge.deny,.badge.fail{background:#ffecec;color:var(--red)}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.metric{padding:16px;background:#fff;border:1px solid var(--line);border-radius:12px}.metric-label{color:var(--muted);font-size:13px;margin-bottom:8px}.metric-value{font-size:28px;font-weight:900}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}label{display:block;font-size:13px;font-weight:900;margin-bottom:6px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;font:inherit;background:#fff;color:var(--text)}textarea{min-height:110px;resize:vertical}.route-list{display:grid;gap:10px}.route-row{display:grid;grid-template-columns:132px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}.empty{padding:14px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);background:#fafbff}pre{margin:0;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;padding:14px;border-radius:10px;background:#101828;color:#e4e7ec;font:12px/1.55 Consolas,Monaco,monospace}.hidden-marker{display:none}@keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes pageOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(8px)}}@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.15)}}@media(max-width:1080px){.top-nav{height:auto;align-items:flex-start;flex-direction:column;padding:12px 18px}.nav-links{width:100%;justify-content:flex-start}.hero,.grid-2,.grid-3{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.page-shell{padding:18px 16px 34px}.metric-grid,.form-grid{grid-template-columns:1fr}.route-row{grid-template-columns:1fr}table{display:block;overflow-x:auto}}
-</style></head><body><nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 安全网关</span></div><div class="nav-links"><a href="/showcase">系统总览</a><a href="/">单步授权</a><a href="/benchmark-dashboard">评测看板</a><a href="/tool-proxy">工具接入</a><a href="/attack-chain-runtime">攻击链检测</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/security-dashboard">安全中心</a><a href="/authorized-evidence">授权证据</a><a href="/task-chain">任务链</a><a href="/docs">API 文档</a></div><div class="transition-label"><span class="transition-dot"></span>控制台导航</div></nav><main class="page-shell"><section class="hero"><div class="hero-main"><div class="eyebrow">Legacy Page</div><h1>旧版运行页已归并</h1><p class="subtitle">该页面保留为兼容入口。请使用“任务链”和“沙箱运行”页面完成运行时操作。</p></div><aside class="hero-side"><h3>系统状态</h3><div class="status-pill" id="serverStatus">未检测</div><p class="subtitle">按钮均绑定到真实接口或明确页面跳转；失败会在结果区显示原因。</p><button class="secondary" onclick="checkServer()">检测后端</button></aside></section><section class="panel"><h2>推荐入口</h2><div class="route-list"><div class="route-row"><strong>任务链</strong><span>运行多步 Runtime 任务。</span><a class="btn secondary" href="/task-chain">进入</a></div><div class="route-row"><strong>沙箱运行</strong><span>查看沙箱运行痕迹。</span><a class="btn secondary" href="/sandbox-dashboard">进入</a></div></div></section></main><script>
+
+/* AG_NAV_BACKEND_STATUS_STYLE_START */
+.nav-status{
+  min-width:190px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  white-space:nowrap;
+}
+.nav-status-pill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:28px;
+  padding:5px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  border:1px solid transparent;
+}
+.nav-status-pill.nav-ok{
+  color:#087443;
+  background:#e8f7ef;
+  border-color:#b7ebcf;
+}
+.nav-status-pill.nav-warn{
+  color:#a86500;
+  background:#fff4d8;
+  border-color:#ffe0a3;
+}
+.nav-status-pill.nav-bad{
+  color:#b42318;
+  background:#ffecec;
+  border-color:#ffc9c9;
+}
+.nav-check-btn{
+  min-height:30px;
+  padding:5px 10px;
+  border-radius:999px;
+  border:1px solid #c8d4ff;
+  background:#fff;
+  color:#245bdb;
+  font-size:12px;
+  font-weight:900;
+  cursor:pointer;
+}
+.nav-check-btn:hover{
+  background:#eaf0ff;
+}
+.hero{
+  grid-template-columns:1fr!important;
+}
+/* AG_NAV_BACKEND_STATUS_STYLE_END */
+
+</style></head><body><nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 安全网关</span></div><div class="nav-links"><a href="/showcase">系统总览</a><a href="/">单步授权</a><a href="/benchmark-dashboard">评测看板</a><a href="/tool-proxy">工具接入</a><a href="/attack-chain-runtime">攻击链检测</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/security-dashboard">安全中心</a><a href="/authorized-evidence">授权证据</a><a href="/task-chain">任务链</a><a href="/docs">API 文档</a></div><div class="nav-status"><span id="globalBackendStatus" class="nav-status-pill nav-warn">后端检测中</span><button class="nav-check-btn" type="button" onclick="checkBackendFromNav()">检测</button></div></nav><main class="page-shell"><section class="hero"><div class="hero-main"><div class="eyebrow">Legacy Page</div><h1>旧版运行页已归并</h1><p class="subtitle">该页面保留为兼容入口。请使用“任务链”和“沙箱运行”页面完成运行时操作。</p></div></section><section class="panel"><h2>推荐入口</h2><div class="route-list"><div class="route-row"><strong>任务链</strong><span>运行多步 Runtime 任务。</span><a class="btn secondary" href="/task-chain">进入</a></div><div class="route-row"><strong>沙箱运行</strong><span>查看沙箱运行痕迹。</span><a class="btn secondary" href="/sandbox-dashboard">进入</a></div></div></section></main><script>
 const API_BASE=window.location.protocol==='file:'?'http://127.0.0.1:8000':window.location.origin;
 function escapeHtml(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;")}
 function pretty(d){return JSON.stringify(d,null,2)}
@@ -17,5 +72,49 @@ function bindPageTransitions(){document.querySelectorAll('.nav-links a[href^="/"
 function renderList(items,fn){return items&&items.length?items.map(fn).join(''):'<div class="empty">暂无数据</div>'}
 async function checkServer(){setStatus('serverStatus','检测中','warn');try{const d=await fetchJson('/api/status');setStatus('serverStatus','后端运行正常','ok');const b=document.getElementById('serverRaw');if(b)b.textContent=pretty(d)}catch(e){setStatus('serverStatus','后端未连接','bad')}}
 document.addEventListener('DOMContentLoaded',()=>{markActiveNav();bindPageTransitions();checkServer().catch(()=>{});if(typeof initPage==='function')initPage()});
+
+
+/* AG_NAV_BACKEND_STATUS_SCRIPT_START */
+function getBackendBaseForNav(){
+  try{
+    if(typeof API_BASE !== "undefined" && API_BASE){
+      return API_BASE;
+    }
+  }catch(_){}
+  if(window.location.protocol === "file:"){
+    return "http://127.0.0.1:8000";
+  }
+  return window.location.origin;
+}
+
+async function checkBackendFromNav(){
+  const el = document.getElementById("globalBackendStatus");
+  if(!el) return;
+
+  el.textContent = "检测中";
+  el.className = "nav-status-pill nav-warn";
+
+  try{
+    const response = await fetch(getBackendBaseForNav() + "/api/status", {
+      method: "GET",
+      cache: "no-store"
+    });
+
+    if(!response.ok){
+      throw new Error("HTTP " + response.status);
+    }
+
+    el.textContent = "后端运行正常";
+    el.className = "nav-status-pill nav-ok";
+  }catch(error){
+    el.textContent = "后端未连接";
+    el.className = "nav-status-pill nav-bad";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function(){
+  checkBackendFromNav();
+});
+/* AG_NAV_BACKEND_STATUS_SCRIPT_END */
 
 </script></body></html>
