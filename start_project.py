@@ -41,6 +41,8 @@ BASE_URL = f"http://{HOST}:{PORT}"
 
 SHOWCASE_URL = f"{BASE_URL}/showcase"
 FRONTEND_URL = f"{BASE_URL}/"
+BENCHMARK_DASHBOARD_URL = f"{BASE_URL}/benchmark-dashboard"
+ATTACK_CHAIN_RUNTIME_URL = f"{BASE_URL}/attack-chain-runtime"
 DOCS_URL = f"{BASE_URL}/docs"
 STATUS_URL = f"{BASE_URL}/api/status"
 
@@ -52,6 +54,21 @@ SECURITY_DASHBOARD_URL = f"{BASE_URL}/security-dashboard"
 SANDBOX_STATUS_URL = f"{BASE_URL}/runtime/sandbox/status"
 EVIDENCE_LIST_URL = f"{BASE_URL}/sandbox-evidence/list"
 SHOWCASE_REPORT_LIST_URL = f"{BASE_URL}/showcase-report/list"
+BENCHMARK_LATEST_URL = f"{BASE_URL}/benchmark/latest"
+SECURITY_OVERVIEW_URL = f"{BASE_URL}/security/overview"
+AUDIT_VERIFY_URL = f"{BASE_URL}/audit/verify"
+
+DISPLAY_PAGES = [
+    ("Showcase overview", SHOWCASE_URL),
+    ("Single-step gateway", FRONTEND_URL),
+    ("Benchmark dashboard", BENCHMARK_DASHBOARD_URL),
+    ("Attack chain runtime", ATTACK_CHAIN_RUNTIME_URL),
+    ("Sandbox dashboard", SANDBOX_DASHBOARD_URL),
+    ("Security dashboard", SECURITY_DASHBOARD_URL),
+    ("Authorized evidence", AUTHORIZED_EVIDENCE_URL),
+    ("Task chain page", TASK_CHAIN_URL),
+    ("API docs", DOCS_URL),
+]
 
 DEFAULT_VENV_DIR = PROJECT_ROOT / ".venv"
 LEGACY_VENV_DIR = PROJECT_ROOT / "venv"
@@ -103,12 +120,10 @@ def print_header():
     print("=" * 72)
     print(f"Project root          : {PROJECT_ROOT}")
     print(f"Virtual environment   : {VENV_DIR}")
-    print(f"Showcase page         : {SHOWCASE_URL}")
-    print(f"Authorized evidence   : {AUTHORIZED_EVIDENCE_URL}")
-    print(f"Sandbox dashboard     : {SANDBOX_DASHBOARD_URL}")
-    print(f"Task chain page       : {TASK_CHAIN_URL}")
-    print(f"Security dashboard    : {SECURITY_DASHBOARD_URL}")
-    print(f"API docs              : {DOCS_URL}")
+    print("Default open pages    : showcase + benchmark")
+    print("-" * 72)
+    for label, url in DISPLAY_PAGES:
+        print(f"{label:<22}: {url}")
     print("=" * 72)
     print()
 
@@ -258,22 +273,33 @@ def wait_for_backend(timeout_seconds=30):
 
 def initialize_runtime_environment():
     """
-    Preload newly added runtime endpoints.
+    Preload the current showcase route and runtime endpoints.
     """
 
     print("[4/5] Initializing runtime workspace...")
 
     endpoints = [
+        ("API status", STATUS_URL),
+        ("Benchmark latest", BENCHMARK_LATEST_URL),
         ("Sandbox status", SANDBOX_STATUS_URL),
         ("Evidence list", EVIDENCE_LIST_URL),
+        ("Security overview", SECURITY_OVERVIEW_URL),
+        ("Audit verify", AUDIT_VERIFY_URL),
         ("Showcase report list", SHOWCASE_REPORT_LIST_URL),
     ]
 
     for name, url in endpoints:
         status, body = request_url(url, timeout=3)
 
-        if status is not None and 200 <= status < 500:
+        if status is not None and 200 <= status < 300:
             print(f"OK   {name}: {url}")
+
+        elif name == "Benchmark latest" and status == 404:
+            print(f"INFO {name}: no generated benchmark result yet.")
+            print("     The frontend will fall back to packaged evidence when available.")
+
+        elif status is not None and 300 <= status < 500:
+            print(f"INFO {name}: {url} returned HTTP {status}")
 
         else:
             print(f"WARN {name}: {url}")
@@ -285,27 +311,24 @@ def initialize_runtime_environment():
 def open_pages():
     print("[5/5] Opening browser pages...")
 
-    print(f"Open showcase page: {SHOWCASE_URL}")
+    print(f"Open showcase overview: {SHOWCASE_URL}")
     webbrowser.open(SHOWCASE_URL)
 
     time.sleep(0.6)
 
-    print(f"Open API docs: {DOCS_URL}")
-    webbrowser.open(DOCS_URL)
+    print(f"Open benchmark dashboard: {BENCHMARK_DASHBOARD_URL}")
+    webbrowser.open(BENCHMARK_DASHBOARD_URL)
 
 
 def print_project_links():
     print()
     print("=" * 72)
-    print("Useful pages")
+    print("Frontend route map")
     print("=" * 72)
-    print(f"Competition showcase      : {SHOWCASE_URL}")
-    print(f"Authorized evidence       : {AUTHORIZED_EVIDENCE_URL}")
-    print(f"Sandbox runtime dashboard : {SANDBOX_DASHBOARD_URL}")
-    print(f"Task chain demo           : {TASK_CHAIN_URL}")
-    print(f"Security dashboard        : {SECURITY_DASHBOARD_URL}")
-    print(f"API docs                  : {DOCS_URL}")
-    print(f"API status                : {STATUS_URL}")
+    for label, url in DISPLAY_PAGES:
+        print(f"{label:<22}: {url}")
+    print("-" * 72)
+    print(f"API status            : {STATUS_URL}")
     print("=" * 72)
     print()
 
@@ -316,7 +339,7 @@ def print_existing_backend_warning():
     print("The startup script will not replace an existing backend process.")
     print()
     print("If you changed code today but the old backend is still running,")
-    print("the browser may still show old pages or old API results.")
+    print("the browser may still show old frontend pages or old API results.")
     print()
     print("Recommended fix:")
     print("1. Close the old terminal window running uvicorn/start_project.py")
