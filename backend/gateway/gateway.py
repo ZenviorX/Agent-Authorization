@@ -18,6 +18,7 @@ from backend.gateway.result_builder import build_gateway_result
 from backend.gateway.security_detectors import (
     is_destructive_sql_keyword as _is_destructive_sql_keyword,
     is_path_bypass_keyword as _is_path_bypass_keyword,
+    analyze_resource_path,
 )
 from backend.utils import (
     normalize_tool_name,
@@ -142,7 +143,8 @@ def check_tool_call(request: ToolCallRequest):
             params=params,
         )
 
-    path_lower = path.lower().replace("\\", "/")
+    path_analysis = analyze_resource_path(path)
+    path_lower = path_analysis.decoded.lower().replace("\\", "/")
     content_lower = content.lower()
     command_lower = command.lower()
     sql_lower = sql.lower()
@@ -283,16 +285,26 @@ def check_tool_call(request: ToolCallRequest):
     risk_score += resource_risk_score
     reason.extend(resource_reasons)
 
-    # 3. 路径穿越风险判断
-    if ".." in path_lower:
+    # 3. ?????????????
+    # ????????????????? URL ?????????
+    # ?? public/%2e%2e/secret?public/%252e%252e%252fsecret ????
+    if path_analysis.reasons:
+        reason.extend(path_analysis.reasons)
+
+    if path_analysis.has_traversal:
         risk_score += get_risk_score("path_traversal", 60)
         hard_deny = True
-        reason.append("路径中包含 ..，可能存在路径穿越风险")
+        reason.append("????????????????????")
 
-    if path_lower.startswith("/") or ":" in path_lower:
+    if path_analysis.has_encoded_bypass:
+        risk_score += get_risk_score("path_traversal", 60)
+        hard_deny = True
+        reason.append("???? URL ??????????????")
+
+    if path_analysis.is_absolute:
         risk_score += get_risk_score("absolute_path", 40)
         hard_deny = True
-        reason.append("路径疑似绝对路径，存在越权访问风险")
+        reason.append("????????? UNC ???????????")
 
     # 3.5 路径关键词风险判断：
     # 从 config/policy.yaml 的 dangerous_keywords.path / sensitive_path 中读取。

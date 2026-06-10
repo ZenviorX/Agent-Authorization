@@ -7,14 +7,121 @@ classify already-matched keywords into higher-level hard-risk categories.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+import re
+from urllib.parse import unquote
+
+
+@dataclass(frozen=True)
+class PathRiskAnalysis:
+    """
+    Normalized view of a user supplied resource path.
+
+    The gateway still keeps policy decisions configuration-driven, but this
+    object makes path risk signals explicit and explainable.
+    """
+
+    original: str
+    decoded: str
+    normalized: str
+    is_absolute: bool
+    has_traversal: bool
+    has_encoded_bypass: bool
+    reasons: tuple[str, ...]
+
+
+def _decode_repeated(value: str, *, max_rounds: int = 3) -> str:
+    """
+    Decode URL-encoded path text a few times to catch double-encoding.
+    """
+
+    current = str(value)
+
+    for _ in range(max_rounds):
+        decoded = unquote(current)
+        if decoded == current:
+            break
+        current = decoded
+
+    return current
+
+
+def _collapse_path(path: str) -> tuple[str, bool]:
+    """
+    Collapse "." and ".." segments without touching the filesystem.
+    """
+
+    normalized = str(path).replace("\\", "/")
+    while "//" in normalized:
+        normalized = normalized.replace("//", "/")
+
+    has_traversal = False
+    parts: list[str] = []
+
+    for part in normalized.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            has_traversal = True
+            if parts:
+                parts.pop()
+            continue
+        parts.append(part)
+
+    return "/".join(parts), has_traversal
+
+
+def analyze_resource_path(path: str) -> PathRiskAnalysis:
+    """
+    Decode and normalize a resource path for gateway risk checks.
+    """
+
+    original = str(path or "").strip().replace("\x00", "")
+    decoded = _decode_repeated(original).strip().replace("\x00", "")
+    decoded_slash = decoded.replace("\\", "/")
+    collapsed, has_traversal = _collapse_path(decoded_slash)
+
+    is_unix_absolute = decoded_slash.startswith("/")
+    is_windows_absolute = bool(re.match(r"^[a-zA-Z]:/", decoded_slash))
+    is_unc_path = original.startswith("\\\\") or decoded_slash.startswith("//")
+    is_absolute = is_unix_absolute or is_windows_absolute or is_unc_path
+
+    decoded_changed = decoded != original
+    has_encoded_bypass = decoded_changed and (
+        ".." in decoded_slash
+        or decoded_slash.startswith("/")
+        or bool(re.match(r"^[a-zA-Z]:/", decoded_slash))
+        or "//" in decoded_slash
+    )
+
+    reasons: list[str] = []
+    if decoded_changed:
+        reasons.append("???? URL ?????????????")
+    if has_encoded_bypass:
+        reasons.append("URL ?????????????????")
+    if has_traversal:
+        reasons.append("?????????????????")
+    if is_absolute:
+        reasons.append("????????????? UNC ???")
+    if "\\" in original:
+        reasons.append("???? Windows ?????????? /?")
+
+    return PathRiskAnalysis(
+        original=original,
+        decoded=decoded_slash,
+        normalized=collapsed,
+        is_absolute=is_absolute,
+        has_traversal=has_traversal,
+        has_encoded_bypass=has_encoded_bypass,
+        reasons=tuple(reasons),
+    )
+
 
 def is_path_bypass_keyword(keyword: str) -> bool:
     """
     Return True if a matched path keyword indicates traversal or encoded bypass.
-
-    These hits should be treated as hard-deny signals, not only as risk-score
-    increments.
     """
+
     normalized = str(keyword).lower().replace("\\", "/")
     bypass_markers = (
         "../",
@@ -33,9 +140,8 @@ def is_path_bypass_keyword(keyword: str) -> bool:
 def is_destructive_sql_keyword(keyword: str) -> bool:
     """
     Return True if a SQL keyword represents destructive or privilege-changing SQL.
-
-    These operations should remain deny even for high-privilege users.
     """
+
     normalized = str(keyword).lower().strip()
     destructive_markers = (
         "drop",
@@ -54,6 +160,5 @@ def is_destructive_sql_keyword(keyword: str) -> bool:
     return any(marker in normalized for marker in destructive_markers)
 
 
-# Backward-compatible private aliases for minimal gateway.py edits.
 _is_path_bypass_keyword = is_path_bypass_keyword
 _is_destructive_sql_keyword = is_destructive_sql_keyword
