@@ -1,31 +1,3 @@
-<<<<<<< Updated upstream
-﻿<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgentGuard 安全总览</title>
-    <style>
-        :root {
-            --bg: #07111f;
-            --bg-2: #0f172a;
-            --surface: rgba(15, 23, 42, 0.86);
-            --surface-soft: rgba(30, 41, 59, 0.66);
-            --line: rgba(148, 163, 184, 0.22);
-            --line-strong: rgba(148, 163, 184, 0.34);
-            --text: #e5e7eb;
-            --text-strong: #f8fafc;
-            --text-subtle: #cbd5e1;
-            --muted: #94a3b8;
-            --soft-text: #cbd5e1;
-            --blue: #60a5fa;
-            --cyan: #22d3ee;
-            --green: #22c55e;
-            --amber: #f59e0b;
-            --red: #ef4444;
-            --purple: #a78bfa;
-            --shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
-=======
 ﻿<!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>安全总览</title><style>
@@ -42,10 +14,41 @@ async function fetchJson(path,options={}){const response=await fetch(`${API_BASE
 function setText(id,value){const el=document.getElementById(id);if(el)el.textContent=value??'-'}
 function setHtml(id,value){const el=document.getElementById(id);if(el)el.innerHTML=value??''}
 function setJson(id,value){const el=document.getElementById(id);if(el)el.textContent=pretty(value)}
-function markActiveNav(){const path=window.location.pathname;document.querySelectorAll('.nav-links a').forEach(link=>{const href=link.getAttribute('href');link.classList.toggle('active',href===path||(href==='/'&&path==='/'))})}
-function bindPageTransitions(){document.querySelectorAll('.nav-links a[href^="/"],a.btn[href^="/"]').forEach(link=>{if(link.target==='_blank')return;link.addEventListener('click',event=>{const href=link.getAttribute('href');if(!href||href===window.location.pathname||href.startsWith('/docs'))return;event.preventDefault();document.body.classList.add('page-leaving');setTimeout(()=>{window.location.href=href},170)})})}
-document.addEventListener('DOMContentLoaded',()=>{markActiveNav();bindPageTransitions()});
->>>>>>> Stashed changes
+
+function normalizeNavPath(path){
+  if(!path) return "/";
+  path = String(path).split("#")[0].split("?")[0];
+  if(path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+  return path || "/";
+}
+function markActiveNav(){
+  const current = normalizeNavPath(window.location.pathname);
+  document.querySelectorAll(".nav-links a").forEach(link => {
+    const href = normalizeNavPath(link.getAttribute("href") || "");
+    link.classList.toggle("active", href === current);
+  });
+}
+function bindPageTransitions(){
+  document.querySelectorAll('.nav-links a[href^="/"], a.btn[href^="/"], a.button[href^="/"]').forEach(link => {
+    if(link.dataset.navBound === "1") return;
+    link.dataset.navBound = "1";
+    link.addEventListener("click", event => {
+      const href = link.getAttribute("href");
+      if(!href) return;
+      const target = normalizeNavPath(href);
+      const current = normalizeNavPath(window.location.pathname);
+      if(target === current || href.startsWith("/docs")) return;
+      event.preventDefault();
+      document.body.classList.add("page-leaving");
+      setTimeout(() => { window.location.href = href; }, 170);
+    });
+  });
+}
+document.addEventListener("DOMContentLoaded", () => {
+  markActiveNav();
+  bindPageTransitions();
+});
+bindPageTransitions()});
 
             --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
 

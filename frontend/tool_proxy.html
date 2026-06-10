@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
@@ -456,29 +456,7 @@
 </head>
 
 <body>
-  <nav class="top-nav">
-    <div class="brand">
-      <div class="brand-mark">AG</div>
-      <span>AgentGuard 答辩展示</span>
-    </div>
-
-    <div class="nav-links">
-      <a href="/showcase">展示总览</a>
-      <a href="/">单步授权</a>
-      <a href="/benchmark-dashboard">量化评测</a>
-      <a href="/tool-proxy">外部接入</a>
-      <a href="/attack-chain-runtime">攻击链</a>
-      <a href="/sandbox-dashboard">沙箱运行</a>
-      <a href="/security-dashboard">安全总览</a>
-      <a href="/authorized-evidence">授权证据</a>
-      <a href="/task-chain">任务链</a>
-      <a href="/docs">API 文档</a>
-    </div>
-
-    <div class="transition-label">
-      <span class="transition-dot"></span>页面切换动画
-    </div>
-  </nav>
+  <nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 答辩展示</span></div><div class="nav-links"><a href="/showcase">展示总览</a><a href="/">单步授权</a><a href="/benchmark-dashboard">量化评测</a><a href="/tool-proxy">外部接入</a><a href="/attack-chain-runtime">攻击链</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/security-dashboard">安全总览</a><a href="/authorized-evidence">授权证据</a><a href="/task-chain">任务链</a><a href="/docs">API 文档</a></div><div class="transition-label"><span class="transition-dot"></span>页面切换动画</div></nav>
 
   <main class="page-shell">
     <section class="hero">
@@ -808,293 +786,41 @@
       }
     }
 
-    function markActiveNav(){
-      const path = window.location.pathname;
+    
+function normalizeNavPath(path){
+  if(!path) return "/";
+  path = String(path).split("#")[0].split("?")[0];
+  if(path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
+  return path || "/";
+}
+function markActiveNav(){
+  const current = normalizeNavPath(window.location.pathname);
+  document.querySelectorAll(".nav-links a").forEach(link => {
+    const href = normalizeNavPath(link.getAttribute("href") || "");
+    link.classList.toggle("active", href === current);
+  });
+}
+function bindPageTransitions(){
+  document.querySelectorAll('.nav-links a[href^="/"], a.btn[href^="/"], a.button[href^="/"]').forEach(link => {
+    if(link.dataset.navBound === "1") return;
+    link.dataset.navBound = "1";
+    link.addEventListener("click", event => {
+      const href = link.getAttribute("href");
+      if(!href) return;
+      const target = normalizeNavPath(href);
+      const current = normalizeNavPath(window.location.pathname);
+      if(target === current || href.startsWith("/docs")) return;
+      event.preventDefault();
+      document.body.classList.add("page-leaving");
+      setTimeout(() => { window.location.href = href; }, 170);
+    });
+  });
+}
+document.addEventListener("DOMContentLoaded", () => {
+  markActiveNav();
+  bindPageTransitions();
+});
 
-      document.querySelectorAll(".nav-links a").forEach(link => {
-        const href = link.getAttribute("href");
-        link.classList.toggle("active", href === path || (href === "/" && path === "/"));
-      });
-    }
-
-    function bindPageTransitions(){
-      document.querySelectorAll('.nav-links a[href^="/"],a.btn[href^="/"]').forEach(link => {
-        if(link.target === "_blank"){
-          return;
-        }
-
-        link.addEventListener("click", event => {
-          const href = link.getAttribute("href");
-
-          if(!href || href === window.location.pathname || href.startsWith("/docs")){
-            return;
-          }
-
-          event.preventDefault();
-          document.body.classList.add("page-leaving");
-
-          setTimeout(() => {
-            window.location.href = href;
-          }, 170);
-        });
-      });
-    }
-
-    async function checkServer(){
-      const el = document.getElementById("serverStatus");
-      el.textContent = "检测中";
-      el.className = "status-pill warn";
-
-      try{
-        await fetchJson("/api/status");
-        el.textContent = "后端运行正常";
-        el.className = "status-pill ok";
-      }catch(error){
-        el.textContent = "后端未连接";
-        el.className = "status-pill bad";
-      }
-    }
-
-    function readInputLabels(){
-      const raw = document.getElementById("labelsInput").value.trim();
-
-      if(!raw){
-        return [];
-      }
-
-      return raw
-        .split(",")
-        .map(item => item.trim())
-        .filter(Boolean);
-    }
-
-    function parseJsonTextarea(id, label, defaultValue){
-      const raw = document.getElementById(id).value.trim();
-
-      if(!raw){
-        return defaultValue;
-      }
-
-      try{
-        return JSON.parse(raw);
-      }catch(error){
-        throw new Error(`${label} 不是合法 JSON：${error.message}`);
-      }
-    }
-
-    function buildCustomApiParams(){
-      const url = document.getElementById("apiUrlInput").value.trim();
-
-      if(!url){
-        throw new Error("请填写 API 地址。");
-      }
-
-      return {
-        url,
-        method: document.getElementById("apiMethodInput").value,
-        headers: parseJsonTextarea("apiHeadersInput", "Headers", {}),
-        body: parseJsonTextarea("apiBodyInput", "Body", null)
-      };
-    }
-
-    function syncCustomApiToParams(){
-      try{
-        const params = buildCustomApiParams();
-
-        document.getElementById("toolInput").value = "http.request";
-        document.getElementById("paramsInput").value = pretty(params);
-
-        setDecision("http.request", "-", "custom-api", "false", "已生成 http.request 参数。", {
-          tool: "http.request",
-          params
-        });
-      }catch(error){
-        renderError(error);
-      }
-    }
-
-    function buildCurrentPayload(){
-      let tool = document.getElementById("toolInput").value;
-      let params = {};
-
-      const apiUrl = document.getElementById("apiUrlInput").value.trim();
-
-      if(apiUrl){
-        tool = "http.request";
-        params = buildCustomApiParams();
-
-        document.getElementById("toolInput").value = "http.request";
-        document.getElementById("paramsInput").value = pretty(params);
-      }else{
-        try{
-          params = JSON.parse(document.getElementById("paramsInput").value || "{}");
-        }catch(error){
-          throw new Error(`Params 不是合法 JSON：${error.message}`);
-        }
-      }
-
-      return {
-        user: document.getElementById("userInput").value.trim() || "user",
-        original_task: document.getElementById("taskInput").value.trim(),
-        tool,
-        params,
-        input_labels: readInputLabels(),
-        input_from_steps: [],
-        execute: document.getElementById("executeInput").value === "true"
-      };
-    }
-
-    function setDecision(decision, risk, mode, executed, reason, raw){
-      const badge = document.getElementById("decisionBadge");
-      const badgeType = ["allow", "confirm", "deny", "fail", "error"].includes(String(decision)) ? decision : "";
-
-      badge.className = `badge ${badgeType}`;
-      badge.textContent = String(decision || "-").toUpperCase();
-
-      setText("decisionValue", decision || "-");
-      setText("riskValue", risk ?? "-");
-      setText("modeValue", mode || "-");
-      setText("executedValue", executed ?? "-");
-      setHtml("reasonList", `<li>${escapeHtml(reason || "暂无结果")}</li>`);
-      setJson("rawOutput", raw ?? {});
-    }
-
-    function setLoading(){
-      const badge = document.getElementById("decisionBadge");
-      badge.className = "badge";
-      badge.textContent = "检查中";
-
-      setText("decisionValue", "-");
-      setText("riskValue", "-");
-      setText("modeValue", "-");
-      setText("executedValue", "-");
-      setHtml("reasonList", "<li>正在请求后端...</li>");
-      setText("rawOutput", "Loading...");
-    }
-
-    function renderResult(data){
-      const decision = data.decision || "unknown";
-      const reasons = Array.isArray(data.reason) ? data.reason : [];
-
-      const badge = document.getElementById("decisionBadge");
-      badge.className = `badge ${decision}`;
-      badge.textContent = decision.toUpperCase();
-
-      setText("decisionValue", decision);
-      setText("riskValue", data.risk_score ?? "-");
-      setText("modeValue", data.mode || "-");
-      setText("executedValue", String(data.executed ?? false));
-
-      if(reasons.length){
-        setHtml("reasonList", reasons.map(item => `<li>${escapeHtml(item)}</li>`).join(""));
-      }else{
-        setHtml("reasonList", "<li>后端没有返回 reason</li>");
-      }
-
-      setJson("rawOutput", data);
-    }
-
-    function renderError(error){
-      const badge = document.getElementById("decisionBadge");
-      badge.className = "badge error";
-      badge.textContent = "ERROR";
-
-      setText("decisionValue", "error");
-      setText("riskValue", "-");
-      setText("modeValue", "-");
-      setText("executedValue", "-");
-      setHtml("reasonList", `<li>${escapeHtml(error.message || String(error))}</li>`);
-      setText("rawOutput", error.stack || String(error));
-    }
-
-    async function copyTextToClipboard(text){
-      if(navigator.clipboard && window.isSecureContext){
-        await navigator.clipboard.writeText(text);
-        return;
-      }
-
-      const textArea = document.createElement("textarea");
-      textArea.value = text;
-      textArea.style.position = "fixed";
-      textArea.style.left = "-9999px";
-      textArea.style.top = "-9999px";
-
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-
-      const ok = document.execCommand("copy");
-      document.body.removeChild(textArea);
-
-      if(!ok){
-        throw new Error("浏览器拒绝复制，请手动复制 Raw Output 内容。");
-      }
-    }
-
-    async function copyCurrentPayload(){
-      try{
-        const payload = buildCurrentPayload();
-        const text = pretty(payload);
-
-        await copyTextToClipboard(text);
-
-        setDecision("copied", "-", "request", "false", "请求 JSON 已复制。", payload);
-      }catch(error){
-        renderError(error);
-      }
-    }
-
-    async function authorizeToolCall(){
-      setLoading();
-
-      try{
-        const payload = buildCurrentPayload();
-
-        const data = await fetchJson("/tool-proxy/authorize", {
-          method:"POST",
-          headers:{
-            "Content-Type":"application/json"
-          },
-          body:JSON.stringify(payload)
-        });
-
-        renderResult(data);
-      }catch(error){
-        renderError(error);
-      }
-    }
-
-    function loadExample(name){
-      const example = examples[name];
-
-      if(!example){
-        return;
-      }
-
-      document.getElementById("userInput").value = example.user;
-      document.getElementById("taskInput").value = example.original_task;
-      document.getElementById("toolInput").value = example.tool;
-      document.getElementById("executeInput").value = String(example.execute);
-      document.getElementById("labelsInput").value = example.input_labels.join(", ");
-      document.getElementById("paramsInput").value = pretty(example.params);
-
-      if(example.tool === "http.request"){
-        document.getElementById("apiUrlInput").value = example.params.url || "";
-        document.getElementById("apiMethodInput").value = example.params.method || "GET";
-        document.getElementById("apiHeadersInput").value = pretty(example.params.headers || {});
-        document.getElementById("apiBodyInput").value = pretty(example.params.body ?? null);
-      }else{
-        document.getElementById("apiUrlInput").value = "";
-      }
-
-      setDecision("loaded", "-", "example", "false", "样例已载入。", {
-        tool: example.tool,
-        params: example.params
-      });
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      markActiveNav();
       bindPageTransitions();
       checkServer();
       loadExample("customApi");
