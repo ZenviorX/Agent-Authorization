@@ -1,9 +1,44 @@
-<!doctype html>
+<<<<<<< Updated upstream
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentGuard 控制台</title>
+    <style>
+        :root {
+            --bg: #f6f8fb;
+            --surface: #ffffff;
+            --surface-soft: #f8fafc;
+            --surface-muted: #eef3f8;
+            --text: #172033;
+            --text-strong: #0f172a;
+            --text-subtle: #334155;
+            --muted: #64748b;
+            --line: #d9e2ec;
+            --line-soft: #e8eef5;
+            --primary: #1f4e79;
+            --primary-hover: #173b5c;
+            --primary-soft: #e8f1f8;
+            --accent: #0f766e;
+            --success: #16794c;
+            --success-soft: #e7f5ee;
+            --danger: #b42318;
+            --danger-soft: #fcebea;
+            --warning: #a15c07;
+            --warning-soft: #fff4df;
+            --purple: #7c3aed;
+            --radius-lg: 20px;
+            --shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.05);
+            --font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+        }
+=======
+﻿<!doctype html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>单步授权</title><style>
 :root{--bg:#f5f7fb;--panel:#fff;--text:#172033;--muted:#667085;--line:#dfe4ee;--primary:#245bdb;--primary-soft:#eaf0ff;--green:#11875d;--red:#c23535;--amber:#a86500;--shadow:0 12px 30px rgba(21,35,64,.08)}*{box-sizing:border-box}body{margin:0;font-family:Arial,"Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg);letter-spacing:0}.top-nav{position:sticky;top:0;z-index:50;height:64px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 28px;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}.brand{display:flex;align-items:center;gap:10px;min-width:220px;font-weight:900;white-space:nowrap}.brand-mark{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--primary);color:#fff}.nav-links{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;overflow-x:auto}.nav-links a{position:relative;flex:0 0 auto;padding:9px 12px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:14px;font-weight:800;transition:background .18s ease,color .18s ease}.nav-links a:hover{color:var(--primary);background:var(--primary-soft)}.nav-links a.active{color:#fff;background:var(--primary)}.nav-links a.active:after{content:"";position:absolute;left:12px;right:12px;bottom:-12px;height:3px;border-radius:999px;background:var(--primary);animation:navSlide .42s ease both}.transition-label{min-width:132px;text-align:right;color:var(--muted);font-size:12px;white-space:nowrap}.transition-dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:999px;background:var(--green);animation:pulse 1.8s ease infinite}.page-shell{max-width:1220px;margin:0 auto;padding:28px 28px 48px;animation:pageIn .28s ease both}body.page-leaving .page-shell{animation:pageOut .18s ease both}body.page-leaving .transition-dot{background:var(--amber)}.hero{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.85fr);gap:18px;margin-bottom:18px}.hero-main,.hero-side,.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}.hero-main{padding:26px}.hero-side{padding:20px}.eyebrow{color:var(--primary);font-size:13px;font-weight:900;margin-bottom:8px}h1{margin:0;font-size:32px;line-height:1.25}h2{margin:0;font-size:20px}h3{margin:0 0 10px;font-size:16px}.subtitle{margin:12px 0 0;color:var(--muted);line-height:1.7}.muted{color:var(--muted)}button,.btn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 14px;border-radius:8px;border:1px solid transparent;background:var(--primary);color:#fff;font-weight:900;font-size:14px;text-decoration:none;cursor:pointer}button.secondary,.btn.secondary{background:#fff;color:var(--primary);border-color:#c8d4ff}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.status-pill,.badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:900;background:#eef2f8;color:var(--muted)}.ok,.badge.allow,.badge.pass{background:#e8f7ef;color:var(--green)}.warn,.badge.confirm{background:#fff4d8;color:var(--amber)}.bad,.badge.deny,.badge.fail{background:#ffecec;color:var(--red)}.panel{padding:18px;margin-bottom:16px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.metric{padding:16px;background:#fff;border:1px solid var(--line);border-radius:8px}.metric-label{color:var(--muted);font-size:13px;margin-bottom:8px}.metric-value{font-size:28px;font-weight:900}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}label{display:block;font-size:13px;font-weight:900;margin-bottom:6px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 11px;font:inherit;background:#fff;color:var(--text)}textarea{min-height:110px;resize:vertical}.route-list{display:grid;gap:10px}.route-row{display:grid;grid-template-columns:120px minmax(0,1fr) 120px;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:8px}.empty,.notice{padding:14px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);background:#fafbff}.notice{border-style:solid;background:#fff4d8;color:#6f4b00;line-height:1.6}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:14px}th{background:#eef3ff;color:#283654;font-size:13px}tr:last-child td{border-bottom:0}pre{margin:0;white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto;padding:14px;border-radius:8px;background:#101828;color:#e4e7ec;font:12px/1.55 Consolas,Monaco,monospace}@keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes pageOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(8px)}}@keyframes navSlide{from{transform:scaleX(.25);opacity:.2}to{transform:scaleX(1);opacity:1}}@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.15)}}@media(max-width:980px){.top-nav{height:auto;min-height:64px;align-items:flex-start;flex-direction:column;padding:12px 18px}.brand,.transition-label{min-width:0}.nav-links{width:100%;justify-content:flex-start}.hero,.grid-2,.grid-3{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.page-shell{padding:18px 16px 34px}.metric-grid,.form-grid{grid-template-columns:1fr}.route-row{grid-template-columns:1fr}table{display:block;overflow-x:auto}}
 </style></head>
-<body><nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 答辩展示</span></div><div class="nav-links"><a href="/showcase">展示总览</a><a href="/">单步授权</a><a href="/benchmark-dashboard">量化评测</a><a href="/attack-chain-runtime">攻击链</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/security-dashboard">安全总览</a><a href="/authorized-evidence">授权证据</a><a href="/task-chain">任务链</a><a href="/docs">API 文档</a></div><div class="transition-label"><span class="transition-dot"></span>页面切换动画</div></nav><main class="page-shell"><section class="hero"><div class="hero-main"><div class="eyebrow">Gateway Check</div><h1>单步授权</h1><p class="subtitle">输入自然语言任务，使用稳定 FakeAgent 演示 Agent 到 Gateway 再到 ToolExecutor 的授权闭环。</p></div><aside class="hero-side"><h3>展示状态</h3><div class="status-pill" id="serverStatus">未检测</div><p class="subtitle">顶部导航始终固定，页面切换时只在内容区显示轻量动画。</p><button class="secondary" onclick="checkServer()">检测后端</button></aside></section><section class="grid-2"><div class="panel"><div class="panel-head"><h2>任务输入</h2><span class="badge">稳定演示</span></div><div class="form-grid"><div><label>用户身份</label><select id="user"><option value="user">user</option><option value="admin">admin</option></select></div><div><label>演示模式</label><select id="agentType"><option value="fake">FakeAgent 稳定演示</option><option value="llm">LLM 接口演示</option></select></div></div><div style="height:12px"></div><label>自然语言任务</label><textarea id="userInput">请读取 public/notice.txt 并总结内容</textarea><div class="actions"><button onclick="runSingleCheck()">提交检测</button><button class="secondary" onclick="loadPending()">刷新待确认</button><button class="secondary" onclick="loadLogs()">刷新审计</button></div></div><div class="panel"><div class="panel-head"><h2>网关决策</h2><span id="decisionBadge" class="badge">等待提交</span></div><pre id="resultBox">暂无数据</pre></div></section><section class="grid-2"><div class="panel"><h2>待人工确认</h2><div id="pendingBox" class="empty">暂无数据</div></div><div class="panel"><h2>最近审计日志</h2><div id="logBox" class="empty">暂无数据</div></div></section></main><script>
+<body><nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 答辩展示</span></div><div class="nav-links"><a href="/showcase">展示总览</a><a href="/">单步授权</a><a href="/benchmark-dashboard">量化评测</a><a href="/tool-proxy">外部接入</a><a href="/attack-chain-runtime">攻击链</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/security-dashboard">安全总览</a><a href="/authorized-evidence">授权证据</a><a href="/task-chain">任务链</a><a href="/docs">API 文档</a></div><div class="transition-label"><span class="transition-dot"></span>页面切换动画</div></nav><main class="page-shell"><section class="hero"><div class="hero-main"><div class="eyebrow">Gateway Check</div><h1>单步授权</h1><p class="subtitle">输入自然语言任务，使用稳定 FakeAgent 演示 Agent 到 Gateway 再到 ToolExecutor 的授权闭环。</p></div><aside class="hero-side"><h3>展示状态</h3><div class="status-pill" id="serverStatus">未检测</div><p class="subtitle">顶部导航始终固定，页面切换时只在内容区显示轻量动画。</p><button class="secondary" onclick="checkServer()">检测后端</button></aside></section><section class="grid-2"><div class="panel"><div class="panel-head"><h2>任务输入</h2><span class="badge">稳定演示</span></div><div class="form-grid"><div><label>用户身份</label><select id="user"><option value="user">user</option><option value="admin">admin</option></select></div><div><label>演示模式</label><select id="agentType"><option value="fake">FakeAgent 稳定演示</option><option value="llm">LLM 接口演示</option></select></div></div><div style="height:12px"></div><label>自然语言任务</label><textarea id="userInput">请读取 public/notice.txt 并总结内容</textarea><div class="actions"><button onclick="runSingleCheck()">提交检测</button><button class="secondary" onclick="loadPending()">刷新待确认</button><button class="secondary" onclick="loadLogs()">刷新审计</button></div></div><div class="panel"><div class="panel-head"><h2>网关决策</h2><span id="decisionBadge" class="badge">等待提交</span></div><pre id="resultBox">暂无数据</pre></div></section><section class="grid-2"><div class="panel"><h2>待人工确认</h2><div id="pendingBox" class="empty">暂无数据</div></div><div class="panel"><h2>最近审计日志</h2><div id="logBox" class="empty">暂无数据</div></div></section></main><script>
 const API_BASE=window.location.protocol==='file:'?'http://127.0.0.1:8000':window.location.origin;
 function escapeHtml(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;")}
 function pretty(data){return JSON.stringify(data,null,2)}
@@ -16,6 +51,1144 @@ function setJson(id,value){const el=document.getElementById(id);if(el)el.textCon
 function markActiveNav(){const path=window.location.pathname;document.querySelectorAll('.nav-links a').forEach(link=>{const href=link.getAttribute('href');link.classList.toggle('active',href===path||(href==='/'&&path==='/'))})}
 function bindPageTransitions(){document.querySelectorAll('.nav-links a[href^="/"],a.btn[href^="/"]').forEach(link=>{if(link.target==='_blank')return;link.addEventListener('click',event=>{const href=link.getAttribute('href');if(!href||href===window.location.pathname||href.startsWith('/docs'))return;event.preventDefault();document.body.classList.add('page-leaving');setTimeout(()=>{window.location.href=href},170)})})}
 document.addEventListener('DOMContentLoaded',()=>{markActiveNav();bindPageTransitions()});
+>>>>>>> Stashed changes
 
-async function checkServer(){const el=document.getElementById('serverStatus');el.textContent='检测中';el.className='status-pill warn';try{await fetchJson('/api/status');el.textContent='后端运行正常';el.className='status-pill ok'}catch(error){el.textContent='后端未连接';el.className='status-pill bad'}}
-async function runSingleCheck(){const mode=document.getElementById('agentType').value;const endpoint=mode==='llm'?'/agent-runtime/multistep-llm/run':'/demo/fake-agent/run';setJson('resultBox',{status:'running',endpoint});try{const data=await fetchJson(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:document.getElementById('user').value,user_input:document.getElementById('userInput').value})});const decision=data.gateway_result?.decision||data.decision||data.session?.status||'ok';document.getElementById('decisionBadge').className='badge '+decision;setText('decisionBadge',decision);setJson('resultBox',data);loadPending();loadLogs()}catch(error){document.getElementById('decisionBadge').className='badge fail';setText('decisionBadge','失败');setJson('resultBox',{error:String(error)})}}async function loadPending(){try{const data=await fetchJson('/approval/pending');const pending=data.pending||[];setHtml('pendingBox',pending.length?pending.map(x=>`<div class="empty"><strong>${escapeHtml(x.pending_id)}</strong><br>${escapeHtml(x.original_input||'')}</div>`).join(''):'当前没有待确认请求。')}catch(e){setHtml('pendingBox','加载失败：'+escapeHtml(e))}}async function loadLogs(){try{const data=await fetchJson('/audit/logs?limit=8');const logs=data.logs||[];setHtml('logBox',logs.length?logs.map(x=>`<div class="empty">${badge(x.decision,x.decision)} ${escapeHtml(x.tool)} | risk ${escapeHtml(x.risk_score)}</div>`).join(''):'暂无审计日志。')}catch(e){setHtml('logBox','加载失败：'+escapeHtml(e))}}loadPending();loadLogs();</script></body></html>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: var(--font-family);
+            color: var(--text);
+            background:
+                radial-gradient(circle at 8% 0%, rgba(31, 78, 121, 0.08), transparent 28%),
+                radial-gradient(circle at 92% 4%, rgba(15, 118, 110, 0.06), transparent 26%),
+                linear-gradient(180deg, #fbfdff 0%, var(--bg) 48%, #eef3f8 100%);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .shell {
+            width: min(1180px, calc(100% - 32px));
+            margin: 18px auto 32px;
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            padding: 28px 24px 24px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .hero::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 5px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+        }
+
+        .hero-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 18px;
+        }
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            color: var(--primary);
+            background: var(--primary-soft);
+            font-size: 12px;
+            font-weight: 900;
+            line-height: 1.2;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .eyebrow::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--primary);
+        }
+
+        h1 {
+            margin: 0;
+            color: var(--text-strong);
+            font-size: 30px;
+            font-weight: 900;
+            line-height: 1.25;
+            letter-spacing: -0.02em;
+        }
+
+        .brand p {
+            max-width: 700px;
+            margin: 10px 0 0;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .page-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            max-width: 520px;
+        }
+
+        .page-tab {
+            display: inline-flex;
+            align-items: center;
+            padding: 9px 13px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--muted);
+            background: #fff;
+            font-size: 13.5px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .page-tab:hover {
+            color: var(--primary);
+            border-color: var(--primary);
+            background: var(--primary-soft);
+        }
+
+        .page-tab.active {
+            color: #fff;
+            border-color: var(--primary);
+            background: var(--primary);
+        }
+
+        .hero-meta {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1px;
+            margin-top: 20px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: var(--line);
+        }
+
+        .meta-cell {
+            position: relative;
+            padding: 14px 14px 14px 18px;
+            background: var(--surface-soft);
+        }
+
+        .meta-cell::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 12px;
+            bottom: 12px;
+            width: 3px;
+            border-radius: 999px;
+            background: var(--primary);
+        }
+
+        .meta-cell strong {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-subtle);
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+
+        .meta-cell span {
+            color: var(--muted);
+            font-size: 12.5px;
+            line-height: 1.55;
+        }
+
+        .status-strip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 14px 0;
+            padding: 10px 4px 12px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+
+        .status-left strong {
+            color: var(--text-subtle);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .status {
+            font-weight: 900;
+        }
+
+        .status-ok {
+            color: var(--success);
+        }
+
+        .status-bad {
+            color: var(--danger);
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 370px 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+
+        .section {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            box-shadow: var(--shadow-soft);
+            overflow: hidden;
+        }
+
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 17px 18px;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface-soft);
+        }
+
+        .section-title {
+            position: relative;
+            margin: 0;
+            padding-left: 12px;
+            color: var(--text-strong);
+            font-size: 18px;
+            font-weight: 900;
+            line-height: 1.35;
+        }
+
+        .section-title::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 3px;
+            bottom: 3px;
+            width: 4px;
+            border-radius: 999px;
+            background: var(--primary);
+        }
+
+        .section-desc {
+            margin: 5px 0 0;
+            color: var(--muted);
+            font-size: 12.5px;
+            line-height: 1.55;
+        }
+
+        .section-body {
+            padding: 16px 18px 18px;
+        }
+
+        .subsection {
+            padding: 15px 0;
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .subsection:first-child {
+            padding-top: 0;
+            border-top: 0;
+        }
+
+        .subsection-title {
+            margin: 0 0 9px;
+            color: var(--text-subtle);
+            font-size: 15px;
+            font-weight: 900;
+            line-height: 1.4;
+        }
+
+        label {
+            display: block;
+            margin: 11px 0 6px;
+            color: var(--text-subtle);
+            font-size: 13px;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+
+        select,
+        textarea,
+        input {
+            width: 100%;
+            padding: 9px 10px;
+            border: 1px solid var(--line);
+            border-radius: 11px;
+            outline: none;
+            background: #fff;
+            color: var(--text);
+            font-family: var(--font-family);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        textarea {
+            min-height: 96px;
+            max-height: 150px;
+            resize: vertical;
+            line-height: 1.6;
+        }
+
+        select:focus,
+        textarea:focus,
+        input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(31, 78, 121, 0.10);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .note {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-left: 3px solid var(--primary);
+            border-radius: 10px;
+            color: #475569;
+            background: var(--primary-soft);
+            font-size: 12.5px;
+            line-height: 1.55;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 13px;
+        }
+
+        button {
+            border: 1px solid transparent;
+            border-radius: 11px;
+            padding: 9px 13px;
+            background: var(--primary);
+            color: #fff;
+            font-family: var(--font-family);
+            font-size: 13.5px;
+            font-weight: 900;
+            line-height: 1.2;
+            cursor: pointer;
+            transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+        }
+
+        button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .btn-light {
+            border: 1px solid var(--line);
+            color: var(--primary);
+            background: #fff;
+        }
+
+        .btn-light:hover {
+            border-color: var(--primary);
+            background: var(--primary-soft);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+        }
+
+        .btn-success {
+            background: var(--success);
+        }
+
+        .decision-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 13px 14px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: var(--surface-soft);
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .decision-summary.allow {
+            color: var(--success);
+            border-color: #a9d8c1;
+            background: var(--success-soft);
+        }
+
+        .decision-summary.confirm {
+            color: var(--warning);
+            border-color: #f3cf8b;
+            background: var(--warning-soft);
+        }
+
+        .decision-summary.deny {
+            color: var(--danger);
+            border-color: #f1b8b2;
+            background: var(--danger-soft);
+        }
+
+        .decision-summary.confirmed {
+            color: var(--primary);
+            border-color: #b7cadb;
+            background: var(--primary-soft);
+        }
+
+        .result-stack {
+            margin-top: 14px;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .result-row {
+            display: grid;
+            grid-template-columns: 180px 1fr;
+            border-top: 1px solid var(--line-soft);
+        }
+
+        .result-row:first-child {
+            border-top: 0;
+        }
+
+        .result-label {
+            padding: 12px 13px;
+            color: var(--text-subtle);
+            background: var(--surface-soft);
+            font-size: 13px;
+            font-weight: 800;
+            border-right: 1px solid var(--line-soft);
+        }
+
+        .result-content {
+            min-width: 0;
+            background: #fff;
+        }
+
+        pre {
+            margin: 0;
+            padding: 12px 13px;
+            overflow: auto;
+            max-height: 170px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: #1e293b;
+            background: #fff;
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            font-size: 12.5px;
+            line-height: 1.6;
+        }
+
+        details {
+            margin-top: 12px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        summary {
+            padding: 10px 12px;
+            cursor: pointer;
+            color: var(--primary);
+            background: var(--surface-soft);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .info-area {
+            margin-top: 18px;
+            padding: 0 2px;
+        }
+
+        .tabbar {
+            display: flex;
+            gap: 8px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .tab {
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 7px 12px;
+            background: #fff;
+            color: var(--muted);
+            font-size: 13.5px;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        .tab:hover {
+            background: var(--primary-soft);
+        }
+
+        .tab.active {
+            border-color: var(--primary);
+            color: #fff;
+            background: var(--primary);
+        }
+
+        .panel-body {
+            display: none;
+            padding: 12px 0 0;
+            max-height: 320px;
+            overflow: auto;
+        }
+
+        .panel-body.active {
+            display: block;
+        }
+
+        .empty {
+            padding: 12px;
+            border-radius: 12px;
+            color: var(--muted);
+            background: var(--surface-soft);
+            line-height: 1.7;
+        }
+
+        .item {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--line-soft);
+        }
+
+        .item:last-child {
+            border-bottom: 0;
+        }
+
+        .item p {
+            margin: 6px 0;
+            line-height: 1.7;
+        }
+
+        .item strong {
+            color: var(--text-subtle);
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .badge,
+        .decision,
+        .agent-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 9px;
+            border-radius: 999px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .allow { background: var(--success); }
+        .confirm { background: var(--warning); }
+        .deny { background: var(--danger); }
+        .confirmed { background: var(--primary); }
+        .rejected { background: #64748b; }
+        .agent-fake { background: var(--primary); }
+        .agent-llm { background: var(--purple); }
+
+        .reason-list {
+            margin: 6px 0 0;
+            padding-left: 20px;
+            line-height: 1.7;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        code {
+            padding: 1px 5px;
+            border-radius: 6px;
+            background: var(--primary-soft);
+            color: var(--text-subtle);
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            font-size: 12px;
+        }
+
+        @media (max-width: 980px) {
+            .hero-main,
+            .status-strip {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .page-tabs {
+                justify-content: flex-start;
+                max-width: none;
+            }
+
+            .hero-meta,
+            .workspace,
+            .form-row,
+            .result-row {
+                grid-template-columns: 1fr;
+            }
+
+            .result-label {
+                border-right: 0;
+                border-bottom: 1px solid var(--line-soft);
+            }
+        }
+    </style>
+</head>
+
+<body>
+<div class="shell">
+    <header class="hero">
+        <div class="hero-main">
+            <div class="brand">
+                <div class="eyebrow">Agent Authorization Gateway</div>
+                <h1>AgentGuard 控制台</h1>
+                <p>
+                    面向 AI Agent 工具调用的任务级授权与安全防护系统。当前页面用于演示单次工具调用如何经过 Gateway 判断。
+                </p>
+            </div>
+
+            <nav class="page-tabs">
+                <a class="page-tab" href="/showcase">展示入口</a>
+                <a class="page-tab active" href="/">单步网关</a>
+                <a class="page-tab" href="/task-chain">多步任务链</a>
+                <a class="page-tab" href="/sandbox-dashboard">沙箱运行态</a>
+                <a class="page-tab" href="/security-dashboard">安全总览</a>
+            </nav>
+        </div>
+
+        <div class="hero-meta">
+            <div class="meta-cell">
+                <strong>前置授权</strong>
+                <span>Agent 不直接执行工具调用，先经过 Gateway 检查。</span>
+            </div>
+            <div class="meta-cell">
+                <strong>动态风险</strong>
+                <span>综合工具、路径、参数、角色与任务边界计算风险。</span>
+            </div>
+            <div class="meta-cell">
+                <strong>可审计复盘</strong>
+                <span>保留决策、原因、执行状态与原始请求证据。</span>
+            </div>
+        </div>
+    </header>
+
+    <section class="status-strip">
+        <div class="status-left">
+            <strong>后端地址</strong>
+            <span id="apiBaseText">检测中...</span>
+            <span>·</span>
+            <span id="serverStatus" class="status">正在检测后端状态...</span>
+        </div>
+        <button class="btn-light" onclick="checkServerStatus()">重新检测</button>
+    </section>
+
+    <main class="workspace">
+        <section class="section">
+            <div class="section-head">
+                <div>
+                    <h2 class="section-title">任务输入</h2>
+                    <p class="section-desc">输入自然语言任务，模拟 Agent 生成工具调用。</p>
+                </div>
+                <span class="badge agent-fake" id="agentBadge">FakeAgent</span>
+            </div>
+
+            <div class="section-body">
+                <div class="subsection">
+                    <h3 class="subsection-title">执行主体</h3>
+                    <div class="form-row">
+                        <div>
+                            <label>Agent 类型</label>
+                            <select id="agentType" onchange="updateAgentTip()">
+                                <option value="fake">FakeAgent 稳定演示</option>
+                                <option value="llm">LLM 真实大模型</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>用户身份</label>
+                            <select id="user">
+                                <option value="user">user</option>
+                                <option value="admin">admin</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="agentModeTip" class="note">
+                        FakeAgent：基于规则生成工具调用，适合比赛稳定演示。
+                    </div>
+                </div>
+
+                <div class="subsection">
+                    <h3 class="subsection-title">自然语言任务</h3>
+                    <textarea id="userInput" placeholder="例如：读取 public/notice.txt 并发送给 admin@sdu.edu.cn"></textarea>
+
+                    <div class="actions">
+                        <button id="submitBtn" onclick="simulateAgent()">提交检测</button>
+                        <button class="btn-light" onclick="clearResult()">清空</button>
+                        <button class="btn-light" onclick="location.href='/task-chain'">打开任务链</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-head">
+                <div>
+                    <h2 class="section-title">网关判断结果</h2>
+                    <p class="section-desc">Agent → Gateway → ToolExecutor</p>
+                </div>
+            </div>
+
+            <div class="section-body">
+                <div id="decisionSummary" class="decision-summary empty">
+                    <span>暂无结果，请先提交任务。</span>
+                    <span>risk: -</span>
+                </div>
+
+                <div class="result-stack">
+                    <div class="result-row">
+                        <div class="result-label">Agent 工具调用</div>
+                        <div class="result-content"><pre id="toolCallView">暂无数据</pre></div>
+                    </div>
+
+                    <div class="result-row">
+                        <div class="result-label">Gateway 风险判断</div>
+                        <div class="result-content"><pre id="riskView">暂无数据</pre></div>
+                    </div>
+
+                    <div class="result-row">
+                        <div class="result-label">最终处置</div>
+                        <div class="result-content"><pre id="actionView">暂无数据</pre></div>
+                    </div>
+                </div>
+
+                <details>
+                    <summary>原始 JSON</summary>
+                    <pre id="rawResult">暂无数据</pre>
+                </details>
+            </div>
+        </section>
+    </main>
+
+    <section class="info-area">
+        <div class="tabbar">
+            <button class="tab active" onclick="switchPanel('pending', this)">人工确认</button>
+            <button class="tab" onclick="switchPanel('audit', this)">审计日志</button>
+            <button class="tab" onclick="switchPanel('help', this)">页面说明</button>
+        </div>
+
+        <div id="panel-pending" class="panel-body active">
+            <div class="actions" style="margin-top:0">
+                <button class="btn-light" onclick="loadPending()">刷新待确认列表</button>
+            </div>
+            <div id="pendingList" class="empty">暂无数据</div>
+        </div>
+
+        <div id="panel-audit" class="panel-body">
+            <div class="actions" style="margin-top:0">
+                <button class="btn-light" onclick="loadLogs()">刷新审计日志</button>
+            </div>
+            <div id="logs" class="empty">暂无数据</div>
+        </div>
+
+        <div id="panel-help" class="panel-body">
+            <div class="empty">
+                <strong>设计说明：</strong>
+                当前页面只负责单步工具调用演示。多步提示注入攻击链、敏感数据传播和上下文风险累计，请切换到“多步任务链”页面。
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    const API_BASE = window.location.protocol === "file:"
+        ? "http://127.0.0.1:8000"
+        : window.location.origin;
+
+    document.getElementById("apiBaseText").textContent = API_BASE;
+
+    function getAgentType() {
+        return document.getElementById("agentType").value;
+    }
+
+    function switchPanel(name, button) {
+        document.querySelectorAll(".panel-body").forEach(panel => panel.classList.remove("active"));
+        document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+        document.getElementById(`panel-${name}`).classList.add("active");
+        button.classList.add("active");
+    }
+
+    function updateAgentTip() {
+        const agentType = getAgentType();
+        const tip = document.getElementById("agentModeTip");
+        const badge = document.getElementById("agentBadge");
+
+        if (agentType === "llm") {
+            tip.innerHTML = "LLM：调用真实大模型生成工具调用计划；后端需要配置 <code>LLM_API_KEY</code> 或 <code>DEEPSEEK_API_KEY</code>。";
+            badge.textContent = "LLM";
+            badge.className = "badge agent-llm";
+        } else {
+            tip.textContent = "FakeAgent：基于规则生成工具调用，适合比赛稳定演示。";
+            badge.textContent = "FakeAgent";
+            badge.className = "badge agent-fake";
+        }
+    }
+
+    function getDecisionClass(decision) {
+        const normalized = String(decision || "").toLowerCase();
+
+        if (normalized.includes("confirmed")) return "confirmed";
+        if (normalized.includes("rejected")) return "rejected";
+        if (normalized.includes("allow")) return "allow";
+        if (normalized.includes("confirm")) return "confirm";
+        if (normalized.includes("deny")) return "deny";
+
+        return "empty";
+    }
+
+    function getAgentClass(agentName) {
+        return String(agentName || "").toLowerCase().includes("llm") ? "agent-llm" : "agent-fake";
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+    }
+
+    function formatJson(data) {
+        if (data === undefined || data === null || data === "") {
+            return "暂无数据";
+        }
+
+        if (typeof data === "string") {
+            return data;
+        }
+
+        return JSON.stringify(data, null, 2);
+    }
+
+    function buildActionMessage(decision, executed, pendingId) {
+        const d = String(decision).toLowerCase();
+
+        if (d.includes("allow") && executed) return "低风险操作已自动放行并执行。";
+        if (d.includes("confirm")) return pendingId ? "该操作已进入人工确认队列。" : "该操作需要人工确认。";
+        if (d.includes("deny")) return "该操作被 Gateway 拦截，未被执行。";
+        if (d.includes("confirmed")) return "人工确认后，该操作已被执行。";
+        if (d.includes("rejected")) return "人工审核后，该操作已被拒绝。";
+
+        return "系统已完成本次工具调用判断。";
+    }
+
+    function renderGatewayResult(data) {
+        const decisionSummary = document.getElementById("decisionSummary");
+        const toolCallView = document.getElementById("toolCallView");
+        const riskView = document.getElementById("riskView");
+        const actionView = document.getElementById("actionView");
+        const rawResult = document.getElementById("rawResult");
+
+        if (!data) {
+            decisionSummary.className = "decision-summary empty";
+            decisionSummary.innerHTML = "<span>暂无结果，请先提交任务。</span><span>risk: -</span>";
+            toolCallView.textContent = "暂无数据";
+            riskView.textContent = "暂无数据";
+            actionView.textContent = "暂无数据";
+            rawResult.textContent = "暂无数据";
+            return;
+        }
+
+        const agentResult = data.agent_result || {};
+        const gateway = data.gateway_result || data.result || data;
+
+        const toolCall =
+            data.tool_call ||
+            data.call ||
+            agentResult.tool_call ||
+            gateway.tool_call ||
+            gateway.request ||
+            {};
+
+        const decision = gateway.decision || data.decision || "unknown";
+        const riskScore = gateway.risk_score ?? data.risk_score ?? "unknown";
+        const reasons = gateway.reason || gateway.reasons || data.reason || data.reasons || [];
+        const executed = data.executed ?? gateway.executed ?? false;
+        const pendingId = data.pending_id || gateway.pending_id || data.approval_id || gateway.approval_id || null;
+        const message = data.message || gateway.message || "";
+
+        decisionSummary.className = "decision-summary " + getDecisionClass(decision);
+        decisionSummary.innerHTML = `<span>决策：${escapeHtml(decision)}</span><span>risk: ${escapeHtml(riskScore)}</span>`;
+
+        toolCallView.textContent = formatJson({
+            agent: agentResult.agent || data.agent_type || getAgentType(),
+            tool_call: toolCall
+        });
+
+        const planGuard =
+            agentResult.plan_guard ||
+            gateway.plan_guard ||
+            data.plan_guard ||
+            null;
+
+        riskView.textContent = formatJson({
+            decision: decision,
+            risk_score: riskScore,
+            reasons: reasons,
+            agent_status: agentResult.status,
+            confidence: agentResult.confidence,
+            missing_params: agentResult.missing_params,
+            clarification_question: agentResult.clarification_question,
+            plan_guard: planGuard
+        });
+
+        actionView.textContent = formatJson({
+            executed: executed,
+            pending_id: pendingId,
+            message: message || buildActionMessage(decision, executed, pendingId)
+        });
+
+        rawResult.textContent = formatJson(data);
+    }
+
+    function clearResult() {
+        renderGatewayResult(null);
+    }
+
+    async function checkServerStatus() {
+        const status = document.getElementById("serverStatus");
+        status.textContent = "正在检测后端状态...";
+        status.className = "status";
+
+        try {
+            const response = await fetch(`${API_BASE}/api/status`);
+            if (!response.ok) throw new Error("后端响应异常");
+            status.textContent = "后端运行正常";
+            status.className = "status status-ok";
+        } catch (error) {
+            status.textContent = "后端未连接，请先启动 uvicorn";
+            status.className = "status status-bad";
+        }
+    }
+
+    async function simulateAgent() {
+        const agentType = getAgentType();
+        const user = document.getElementById("user").value;
+        const userInput = document.getElementById("userInput").value;
+        const submitBtn = document.getElementById("submitBtn");
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = agentType === "llm" ? "调用 LLM 中..." : "检测中...";
+
+        renderGatewayResult({
+            decision: "confirm",
+            risk_score: "running",
+            executed: false,
+            message: "请求已提交，等待 Gateway 返回判断。"
+        });
+
+        try {
+            const response = await fetch(`${API_BASE}/agent/simulate?agent_type=${encodeURIComponent(agentType)}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user: user,
+                    user_input: userInput
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || data.message || "后端响应异常");
+            }
+
+            renderGatewayResult(data);
+            await loadPending();
+            await loadLogs();
+        } catch (error) {
+            renderGatewayResult({
+                decision: "deny",
+                risk_score: "error",
+                executed: false,
+                message: "请求失败。请检查后端是否已启动，或 LLM 模式是否配置 API Key。",
+                error: String(error)
+            });
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "提交检测";
+        }
+    }
+
+    async function loadPending() {
+        try {
+            const response = await fetch(`${API_BASE}/approval/pending`);
+            const data = await response.json();
+            const pendingList = document.getElementById("pendingList");
+            const pending = data.pending || [];
+
+            if (pending.length === 0) {
+                pendingList.innerHTML = "<div class='empty'>当前没有待确认请求。</div>";
+                return;
+            }
+
+            pendingList.innerHTML = pending.map(item => {
+                const gatewayResult = item.gateway_result || {};
+                const toolRequest = item.tool_request || {};
+                const score = gatewayResult.risk_score ?? "unknown";
+                const reasons = gatewayResult.reason || gatewayResult.reasons || [];
+                const agent = item.agent_result && item.agent_result.agent ? item.agent_result.agent : "未知 Agent";
+                const agentClass = getAgentClass(agent);
+                const pendingId = item.pending_id || "";
+
+                return `
+                    <div class="item">
+                        <p><strong>pending_id：</strong>${escapeHtml(pendingId)}</p>
+                        <p><strong>Agent：</strong><span class="agent-badge ${agentClass}">${escapeHtml(agent)}</span></p>
+                        <p><strong>用户：</strong>${escapeHtml(toolRequest.user || "")} ｜ <strong>工具：</strong>${escapeHtml(toolRequest.tool || "")} ｜ <strong>风险分：</strong>${escapeHtml(score)}</p>
+                        <p><strong>原始输入：</strong>${escapeHtml(item.original_input || "")}</p>
+                        ${
+                            reasons.length > 0
+                                ? `<ul class="reason-list">${reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join("")}</ul>`
+                                : `<p class="muted">无明显风险原因。</p>`
+                        }
+                        <div class="actions">
+                            <button class="btn-success" onclick="confirmRequest('${escapeHtml(pendingId)}')">确认执行</button>
+                            <button class="btn-danger" onclick="rejectRequest('${escapeHtml(pendingId)}')">拒绝执行</button>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        } catch (error) {
+            document.getElementById("pendingList").innerHTML = "<div class='empty'>加载待确认列表失败，请检查后端接口。</div>";
+        }
+    }
+
+    async function confirmRequest(pendingId) {
+        try {
+            const response = await fetch(`${API_BASE}/approval/confirm/${encodeURIComponent(pendingId)}`, {
+                method: "POST"
+            });
+            const data = await response.json();
+
+            renderGatewayResult({
+                decision: data.decision || "confirmed",
+                risk_score: data.risk_score ?? "manual",
+                executed: data.executed ?? true,
+                message: data.message || "人工确认后，该操作已被执行。",
+                result: data
+            });
+
+            await loadPending();
+            await loadLogs();
+        } catch (error) {
+            alert("确认执行失败，请检查后端接口。");
+        }
+    }
+
+    async function rejectRequest(pendingId) {
+        try {
+            const response = await fetch(`${API_BASE}/approval/reject/${encodeURIComponent(pendingId)}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason: "人工拒绝执行该工具调用" })
+            });
+            const data = await response.json();
+
+            renderGatewayResult({
+                decision: data.decision || "rejected",
+                risk_score: data.risk_score ?? "manual",
+                executed: false,
+                message: data.message || "人工审核后，该操作已被拒绝。",
+                result: data
+            });
+
+            await loadPending();
+            await loadLogs();
+        } catch (error) {
+            alert("拒绝执行失败，请检查后端接口。");
+        }
+    }
+
+    async function loadLogs() {
+        try {
+            const response = await fetch(`${API_BASE}/audit/logs?limit=20`);
+            const data = await response.json();
+            const logsDiv = document.getElementById("logs");
+            const logs = data.logs || [];
+
+            if (logs.length === 0) {
+                logsDiv.innerHTML = "<div class='empty'>暂无审计日志。</div>";
+                return;
+            }
+
+            logsDiv.innerHTML = logs.map(log => {
+                const cls = getDecisionClass(log.decision);
+                return `
+                    <div class="item">
+                        <p>
+                            <strong>决策：</strong><span class="decision ${cls}">${escapeHtml(log.decision)}</span>
+                            <strong style="margin-left:12px;">风险分：</strong>${escapeHtml(log.risk_score)}
+                            <strong style="margin-left:12px;">执行：</strong>${escapeHtml(log.executed)}
+                        </p>
+                        <p><strong>时间：</strong>${escapeHtml(log.time)}</p>
+                        <p><strong>用户：</strong>${escapeHtml(log.user)} ｜ <strong>工具：</strong>${escapeHtml(log.tool)}</p>
+                        <p><strong>原始输入：</strong>${escapeHtml(log.original_input || "")}</p>
+                        <p><strong>说明：</strong>${escapeHtml(log.message || "")}</p>
+                    </div>
+                `;
+            }).join("");
+        } catch (error) {
+            document.getElementById("logs").innerHTML = "<div class='empty'>加载审计日志失败，请检查后端接口。</div>";
+        }
+    }
+
+    updateAgentTip();
+    checkServerStatus();
+    loadPending();
+    loadLogs();
+</script>
+</body>
+</html>

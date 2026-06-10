@@ -1,357 +1,708 @@
-﻿<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <title>AgentGuard Tool Proxy Playground</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Tool Proxy 接入</title>
   <style>
-    * {
-      box-sizing: border-box;
+    :root{
+      --bg:#f5f7fb;
+      --panel:#fff;
+      --text:#172033;
+      --muted:#667085;
+      --line:#dfe4ee;
+      --primary:#245bdb;
+      --primary-soft:#eaf0ff;
+      --green:#11875d;
+      --red:#c23535;
+      --amber:#a86500;
+      --shadow:0 12px 30px rgba(21,35,64,.08);
     }
 
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
-      background: #f5f7fb;
-      color: #1f2937;
+    *{box-sizing:border-box}
+
+    body{
+      margin:0;
+      font-family:Arial,"Microsoft YaHei",sans-serif;
+      color:var(--text);
+      background:var(--bg);
+      letter-spacing:0;
     }
 
-    header {
-      padding: 24px 32px;
-      background: #111827;
-      color: white;
-      border-bottom: 1px solid #1f2937;
+    .top-nav{
+      position:sticky;
+      top:0;
+      z-index:50;
+      height:64px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+      padding:0 28px;
+      background:rgba(255,255,255,.96);
+      border-bottom:1px solid var(--line);
+      backdrop-filter:blur(12px);
     }
 
-    header h1 {
-      margin: 0 0 8px 0;
-      font-size: 24px;
-      font-weight: 700;
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:220px;
+      font-weight:900;
+      white-space:nowrap;
     }
 
-    header p {
-      margin: 0;
-      color: #d1d5db;
-      font-size: 14px;
-      line-height: 1.6;
+    .brand-mark{
+      width:32px;
+      height:32px;
+      border-radius:8px;
+      display:grid;
+      place-items:center;
+      background:var(--primary);
+      color:#fff;
     }
 
-    main {
-      display: grid;
-      grid-template-columns: 1.05fr 0.8fr 1.15fr;
-      gap: 18px;
-      padding: 20px 24px 28px;
+    .nav-links{
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      min-width:0;
+      overflow-x:auto;
     }
 
-    section {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      padding: 18px;
-      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
-      min-height: 520px;
+    .nav-links a{
+      position:relative;
+      flex:0 0 auto;
+      padding:9px 12px;
+      border-radius:8px;
+      color:var(--muted);
+      text-decoration:none;
+      font-size:14px;
+      font-weight:800;
+      transition:background .18s ease,color .18s ease;
     }
 
-    h2 {
-      margin: 0 0 14px 0;
-      font-size: 18px;
+    .nav-links a:hover{
+      color:var(--primary);
+      background:var(--primary-soft);
     }
 
-    .hint {
-      margin: 0 0 14px 0;
-      color: #6b7280;
-      font-size: 13px;
-      line-height: 1.6;
+    .nav-links a.active{
+      color:#fff;
+      background:var(--primary);
     }
 
-    label {
-      display: block;
-      margin: 12px 0 6px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #374151;
+    .transition-label{
+      min-width:132px;
+      text-align:right;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .transition-dot{
+      display:inline-block;
+      width:8px;
+      height:8px;
+      margin-right:6px;
+      border-radius:999px;
+      background:var(--green);
+      animation:pulse 1.8s ease infinite;
+    }
+
+    .page-shell{
+      max-width:1220px;
+      margin:0 auto;
+      padding:28px 28px 48px;
+      animation:pageIn .28s ease both;
+    }
+
+    body.page-leaving .page-shell{
+      animation:pageOut .18s ease both;
+    }
+
+    body.page-leaving .transition-dot{
+      background:var(--amber);
+    }
+
+    .hero{
+      display:grid;
+      grid-template-columns:minmax(0,1.55fr) minmax(280px,.85fr);
+      gap:18px;
+      margin-bottom:18px;
+    }
+
+    .hero-main,
+    .hero-side,
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:8px;
+      box-shadow:var(--shadow);
+    }
+
+    .hero-main{padding:26px}
+    .hero-side{padding:20px}
+
+    .eyebrow{
+      color:var(--primary);
+      font-size:13px;
+      font-weight:900;
+      margin-bottom:8px;
+    }
+
+    h1{
+      margin:0;
+      font-size:32px;
+      line-height:1.25;
+    }
+
+    h2{
+      margin:0;
+      font-size:20px;
+    }
+
+    h3{
+      margin:0 0 10px;
+      font-size:16px;
+    }
+
+    .subtitle{
+      margin:12px 0 0;
+      color:var(--muted);
+      line-height:1.7;
+    }
+
+    .muted{color:var(--muted)}
+
+    button,
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:38px;
+      padding:9px 14px;
+      border-radius:8px;
+      border:1px solid transparent;
+      background:var(--primary);
+      color:#fff;
+      font-weight:900;
+      font-size:14px;
+      text-decoration:none;
+      cursor:pointer;
+    }
+
+    button.secondary,
+    .btn.secondary{
+      background:#fff;
+      color:var(--primary);
+      border-color:#c8d4ff;
+    }
+
+    button.danger{
+      background:#fff;
+      color:var(--red);
+      border-color:#ffcaca;
+    }
+
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:16px;
+    }
+
+    .status-pill,
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      padding:5px 9px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:900;
+      background:#eef2f8;
+      color:var(--muted);
+    }
+
+    .ok,
+    .badge.allow,
+    .badge.pass{
+      background:#e8f7ef;
+      color:var(--green);
+    }
+
+    .warn,
+    .badge.confirm{
+      background:#fff4d8;
+      color:var(--amber);
+    }
+
+    .bad,
+    .badge.deny,
+    .badge.fail,
+    .badge.error{
+      background:#ffecec;
+      color:var(--red);
+    }
+
+    .panel{
+      padding:18px;
+      margin-bottom:16px;
+    }
+
+    .panel-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    .grid-2{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:16px;
+    }
+
+    .grid-3{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:16px;
+    }
+
+    .form-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:12px;
+    }
+
+    .metric-grid{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:14px;
+      margin:0 0 14px;
+    }
+
+    .metric{
+      padding:14px;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:8px;
+    }
+
+    .metric-label{
+      color:var(--muted);
+      font-size:13px;
+      margin-bottom:8px;
+    }
+
+    .metric-value{
+      font-size:20px;
+      font-weight:900;
+      word-break:break-word;
+    }
+
+    label{
+      display:block;
+      font-size:13px;
+      font-weight:900;
+      margin-bottom:6px;
     }
 
     input,
-    textarea,
-    select {
-      width: 100%;
-      border: 1px solid #d1d5db;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 14px;
-      outline: none;
-      background: #ffffff;
+    select,
+    textarea{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:10px 11px;
+      font:inherit;
+      background:#fff;
+      color:var(--text);
     }
 
-    textarea {
-      min-height: 160px;
-      resize: vertical;
-      font-family: Consolas, "Courier New", monospace;
-      line-height: 1.5;
+    textarea{
+      min-height:110px;
+      resize:vertical;
+      font-family:Consolas,Monaco,"Courier New",monospace;
+      font-size:13px;
+      line-height:1.55;
     }
 
-    input:focus,
-    textarea:focus,
-    select:focus {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    .short-textarea{
+      min-height:76px;
     }
 
-    .row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
+    .field-block{
+      margin-top:12px;
     }
 
-    .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      border-radius: 10px;
-      padding: 10px 14px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      background: #2563eb;
-      color: white;
-      margin-top: 14px;
+    .reason-list{
+      margin:0;
+      padding-left:20px;
+      color:var(--text);
+      line-height:1.7;
+      font-size:14px;
     }
 
-    .button:hover {
-      background: #1d4ed8;
+    .sample-list{
+      display:grid;
+      gap:10px;
     }
 
-    .button.secondary {
-      background: #eef2ff;
-      color: #3730a3;
-      width: 100%;
-      margin-top: 10px;
-      justify-content: flex-start;
+    .sample-row{
+      display:grid;
+      grid-template-columns:120px minmax(0,1fr) 96px;
+      gap:12px;
+      align-items:center;
+      padding:12px;
+      border:1px solid var(--line);
+      border-radius:8px;
+      background:#fff;
     }
 
-    .button.secondary:hover {
-      background: #e0e7ff;
+    .empty,
+    .notice{
+      padding:14px;
+      border:1px dashed var(--line);
+      border-radius:8px;
+      color:var(--muted);
+      background:#fafbff;
     }
 
-    .button.danger {
-      background: #fee2e2;
-      color: #991b1b;
+    .notice{
+      border-style:solid;
+      background:#fff4d8;
+      color:#6f4b00;
+      line-height:1.6;
     }
 
-    .button.danger:hover {
-      background: #fecaca;
+    pre{
+      margin:0;
+      white-space:pre-wrap;
+      word-break:break-word;
+      max-height:360px;
+      overflow:auto;
+      padding:14px;
+      border-radius:8px;
+      background:#101828;
+      color:#e4e7ec;
+      font:12px/1.55 Consolas,Monaco,monospace;
     }
 
-    .status {
-      display: inline-block;
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 13px;
-      font-weight: 700;
-      margin-bottom: 12px;
+    @keyframes pageIn{
+      from{opacity:0;transform:translateY(10px)}
+      to{opacity:1;transform:translateY(0)}
     }
 
-    .status.allow {
-      background: #dcfce7;
-      color: #166534;
+    @keyframes pageOut{
+      from{opacity:1;transform:translateY(0)}
+      to{opacity:0;transform:translateY(8px)}
     }
 
-    .status.confirm {
-      background: #fef3c7;
-      color: #92400e;
+    @keyframes pulse{
+      0%,100%{opacity:.35;transform:scale(.9)}
+      50%{opacity:1;transform:scale(1.15)}
     }
 
-    .status.deny {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-
-    .status.idle {
-      background: #e5e7eb;
-      color: #374151;
-    }
-
-    .result-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-
-    .metric {
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 12px;
-      background: #f9fafb;
-    }
-
-    .metric .name {
-      font-size: 12px;
-      color: #6b7280;
-      margin-bottom: 6px;
-    }
-
-    .metric .value {
-      font-size: 18px;
-      font-weight: 700;
-      color: #111827;
-    }
-
-    pre {
-      margin: 0;
-      background: #0f172a;
-      color: #e5e7eb;
-      border-radius: 12px;
-      padding: 14px;
-      overflow: auto;
-      max-height: 430px;
-      font-size: 13px;
-      line-height: 1.5;
-    }
-
-    .reason-list {
-      margin: 8px 0 14px;
-      padding-left: 20px;
-      color: #374151;
-      font-size: 13px;
-      line-height: 1.6;
-    }
-
-    .small {
-      font-size: 12px;
-      color: #6b7280;
-      line-height: 1.6;
-    }
-
-    @media (max-width: 1100px) {
-      main {
-        grid-template-columns: 1fr;
+    @media(max-width:980px){
+      .top-nav{
+        height:auto;
+        min-height:64px;
+        align-items:flex-start;
+        flex-direction:column;
+        padding:12px 18px;
       }
 
-      section {
-        min-height: auto;
+      .brand,
+      .transition-label{
+        min-width:0;
+      }
+
+      .nav-links{
+        width:100%;
+        justify-content:flex-start;
+      }
+
+      .hero,
+      .grid-2,
+      .grid-3{
+        grid-template-columns:1fr;
+      }
+
+      .metric-grid{
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+    }
+
+    @media(max-width:640px){
+      .page-shell{
+        padding:18px 16px 34px;
+      }
+
+      .metric-grid,
+      .form-grid{
+        grid-template-columns:1fr;
+      }
+
+      .sample-row{
+        grid-template-columns:1fr;
       }
     }
   </style>
 </head>
+
 <body>
-  <header>
-    <h1>AgentGuard Tool Proxy Playground</h1>
-    <p>
-      这个页面用于测试外部 Agent 工具调用安全检查。输入 user、original_task、tool、params 后，
-      AgentGuard 会返回 allow / confirm / deny。
-    </p>
-  </header>
+  <nav class="top-nav">
+    <div class="brand">
+      <div class="brand-mark">AG</div>
+      <span>AgentGuard 答辩展示</span>
+    </div>
 
-  <main>
-    <section>
-      <h2>1. 输入工具调用请求</h2>
-      <p class="hint">
-        这里模拟“外部 Agent 准备调用某个工具”，然后先把请求发给 AgentGuard 检查。
-      </p>
+    <div class="nav-links">
+      <a href="/showcase">展示总览</a>
+      <a href="/">单步授权</a>
+      <a href="/benchmark-dashboard">量化评测</a>
+      <a href="/tool-proxy">外部接入</a>
+      <a href="/attack-chain-runtime">攻击链</a>
+      <a href="/sandbox-dashboard">沙箱运行</a>
+      <a href="/security-dashboard">安全总览</a>
+      <a href="/authorized-evidence">授权证据</a>
+      <a href="/task-chain">任务链</a>
+      <a href="/docs">API 文档</a>
+    </div>
 
-      <label>用户身份 user</label>
-      <input id="userInput" value="user" />
+    <div class="transition-label">
+      <span class="transition-dot"></span>页面切换动画
+    </div>
+  </nav>
 
-      <label>原始任务 original_task</label>
-      <textarea id="taskInput">帮我读取 public/notice.txt 并总结内容</textarea>
+  <main class="page-shell">
+    <section class="hero">
+      <div class="hero-main">
+        <div class="eyebrow">Tool Proxy</div>
+        <h1>外部 Agent 接入</h1>
+        <p class="subtitle">
+          将第三方 Agent 的工具调用先送入 AgentGuard，统一完成能力合约校验、风险评分和执行前阻断。
+        </p>
+      </div>
 
-      <div class="row">
-        <div>
-          <label>工具名 tool</label>
-          <select id="toolInput">
-            <option value="file.read">file.read</option>
-            <option value="email.send">email.send</option>
-            <option value="db.query">db.query</option>
-            <option value="shell.run">shell.run</option>
-            <option value="file.write">file.write</option>
-            <option value="file.delete">file.delete</option>
-          </select>
+      <aside class="hero-side">
+        <h3>接入状态</h3>
+        <div class="status-pill" id="serverStatus">未检测</div>
+        <div class="actions">
+          <button class="secondary" onclick="checkServer()">检测后端</button>
+        </div>
+      </aside>
+    </section>
+
+    <section class="grid-3">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>工具调用</h2>
+          <span class="badge">Request</span>
         </div>
 
-        <div>
-          <label>是否真实执行 execute</label>
-          <select id="executeInput">
-            <option value="false">false，只做安全检查</option>
-            <option value="true">true，allow 后执行沙箱工具</option>
-          </select>
+        <div class="form-grid">
+          <div>
+            <label>用户身份</label>
+            <select id="userInput">
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+
+          <div>
+            <label>工具类型</label>
+            <select id="toolInput">
+              <option value="file.read">file.read</option>
+              <option value="email.send">email.send</option>
+              <option value="db.query">db.query</option>
+              <option value="shell.run">shell.run</option>
+              <option value="http.request">http.request</option>
+              <option value="file.write">file.write</option>
+              <option value="file.delete">file.delete</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-block">
+          <label>原始任务</label>
+          <textarea id="taskInput">帮我调用业务系统 API 查询公开订单列表</textarea>
+        </div>
+
+        <div class="field-block">
+          <label>输入标签</label>
+          <input id="labelsInput" value="" placeholder="public, tainted, sensitive"/>
+        </div>
+
+        <div class="form-grid field-block">
+          <div>
+            <label>执行模式</label>
+            <select id="executeInput">
+              <option value="false">仅安全检查</option>
+              <option value="true">allow 后执行沙箱工具</option>
+            </select>
+          </div>
+
+          <div>
+            <label>代理接口</label>
+            <input value="POST /tool-proxy/authorize" disabled/>
+          </div>
         </div>
       </div>
 
-      <label>工具参数 params JSON</label>
-      <textarea id="paramsInput">{
-  "path": "public/notice.txt"
+      <div class="panel">
+        <div class="panel-head">
+          <h2>业务 API</h2>
+          <span class="badge">HTTP</span>
+        </div>
+
+        <label>API 地址</label>
+        <input id="apiUrlInput" value="https://api.example.com/v1/orders" placeholder="https://api.example.com/v1/orders"/>
+
+        <div class="form-grid field-block">
+          <div>
+            <label>HTTP 方法</label>
+            <select id="apiMethodInput">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+              <option value="PUT">PUT</option>
+              <option value="PATCH">PATCH</option>
+              <option value="DELETE">DELETE</option>
+            </select>
+          </div>
+
+          <div>
+            <label>调用工具</label>
+            <input value="http.request" disabled/>
+          </div>
+        </div>
+
+        <div class="field-block">
+          <label>Headers JSON</label>
+          <textarea id="apiHeadersInput" class="short-textarea">{
+  "Content-Type": "application/json"
 }</textarea>
-
-      <label>输入标签 input_labels，可选</label>
-      <input id="labelsInput" value="" placeholder="例如：public, tainted" />
-
-      <button class="button" onclick="authorizeToolCall()">安全检查</button>
-    </section>
-
-    <section>
-      <h2>2. 快捷测试样例</h2>
-      <p class="hint">
-        先用这些样例测试，确认系统能区分正常调用和危险调用。
-      </p>
-
-      <button class="button secondary" onclick="loadExample('publicRead')">
-        正常：读取公开文件
-      </button>
-
-      <button class="button secondary danger" onclick="loadExample('secretRead')">
-        危险：越权读取 secret 文件
-      </button>
-
-      <button class="button secondary danger" onclick="loadExample('externalEmail')">
-        可疑：向外部邮箱发送内容
-      </button>
-
-      <button class="button secondary danger" onclick="loadExample('dangerSql')">
-        危险：执行 DROP TABLE
-      </button>
-
-      <button class="button secondary danger" onclick="loadExample('dangerShell')">
-        危险：执行 curl 外联命令
-      </button>
-
-      <button class="button secondary" onclick="loadExample('safeDb')">
-        正常：只读数据库 SELECT
-      </button>
-
-      <p class="small" style="margin-top: 18px;">
-        第一版页面先直接展示 JSON 结果。后面可以继续升级成攻击链图、数据流图和审批面板。
-      </p>
-    </section>
-
-    <section>
-      <h2>3. 检查结果</h2>
-
-      <div id="decisionBadge" class="status idle">等待检查</div>
-
-      <div class="result-grid">
-        <div class="metric">
-          <div class="name">Decision</div>
-          <div id="decisionValue" class="value">-</div>
         </div>
-        <div class="metric">
-          <div class="name">Risk Score</div>
-          <div id="riskValue" class="value">-</div>
+
+        <div class="field-block">
+          <label>Body JSON</label>
+          <textarea id="apiBodyInput" class="short-textarea">null</textarea>
+        </div>
+
+        <div class="actions">
+          <button onclick="syncCustomApiToParams()">生成请求参数</button>
+          <button class="secondary" onclick="copyCurrentPayload()">复制请求 JSON</button>
         </div>
       </div>
 
-      <h3 style="font-size: 15px; margin: 12px 0 6px;">Reason</h3>
-      <ul id="reasonList" class="reason-list">
-        <li>暂无结果</li>
-      </ul>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>安全决策</h2>
+          <span id="decisionBadge" class="badge">等待检查</span>
+        </div>
 
-      <h3 style="font-size: 15px; margin: 12px 0 8px;">Raw Response</h3>
-      <pre id="rawOutput">暂无结果</pre>
+        <div class="metric-grid">
+          <div class="metric">
+            <div class="metric-label">Decision</div>
+            <div id="decisionValue" class="metric-value">-</div>
+          </div>
+
+          <div class="metric">
+            <div class="metric-label">Risk</div>
+            <div id="riskValue" class="metric-value">-</div>
+          </div>
+
+          <div class="metric">
+            <div class="metric-label">Mode</div>
+            <div id="modeValue" class="metric-value">-</div>
+          </div>
+
+          <div class="metric">
+            <div class="metric-label">Executed</div>
+            <div id="executedValue" class="metric-value">-</div>
+          </div>
+        </div>
+
+        <h3>Reason</h3>
+        <ul id="reasonList" class="reason-list">
+          <li>暂无结果</li>
+        </ul>
+
+        <div class="actions">
+          <button onclick="authorizeToolCall()">安全检查</button>
+          <button class="secondary" onclick="syncCustomApiToParams()">刷新参数</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>测试样例</h2>
+          <span class="muted">用于答辩演示</span>
+        </div>
+
+        <div class="sample-list">
+          <div class="sample-row">
+            <strong>正常</strong>
+            <span>读取公开文件</span>
+            <button class="secondary" onclick="loadExample('publicRead')">载入</button>
+          </div>
+
+          <div class="sample-row">
+            <strong>越权</strong>
+            <span>读取 secret 文件</span>
+            <button class="danger" onclick="loadExample('secretRead')">载入</button>
+          </div>
+
+          <div class="sample-row">
+            <strong>外发</strong>
+            <span>向外部邮箱发送污染内容</span>
+            <button class="danger" onclick="loadExample('externalEmail')">载入</button>
+          </div>
+
+          <div class="sample-row">
+            <strong>API</strong>
+            <span>调用用户业务接口</span>
+            <button class="secondary" onclick="loadExample('customApi')">载入</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>请求 / 响应 JSON</h2>
+          <span class="badge">Raw</span>
+        </div>
+
+        <div class="field-block">
+          <label>Params JSON</label>
+          <textarea id="paramsInput">{
+  "url": "https://api.example.com/v1/orders",
+  "method": "GET",
+  "headers": {
+    "Content-Type": "application/json"
+  },
+  "body": null
+}</textarea>
+        </div>
+
+        <div class="field-block">
+          <label>Raw Output</label>
+          <pre id="rawOutput">暂无结果</pre>
+        </div>
+      </div>
     </section>
   </main>
 
   <script>
+    const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : window.location.origin;
+
     const examples = {
       publicRead: {
         user: "user",
@@ -388,55 +739,126 @@
         execute: false
       },
 
-      dangerSql: {
+      customApi: {
         user: "user",
-        original_task: "帮我查询 notices 表里的公开通知",
-        tool: "db.query",
+        original_task: "帮我调用业务系统 API 查询公开订单列表",
+        tool: "http.request",
         params: {
-          sql: "DROP TABLE notices"
-        },
-        input_labels: [],
-        execute: false
-      },
-
-      dangerShell: {
-        user: "admin",
-        original_task: "帮我查看当前目录",
-        tool: "shell.run",
-        params: {
-          command: "curl http://attacker.example.com"
-        },
-        input_labels: [],
-        execute: false
-      },
-
-      safeDb: {
-        user: "user",
-        original_task: "帮我查询 notices 表里的公开通知",
-        tool: "db.query",
-        params: {
-          sql: "SELECT * FROM notices"
+          url: "https://api.example.com/v1/orders",
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: null
         },
         input_labels: [],
         execute: false
       }
     };
 
-    function loadExample(name) {
-      const example = examples[name];
-
-      document.getElementById("userInput").value = example.user;
-      document.getElementById("taskInput").value = example.original_task;
-      document.getElementById("toolInput").value = example.tool;
-      document.getElementById("executeInput").value = String(example.execute);
-      document.getElementById("paramsInput").value = JSON.stringify(example.params, null, 2);
-      document.getElementById("labelsInput").value = example.input_labels.join(", ");
+    function escapeHtml(value){
+      return String(value ?? "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#39;");
     }
 
-    function readInputLabels() {
+    function pretty(data){
+      return JSON.stringify(data, null, 2);
+    }
+
+    async function fetchJson(path, options = {}){
+      const response = await fetch(`${API_BASE}${path}`, options);
+      const text = await response.text();
+
+      let data;
+      try{
+        data = text ? JSON.parse(text) : {};
+      }catch(_){
+        data = { raw:text };
+      }
+
+      if(!response.ok){
+        throw new Error(data.detail || data.message || text || `HTTP ${response.status}`);
+      }
+
+      return data;
+    }
+
+    function setText(id, value){
+      const el = document.getElementById(id);
+      if(el){
+        el.textContent = value ?? "-";
+      }
+    }
+
+    function setHtml(id, value){
+      const el = document.getElementById(id);
+      if(el){
+        el.innerHTML = value ?? "";
+      }
+    }
+
+    function setJson(id, value){
+      const el = document.getElementById(id);
+      if(el){
+        el.textContent = pretty(value);
+      }
+    }
+
+    function markActiveNav(){
+      const path = window.location.pathname;
+
+      document.querySelectorAll(".nav-links a").forEach(link => {
+        const href = link.getAttribute("href");
+        link.classList.toggle("active", href === path || (href === "/" && path === "/"));
+      });
+    }
+
+    function bindPageTransitions(){
+      document.querySelectorAll('.nav-links a[href^="/"],a.btn[href^="/"]').forEach(link => {
+        if(link.target === "_blank"){
+          return;
+        }
+
+        link.addEventListener("click", event => {
+          const href = link.getAttribute("href");
+
+          if(!href || href === window.location.pathname || href.startsWith("/docs")){
+            return;
+          }
+
+          event.preventDefault();
+          document.body.classList.add("page-leaving");
+
+          setTimeout(() => {
+            window.location.href = href;
+          }, 170);
+        });
+      });
+    }
+
+    async function checkServer(){
+      const el = document.getElementById("serverStatus");
+      el.textContent = "检测中";
+      el.className = "status-pill warn";
+
+      try{
+        await fetchJson("/api/status");
+        el.textContent = "后端运行正常";
+        el.className = "status-pill ok";
+      }catch(error){
+        el.textContent = "后端未连接";
+        el.className = "status-pill bad";
+      }
+    }
+
+    function readInputLabels(){
       const raw = document.getElementById("labelsInput").value.trim();
 
-      if (!raw) {
+      if(!raw){
         return [];
       }
 
@@ -446,106 +868,237 @@
         .filter(Boolean);
     }
 
-    function setLoading() {
-      const badge = document.getElementById("decisionBadge");
-      badge.className = "status idle";
-      badge.textContent = "检查中...";
+    function parseJsonTextarea(id, label, defaultValue){
+      const raw = document.getElementById(id).value.trim();
 
-      document.getElementById("decisionValue").textContent = "-";
-      document.getElementById("riskValue").textContent = "-";
-      document.getElementById("reasonList").innerHTML = "<li>正在请求后端...</li>";
-      document.getElementById("rawOutput").textContent = "Loading...";
-    }
-
-    function renderResult(data) {
-      const decision = data.decision || "unknown";
-      const badge = document.getElementById("decisionBadge");
-
-      badge.className = "status " + decision;
-      badge.textContent = decision.toUpperCase();
-
-      document.getElementById("decisionValue").textContent = decision;
-      document.getElementById("riskValue").textContent = data.risk_score ?? "-";
-
-      const reasons = Array.isArray(data.reason) ? data.reason : [];
-      const reasonList = document.getElementById("reasonList");
-
-      if (reasons.length === 0) {
-        reasonList.innerHTML = "<li>后端没有返回 reason</li>";
-      } else {
-        reasonList.innerHTML = reasons
-          .map(item => "<li>" + escapeHtml(String(item)) + "</li>")
-          .join("");
+      if(!raw){
+        return defaultValue;
       }
 
-      document.getElementById("rawOutput").textContent = JSON.stringify(data, null, 2);
+      try{
+        return JSON.parse(raw);
+      }catch(error){
+        throw new Error(`${label} 不是合法 JSON：${error.message}`);
+      }
     }
 
-    function renderError(error) {
-      const badge = document.getElementById("decisionBadge");
+    function buildCustomApiParams(){
+      const url = document.getElementById("apiUrlInput").value.trim();
 
-      badge.className = "status deny";
-      badge.textContent = "ERROR";
-
-      document.getElementById("decisionValue").textContent = "error";
-      document.getElementById("riskValue").textContent = "-";
-      document.getElementById("reasonList").innerHTML = "<li>" + escapeHtml(error.message || String(error)) + "</li>";
-      document.getElementById("rawOutput").textContent = error.stack || String(error);
-    }
-
-    function escapeHtml(text) {
-      return text
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    async function authorizeToolCall() {
-      setLoading();
-
-      let params = {};
-
-      try {
-        params = JSON.parse(document.getElementById("paramsInput").value || "{}");
-      } catch (error) {
-        renderError(new Error("params 不是合法 JSON：" + error.message));
-        return;
+      if(!url){
+        throw new Error("请填写 API 地址。");
       }
 
-      const payload = {
-        user: document.getElementById("userInput").value.trim() || "user",
-        original_task: document.getElementById("taskInput").value.trim(),
-        tool: document.getElementById("toolInput").value,
-        params: params,
-        input_labels: readInputLabels(),
-        input_from_steps: [],
-        execute: document.getElementById("executeInput").value === "true"
+      return {
+        url,
+        method: document.getElementById("apiMethodInput").value,
+        headers: parseJsonTextarea("apiHeadersInput", "Headers", {}),
+        body: parseJsonTextarea("apiBodyInput", "Body", null)
       };
+    }
 
-      try {
-        const response = await fetch("/tool-proxy/authorize", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payload)
+    function syncCustomApiToParams(){
+      try{
+        const params = buildCustomApiParams();
+
+        document.getElementById("toolInput").value = "http.request";
+        document.getElementById("paramsInput").value = pretty(params);
+
+        setDecision("http.request", "-", "custom-api", "false", "已生成 http.request 参数。", {
+          tool: "http.request",
+          params
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.detail || "请求失败，HTTP " + response.status);
-        }
-
-        renderResult(data);
-      } catch (error) {
+      }catch(error){
         renderError(error);
       }
     }
 
-    loadExample("publicRead");
+    function buildCurrentPayload(){
+      let tool = document.getElementById("toolInput").value;
+      let params = {};
+
+      const apiUrl = document.getElementById("apiUrlInput").value.trim();
+
+      if(apiUrl){
+        tool = "http.request";
+        params = buildCustomApiParams();
+
+        document.getElementById("toolInput").value = "http.request";
+        document.getElementById("paramsInput").value = pretty(params);
+      }else{
+        try{
+          params = JSON.parse(document.getElementById("paramsInput").value || "{}");
+        }catch(error){
+          throw new Error(`Params 不是合法 JSON：${error.message}`);
+        }
+      }
+
+      return {
+        user: document.getElementById("userInput").value.trim() || "user",
+        original_task: document.getElementById("taskInput").value.trim(),
+        tool,
+        params,
+        input_labels: readInputLabels(),
+        input_from_steps: [],
+        execute: document.getElementById("executeInput").value === "true"
+      };
+    }
+
+    function setDecision(decision, risk, mode, executed, reason, raw){
+      const badge = document.getElementById("decisionBadge");
+      const badgeType = ["allow", "confirm", "deny", "fail", "error"].includes(String(decision)) ? decision : "";
+
+      badge.className = `badge ${badgeType}`;
+      badge.textContent = String(decision || "-").toUpperCase();
+
+      setText("decisionValue", decision || "-");
+      setText("riskValue", risk ?? "-");
+      setText("modeValue", mode || "-");
+      setText("executedValue", executed ?? "-");
+      setHtml("reasonList", `<li>${escapeHtml(reason || "暂无结果")}</li>`);
+      setJson("rawOutput", raw ?? {});
+    }
+
+    function setLoading(){
+      const badge = document.getElementById("decisionBadge");
+      badge.className = "badge";
+      badge.textContent = "检查中";
+
+      setText("decisionValue", "-");
+      setText("riskValue", "-");
+      setText("modeValue", "-");
+      setText("executedValue", "-");
+      setHtml("reasonList", "<li>正在请求后端...</li>");
+      setText("rawOutput", "Loading...");
+    }
+
+    function renderResult(data){
+      const decision = data.decision || "unknown";
+      const reasons = Array.isArray(data.reason) ? data.reason : [];
+
+      const badge = document.getElementById("decisionBadge");
+      badge.className = `badge ${decision}`;
+      badge.textContent = decision.toUpperCase();
+
+      setText("decisionValue", decision);
+      setText("riskValue", data.risk_score ?? "-");
+      setText("modeValue", data.mode || "-");
+      setText("executedValue", String(data.executed ?? false));
+
+      if(reasons.length){
+        setHtml("reasonList", reasons.map(item => `<li>${escapeHtml(item)}</li>`).join(""));
+      }else{
+        setHtml("reasonList", "<li>后端没有返回 reason</li>");
+      }
+
+      setJson("rawOutput", data);
+    }
+
+    function renderError(error){
+      const badge = document.getElementById("decisionBadge");
+      badge.className = "badge error";
+      badge.textContent = "ERROR";
+
+      setText("decisionValue", "error");
+      setText("riskValue", "-");
+      setText("modeValue", "-");
+      setText("executedValue", "-");
+      setHtml("reasonList", `<li>${escapeHtml(error.message || String(error))}</li>`);
+      setText("rawOutput", error.stack || String(error));
+    }
+
+    async function copyTextToClipboard(text){
+      if(navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      textArea.style.top = "-9999px";
+
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textArea);
+
+      if(!ok){
+        throw new Error("浏览器拒绝复制，请手动复制 Raw Output 内容。");
+      }
+    }
+
+    async function copyCurrentPayload(){
+      try{
+        const payload = buildCurrentPayload();
+        const text = pretty(payload);
+
+        await copyTextToClipboard(text);
+
+        setDecision("copied", "-", "request", "false", "请求 JSON 已复制。", payload);
+      }catch(error){
+        renderError(error);
+      }
+    }
+
+    async function authorizeToolCall(){
+      setLoading();
+
+      try{
+        const payload = buildCurrentPayload();
+
+        const data = await fetchJson("/tool-proxy/authorize", {
+          method:"POST",
+          headers:{
+            "Content-Type":"application/json"
+          },
+          body:JSON.stringify(payload)
+        });
+
+        renderResult(data);
+      }catch(error){
+        renderError(error);
+      }
+    }
+
+    function loadExample(name){
+      const example = examples[name];
+
+      if(!example){
+        return;
+      }
+
+      document.getElementById("userInput").value = example.user;
+      document.getElementById("taskInput").value = example.original_task;
+      document.getElementById("toolInput").value = example.tool;
+      document.getElementById("executeInput").value = String(example.execute);
+      document.getElementById("labelsInput").value = example.input_labels.join(", ");
+      document.getElementById("paramsInput").value = pretty(example.params);
+
+      if(example.tool === "http.request"){
+        document.getElementById("apiUrlInput").value = example.params.url || "";
+        document.getElementById("apiMethodInput").value = example.params.method || "GET";
+        document.getElementById("apiHeadersInput").value = pretty(example.params.headers || {});
+        document.getElementById("apiBodyInput").value = pretty(example.params.body ?? null);
+      }else{
+        document.getElementById("apiUrlInput").value = "";
+      }
+
+      setDecision("loaded", "-", "example", "false", "样例已载入。", {
+        tool: example.tool,
+        params: example.params
+      });
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      markActiveNav();
+      bindPageTransitions();
+      checkServer();
+      loadExample("customApi");
+    });
   </script>
 </body>
 </html>
