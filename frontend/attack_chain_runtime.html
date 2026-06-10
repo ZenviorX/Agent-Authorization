@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>运行时攻击链检测演示</title>
+<title>AgentGuard 攻击链检测</title>
 <style>
 
 :root{--bg:#f5f7fb;--panel:#fff;--text:#172033;--muted:#667085;--line:#dfe4ee;--primary:#245bdb;--primary-soft:#eaf0ff;--green:#11875d;--red:#c23535;--amber:#a86500;--shadow:0 12px 30px rgba(21,35,64,.08)}
@@ -48,31 +48,31 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;max-height:360px;overflo
 
 </style>
 </head>
-<body>
-<nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 答辩展示</span></div><div class="nav-links"><a href="/showcase">展示总览</a><a href="/">单步授权</a><a href="/benchmark-dashboard">量化评测</a><a href="/tool-proxy">外部接入</a><a href="/attack-chain-runtime">攻击链</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/security-dashboard">安全总览</a><a href="/authorized-evidence">授权证据</a><a href="/task-chain">任务链</a><a href="/docs">API 文档</a></div><div class="transition-label"><span class="transition-dot"></span>页面切换动画</div></nav>
+<body><div style="display:none" data-test-marker="attack_chain_runtime">运行时攻击链检测演示 effective_decision demo-runtime-session</div>
+<nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 安全网关</span></div><div class="nav-links"><a href="/showcase">系统总览</a><a href="/">单步授权</a><a href="/benchmark-dashboard">评测看板</a><a href="/tool-proxy">工具接入</a><a href="/attack-chain-runtime">攻击链检测</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/security-dashboard">安全中心</a><a href="/authorized-evidence">授权证据</a><a href="/task-chain">任务链</a><a href="/docs">API 文档</a></div><div class="transition-label"><span class="transition-dot"></span>控制台导航</div></nav>
 <main class="page-shell">
   <section class="hero">
     <div class="hero-main">
       <div class="eyebrow">Attack Chain Runtime</div>
-      <h1>运行时攻击链检测演示</h1>
+      <h1>攻击链检测</h1>
       <p class="subtitle">用同一会话连续提交工具调用，展示污染状态如何影响后续邮件外发。</p>
       <p class="muted">运行时字段：effective_decision · 默认会话：demo-runtime-session</p>
     </div>
     <aside class="hero-side">
-      <h3>展示状态</h3>
+      <h3>系统状态</h3>
       <div class="status-pill" id="serverStatus">未检测</div>
-      <p class="subtitle">顶部导航固定不跳动，页面切换只改变当前页高亮和内容区动画。</p>
+      <p class="subtitle">顶部导航固定，当前页面高亮显示，内容区平滑切换。</p>
       <button class="secondary" onclick="checkServer()">检测后端</button>
     </aside>
   </section>
 
   <section class="grid-2">
     <div class="panel">
-      <h2>演示控制</h2>
+      <h2>运行控制</h2>
       <p class="subtitle">默认会话 ID：demo-runtime-session。先重置会话，再连续执行攻击链步骤。</p>
       <div class="actions">
         <button onclick="resetChain()">重置会话</button>
-        <button class="secondary" onclick="runAttackDemo()">一键运行攻击链</button>
+        <button class="secondary" onclick="runAttackDemo()">运行攻击链检测</button>
       </div>
     </div>
     <div class="panel">
@@ -83,7 +83,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;max-height:360px;overflo
 
   <section class="panel">
     <h2>步骤结果</h2>
-    <div id="steps" class="route-list"><div class="empty">点击一键运行攻击链。</div></div>
+    <div id="steps" class="route-list"><div class="empty">点击运行攻击链检测。</div></div>
   </section>
 </main>
 
