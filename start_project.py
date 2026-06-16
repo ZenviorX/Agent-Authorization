@@ -59,15 +59,18 @@ SECURITY_OVERVIEW_URL = f"{BASE_URL}/security/overview"
 AUDIT_VERIFY_URL = f"{BASE_URL}/audit/verify"
 
 DISPLAY_PAGES = [
-    ("Showcase overview", SHOWCASE_URL),
-    ("Single-step gateway", FRONTEND_URL),
-    ("Benchmark dashboard", BENCHMARK_DASHBOARD_URL),
-    ("Attack chain runtime", ATTACK_CHAIN_RUNTIME_URL),
-    ("Sandbox dashboard", SANDBOX_DASHBOARD_URL),
-    ("Security dashboard", SECURITY_DASHBOARD_URL),
-    ("Authorized evidence", AUTHORIZED_EVIDENCE_URL),
-    ("Task chain page", TASK_CHAIN_URL),
-    ("API docs", DOCS_URL),
+    ("1. 系统总览", SHOWCASE_URL),
+    ("2. 单步授权", FRONTEND_URL),
+    ("3. 任务链", TASK_CHAIN_URL),
+    ("4. 评测中心", BENCHMARK_DASHBOARD_URL),
+    ("5. 安全中心", SECURITY_DASHBOARD_URL),
+]
+
+EMBEDDED_MODULES = [
+    ("工具接入检测", f"{BASE_URL}/tool-proxy", "已合并到单步授权页选项卡"),
+    ("攻击链检测", ATTACK_CHAIN_RUNTIME_URL, "已合并到任务链页选项卡"),
+    ("授权证据", AUTHORIZED_EVIDENCE_URL, "已合并到单步授权页和任务链页选项卡"),
+    ("API docs", DOCS_URL, "开发调试入口，不作为汇报主导航"),
 ]
 
 DEFAULT_VENV_DIR = PROJECT_ROOT / ".venv"
@@ -120,7 +123,7 @@ def print_header():
     print("=" * 72)
     print(f"Project root          : {PROJECT_ROOT}")
     print(f"Virtual environment   : {VENV_DIR}")
-    print("Default open pages    : showcase only")
+    print("Default open page     : 系统总览 /showcase")
     print("-" * 72)
     for label, url in DISPLAY_PAGES:
         print(f"{label:<22}: {url}")
