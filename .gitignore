@@ -78,3 +78,30 @@ Results/Result_*.html
 Results/Result_*.json
 experiments/results/
 >>>>>>> 95a117d8e2b57fdd834ad21b89a57cb1a1a9817a
+# Python cache and virtualenv
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+# Environment files
+.env
+*.env
+!.env.example
+# Logs
+logs/
+*.log
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.vite/
+# Runtime generated files
+runtime_workspace/agent_runtime.db
+runtime_workspace/evidence/
+runtime_workspace/outbox/
+runtime_workspace/reports/
+# Archives and temporary audit files
+*.zip
+_project_audit_for_chatgpt/
+project_audit_for_chatgpt.zip
