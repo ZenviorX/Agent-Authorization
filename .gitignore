@@ -3,105 +3,83 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Virtual environments
+# Python tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python virtual environments
 venv/
 .venv/
 env/
 ENV/
 
-# Tooling caches
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Local model/cache files
+.cache/
+models/
+.huggingface/
+sentence_transformers/
 
 # Build artifacts
 build/
 dist/
 *.egg-info/
 
+# Frontend dependencies and build outputs
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env
+
+# Local environment and secrets
+.env
+.env.*
+*.env
+!.env.example
+config/secrets/
+secrets/
+
 # Runtime sandbox generated outputs
 runtime_workspace/outbox/
 runtime_workspace/evidence/
 runtime_workspace/reports/
 runtime_workspace/*.db
+runtime_workspace/agent_runtime.db
 runtime_workspace/public/evidence_demo_note.txt
 runtime_workspace/public/runtime_demo_note.txt
 
+# Generated dashboard and experiment outputs
+Results/Result_*.html
+Results/Result_*.json
+experiments/results/
+
 # Logs
+logs/
 logs/*.log
 logs/*.jsonl
+*.log
 
-# Local environment and secrets
-.env
-.env.*
+# Temporary install bundles and archives
+*.zip
+semantic_guard_bundle*/
+semantic_guard_bundle*.zip
+
+# Temporary backup files
+*.bak
+*.backup
+*.bak-*
+*.backup-*
+pytest_fail*.txt
+
+# ChatGPT audit temporary files
+_project_audit_for_chatgpt/
+project_audit_for_chatgpt.zip
+
+# Root-level mistaken npm files
+/package-lock.json
 
 # OS/editor files
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
-<<<<<<< HEAD
-# Local environment files
-.env
-.env.*
-!.env.example
-# Python virtual environments
-venv/
-.venv/
-env/
-# Python cache
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-# Local model/cache files
-.cache/
-models/
-.huggingface/
-sentence_transformers/
-# Temporary install bundles and logs
-semantic_guard_bundle*/
-semantic_guard_bundle*.zip
-pytest_fail*.txt
-*.bak
-*.backup
-# Local secrets
-config/secrets/
-secrets/
-*.bak-*
-*.backup-*
-=======
-# Generated dashboard outputs
-Results/Result_*.html
-Results/Result_*.json
-experiments/results/
->>>>>>> 95a117d8e2b57fdd834ad21b89a57cb1a1a9817a
-# Python cache and virtualenv
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-venv/
-# Environment files
-.env
-*.env
-!.env.example
-# Logs
-logs/
-*.log
-# Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/.env
-frontend/.vite/
-# Runtime generated files
-runtime_workspace/agent_runtime.db
-runtime_workspace/evidence/
-runtime_workspace/outbox/
-runtime_workspace/reports/
-# Archives and temporary audit files
-*.zip
-_project_audit_for_chatgpt/
-project_audit_for_chatgpt.zip
