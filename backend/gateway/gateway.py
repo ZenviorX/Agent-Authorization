@@ -63,6 +63,8 @@ def check_tool_call(request: ToolCallRequest):
 
     path = get_path(params)
     content = get_content(params)
+    original_input = str(request.original_input or "")
+    detection_content = "\n".join(item for item in [content, original_input] if item).strip()
     command = get_command(params)
     sql = str(params.get("sql", ""))
 
@@ -145,7 +147,7 @@ def check_tool_call(request: ToolCallRequest):
 
     path_analysis = analyze_resource_path(path)
     path_lower = path_analysis.decoded.lower().replace("\\", "/")
-    content_lower = content.lower()
+    content_lower = detection_content.lower()
     command_lower = command.lower()
     sql_lower = sql.lower()
 
@@ -157,7 +159,7 @@ def check_tool_call(request: ToolCallRequest):
         tool=tool,
         params=params,
         path=path,
-        content=content,
+        content=detection_content,
         command=command,
         sql=sql,
     )
@@ -285,26 +287,26 @@ def check_tool_call(request: ToolCallRequest):
     risk_score += resource_risk_score
     reason.extend(resource_reasons)
 
-    # 3. ?????????????
-    # ????????????????? URL ?????????
-    # ?? public/%2e%2e/secret?public/%252e%252e%252fsecret ????
+    # 3. 路径规范化与绕过检测：
+    # 对用户输入路径做重复 URL 解码、分隔符归一化和目录穿越检测。
+    # 用于拦截 public/%2e%2e/secret、public/%252e%252e%252fsecret 等绕过写法。
     if path_analysis.reasons:
         reason.extend(path_analysis.reasons)
 
     if path_analysis.has_traversal:
         risk_score += get_risk_score("path_traversal", 60)
         hard_deny = True
-        reason.append("????????????????????")
+        reason.append("路径包含目录穿越片段，本次调用进入拒绝路径。")
 
     if path_analysis.has_encoded_bypass:
         risk_score += get_risk_score("path_traversal", 60)
         hard_deny = True
-        reason.append("???? URL ??????????????")
+        reason.append("路径存在 URL 编码绕过风险，本次调用进入拒绝路径。")
 
     if path_analysis.is_absolute:
         risk_score += get_risk_score("absolute_path", 40)
         hard_deny = True
-        reason.append("????????? UNC ???????????")
+        reason.append("路径为绝对路径或 UNC 路径，本次调用进入拒绝路径。")
 
     # 3.5 路径关键词风险判断：
     # 从 config/policy.yaml 的 dangerous_keywords.path / sensitive_path 中读取。
@@ -364,14 +366,14 @@ def check_tool_call(request: ToolCallRequest):
     # 6. 内容风险判断：
     # 从 config/policy.yaml 的 dangerous_keywords 中读取
     prompt_injection_keywords = get_dangerous_keywords("prompt_injection")
-    matched_prompt_keywords = match_keywords(content, prompt_injection_keywords)
+    matched_prompt_keywords = match_keywords(detection_content, prompt_injection_keywords)
 
     for word in matched_prompt_keywords:
         risk_score += get_risk_score("prompt_injection_keyword", 30)
         reason.append(f"内容命中提示注入关键词：{word}")
 
     sensitive_content_keywords = get_dangerous_keywords("sensitive_content")
-    matched_sensitive_keywords = match_keywords(content, sensitive_content_keywords)
+    matched_sensitive_keywords = match_keywords(detection_content, sensitive_content_keywords)
 
     for word in matched_sensitive_keywords:
         risk_score += get_risk_score("sensitive_content_keyword", 20)

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import os
 from functools import lru_cache
@@ -371,6 +371,12 @@ def semantic_check_tool_call(
 
     if deterministic_result.get("labels"):
         return deterministic_result
+
+    embedding_config = config.get("embedding", {}) or {}
+    embedding_enabled = bool(embedding_config.get("enabled", False))
+
+    if not embedding_enabled:
+        return _enabled_empty_result()
 
     try:
         labels, texts, example_embeddings = _get_example_embeddings()

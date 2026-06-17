@@ -51,7 +51,7 @@ def list_demo_cases() -> Dict[str, Any]:
     return {"source": "demo", "message": "Available demo cases", "cases": DEMO_CASES}
 
 
-def build_tool_request_from_plan(user: str, plan_result: AgentPlanResult) -> ToolCallRequest | None:
+def build_tool_request_from_plan(user: str, plan_result: AgentPlanResult, original_input: str = "") -> ToolCallRequest | None:
     if plan_result.status != "planned" or plan_result.tool_call is None:
         return None
     return ToolCallRequest(
@@ -60,6 +60,7 @@ def build_tool_request_from_plan(user: str, plan_result: AgentPlanResult) -> Too
         params=plan_result.tool_call.arguments,
         agent_confidence=plan_result.confidence,
         plan_status=plan_result.status,
+        original_input=original_input or plan_result.original_input,
     )
 
 
@@ -79,7 +80,11 @@ def run_fake_agent_demo(request: AgentTextRequest) -> Dict[str, Any]:
     agent = FakeAgent()
     plan_result = agent.plan(request.user_input)
     agent_result = _model_to_dict(plan_result)
-    tool_request = build_tool_request_from_plan(user=request.user, plan_result=plan_result)
+    tool_request = build_tool_request_from_plan(
+        user=request.user,
+        plan_result=plan_result,
+        original_input=request.user_input,
+    )
     if tool_request is None:
         return {
             "success": True,

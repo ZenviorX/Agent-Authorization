@@ -25,6 +25,11 @@ fail_closed: false
 model:
   name: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
+# 比赛演示默认不主动下载 embedding 模型，避免首次请求卡住前端。
+# 需要真实向量相似度时再改为 true。
+embedding:
+  enabled: false
+
 thresholds:
   global_confirm_score: 0.62
   global_deny_score: 0.78

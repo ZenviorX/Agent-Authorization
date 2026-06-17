@@ -18,6 +18,10 @@ class ToolCallRequest(BaseModel):
     plan_status: Optional[str] = None
     plan_warnings: List[str] = Field(default_factory=list)
 
+    # 原始自然语言输入：用于语义风险、提示注入和审计说明。
+    # 注意：网关最终授权仍以结构化 tool + params 为准，original_input 只作为风险上下文。
+    original_input: Optional[str] = None
+
 
 class ToolCallPlan(BaseModel):
     """

@@ -51,7 +51,9 @@ class FakeAgent:
 
     def _is_read_file_task(self, text: str) -> bool:
         lowered = text.lower()
-        return "读取文件" in text or "查看文件" in text or "读文件" in text or "read file" in lowered
+        if "读取文件" in text or "查看文件" in text or "读文件" in text or "read file" in lowered:
+            return True
+        return bool(re.search(r"(?:读取|查看)[：:\s]+[^，,\s]+", text))
 
     def _is_delete_file_task(self, text: str) -> bool:
         lowered = text.lower()
@@ -68,13 +70,16 @@ class FakeAgent:
     def _extract_file_path(self, text: str) -> str:
         patterns = [
             r"(?:读取文件|查看文件|读文件|删除文件|删掉文件)[：:\s]*(.+)$",
+            r"(?:读取|查看)[：:\s]+(.+)$",
             r"(?:read file|delete file|remove file)[：:\s]*(.+)$",
             r"文件[：:\s]*(.+)$",
         ]
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                return clean_text_value(match.group(1))
+                value = clean_text_value(match.group(1))
+                value = re.split(r"\s*(?:并|然后|之后|，|,)\s*", value, maxsplit=1)[0]
+                return clean_text_value(value)
         return "unknown"
 
     def _build_send_email_call(self, text: str) -> Dict[str, Any]:
@@ -147,6 +152,7 @@ class FakeAgent:
         command_match = re.search(r"(?:命令|command)[是为:：\s]*(.+)", text, re.IGNORECASE)
         if command_match:
             command = clean_text_value(command_match.group(1))
+        command = re.sub(r"^(?:command|cmd)\s*[=:：]\s*", "", command, flags=re.IGNORECASE)
         missing_params = []
         if not command: missing_params.append("command")
         return {

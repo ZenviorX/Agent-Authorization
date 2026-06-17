@@ -42,6 +42,7 @@ def handle_tool_request(
         agent_confidence=request.agent_confidence,
         plan_status=request.plan_status,
         plan_warnings=request.plan_warnings,
+        original_input=request.original_input or original_input,
     )
     check_result = check_tool_call(normalized_request)
 
