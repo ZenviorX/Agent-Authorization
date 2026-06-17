@@ -18,10 +18,18 @@ from pathlib import Path
 
 
 def fix_console_encoding():
+    """
+    Force UTF-8 mode for Windows console and Python subprocesses.
+    """
+
+    os.environ.setdefault("PYTHONUTF8", "1")
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+
     if os.name == "nt":
         os.system("chcp 65001 > nul")
 
     try:
+        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
@@ -429,3 +437,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AgentCommandInput,
   AgentCommandResponse,
   AuditLog,
@@ -86,8 +86,8 @@ async function postJson(endpoint: string, body: unknown, timeoutMs = COMMAND_TIM
 function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCommandResponse {
   const lowered = input.userInput.toLowerCase();
   const isSecret = input.userInput.includes('secret/') || input.userInput.includes('password');
-  const isDelete = input.userInput.includes('删除') || lowered.includes('delete') || lowered.includes('remove');
-  const isShell = input.userInput.includes('命令') || lowered.includes('shell') || lowered.includes('command');
+  const isDelete = input.userInput.includes('鍒犻櫎') || lowered.includes('delete') || lowered.includes('remove');
+  const isShell = input.userInput.includes('鍛戒护') || lowered.includes('shell') || lowered.includes('command');
   const isUnknown = !input.userInput.trim();
   const decision = isUnknown ? 'deny' : isSecret || isShell ? 'deny' : isDelete ? 'confirm' : 'allow';
   const riskScore = decision === 'deny' ? 92 : decision === 'confirm' ? 68 : 18;
@@ -101,7 +101,7 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
       success: true,
       executed: false,
       source: 'frontend.mock',
-      message: '后端未连接，当前展示的是前端 Mock 判定。启动后端后会自动调用真实 FakeAgent / LLM 接口。',
+      message: '鍚庣鏈繛鎺ワ紝褰撳墠灞曠ず鐨勬槸鍓嶇 Mock 鍒ゅ畾銆傚惎鍔ㄥ悗绔悗浼氳嚜鍔ㄨ皟鐢ㄧ湡瀹?FakeAgent / LLM 鎺ュ彛銆?,
       original_input: input.userInput,
       agent_result: {
         agent: input.mode.includes('llm') ? 'MultiStepLLMAgent' : 'FakeAgent',
@@ -110,7 +110,7 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
         original_input: input.userInput,
         tool_call: isUnknown ? null : {
           tool_name: isShell ? 'shell.run' : isDelete ? 'file.delete' : 'file.read',
-          description: isShell ? '执行系统命令' : isDelete ? '删除文件' : '读取文件内容',
+          description: isShell ? '鎵ц绯荤粺鍛戒护' : isDelete ? '鍒犻櫎鏂囦欢' : '璇诲彇鏂囦欢鍐呭',
           arguments: isShell
             ? { command: input.userInput }
             : { path: isSecret ? 'secret/password.txt' : isDelete ? 'public/notice.txt' : 'public/notice.txt' },
@@ -121,10 +121,10 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
         decision,
         risk_score: riskScore,
         reason: decision === 'allow'
-          ? ['Mock：公开资源读取，风险较低。']
+          ? ['Mock锛氬叕寮€璧勬簮璇诲彇锛岄闄╄緝浣庛€?]
           : decision === 'confirm'
-            ? ['Mock：删除类操作具有破坏性，需要人工确认。']
-            : ['Mock：命中敏感路径、系统命令或不可识别任务，禁止执行。']
+            ? ['Mock锛氬垹闄ょ被鎿嶄綔鍏锋湁鐮村潖鎬э紝闇€瑕佷汉宸ョ‘璁ゃ€?]
+            : ['Mock锛氬懡涓晱鎰熻矾寰勩€佺郴缁熷懡浠ゆ垨涓嶅彲璇嗗埆浠诲姟锛岀姝㈡墽琛屻€?]
       },
       tool_result: null,
       pending_id: decision === 'confirm' ? 'mock-pending-001' : null
@@ -156,7 +156,7 @@ async function runFakeAgentCheck(input: AgentCommandInput): Promise<AgentCommand
         success: true,
         executed: false,
         source: 'frontend.fake_check',
-        message: 'FakeAgent 未生成可执行工具调用，因此未进入 Gateway 判定。',
+        message: 'FakeAgent 鏈敓鎴愬彲鎵ц宸ュ叿璋冪敤锛屽洜姝ゆ湭杩涘叆 Gateway 鍒ゅ畾銆?,
         original_input: input.userInput,
         agent_result: agentResult,
         gateway_result: null,
@@ -182,7 +182,7 @@ async function runFakeAgentCheck(input: AgentCommandInput): Promise<AgentCommand
       success: true,
       executed: false,
       source: 'frontend.fake_check',
-      message: 'FakeAgent 已完成自然语言规划，Gateway 已完成授权判定，未执行真实工具。',
+      message: 'FakeAgent 宸插畬鎴愯嚜鐒惰瑷€瑙勫垝锛孏ateway 宸插畬鎴愭巿鏉冨垽瀹氾紝鏈墽琛岀湡瀹炲伐鍏枫€?,
       original_input: input.userInput,
       agent_result: agentResult,
       gateway_result: gatewayResult,
@@ -242,7 +242,7 @@ export const api = {
         body: JSON.stringify({ decision })
       });
     } catch {
-      // Mock 模式下无需真实提交。
-    }
+      // Mock 妯″紡涓嬫棤闇€鐪熷疄鎻愪氦銆?    }
   }
 };
+
