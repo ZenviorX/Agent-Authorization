@@ -32,4 +32,20 @@ dist/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
-frontend
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Local environment and secrets
+.env
+.env.*
+*.env
+!.env.example
+!frontend/.env.example
+config/secrets/
+secrets/
+
+# Runtime sandbox generated outputs
+runtime_workspace/outbox/
+runtime_workspace/evidence/
+runtime_workspace/re
