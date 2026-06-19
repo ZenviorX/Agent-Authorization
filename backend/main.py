@@ -213,3 +213,51 @@ def api_status():
         ),
     }
 
+
+# === Teacher review cleanup: legacy frontend route notice ===
+# The project has migrated from FastAPI-served static HTML pages to
+# a Vite + React frontend. Keep these compatibility routes friendly.
+def _install_legacy_frontend_route_notice():
+    try:
+        from fastapi.responses import JSONResponse
+    except Exception:
+        return
+
+    legacy_paths = {
+        "/",
+        "/showcase",
+        "/benchmark-dashboard",
+        "/task-chain",
+        "/attack-chain-runtime",
+        "/security-dashboard",
+        "/sandbox-dashboard",
+        "/authorized-evidence",
+        "/tool-proxy",
+    }
+
+    try:
+        app.router.routes = [
+            route
+            for route in app.router.routes
+            if getattr(route, "path", None) not in legacy_paths
+        ]
+    except Exception:
+        return
+
+    async def legacy_frontend_notice():
+        return JSONResponse(
+            {
+                "message": "旧版后端静态页面入口已废弃，请访问新版 React 前端。",
+                "frontend": "http://127.0.0.1:5173",
+                "backend": "http://127.0.0.1:8000",
+                "docs": "http://127.0.0.1:8000/docs",
+                "recommended_demo_mode": "FakeAgent 规划 + Gateway 只判定",
+            }
+        )
+
+    for path in sorted(legacy_paths):
+        app.add_api_route(path, legacy_frontend_notice, methods=["GET"], include_in_schema=False)
+
+
+_install_legacy_frontend_route_notice()
+# === End teacher review cleanup ===

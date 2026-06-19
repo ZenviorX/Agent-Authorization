@@ -83,3 +83,12 @@ project_audit_for_chatgpt.zip
 Thumbs.db
 .vscode/
 .idea/
+# Teacher review cleanup generated files
+_backup_teacher_review_*/
+_backup_before_*/
+_patch_apply_temp/
+# Local archives
+/package.json
+# Python cache
+# Local environment files
+!frontend/.env.example
