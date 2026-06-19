@@ -1,34 +1,30 @@
-# Python cache and bytecode
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Python tooling caches and reports
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .coverage
 coverage.xml
 htmlcov/
+*.egg-info/
+build/
+dist/
 
-# Python virtual environments
+# Virtual environments
 venv/
 .venv/
 env/
 ENV/
 
-# Local model/cache files
+# Local caches and models
 .cache/
 models/
 .huggingface/
 sentence_transformers/
 
-# Build artifacts
-build/
-dist/
-*.egg-info/
-
-# Frontend dependencies and build outputs
+# Frontend
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
@@ -36,7 +32,7 @@ frontend/.env
 frontend/.env.*
 !frontend/.env.example
 
-# Local environment and secrets
+# Environment and secrets
 .env
 .env.*
 *.env
@@ -45,7 +41,49 @@ frontend/.env.*
 config/secrets/
 secrets/
 
-# Runtime sandbox generated outputs
+# Runtime generated files
 runtime_workspace/outbox/
 runtime_workspace/evidence/
-runtime_workspace/re
+runtime_workspace/reports/
+runtime_workspace/*.db
+runtime_workspace/agent_runtime.db
+runtime_workspace/public/evidence_demo_note.txt
+runtime_workspace/public/runtime_demo_note.txt
+
+# Generated experiment outputs
+Results/Result_*.html
+Results/Result_*.json
+experiments/results/
+
+# Logs
+logs/
+*.log
+*.jsonl
+
+# Archives and temporary files
+*.zip
+semantic_guard_bundle*/
+semantic_guard_bundle*.zip
+*.bak
+*.backup
+*.bak-*
+*.backup-*
+pytest_fail*.txt
+cleanup_teacher_review.py
+
+# ChatGPT cleanup temporary files
+_backup_teacher_review_*/
+_backup_before_*/
+_patch_apply_temp/
+_project_audit_for_chatgpt/
+project_audit_for_chatgpt.zip
+
+# Mistaken root-level npm files
+/package.json
+/package-lock.json
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
