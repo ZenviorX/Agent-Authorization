@@ -1,12 +1,15 @@
-﻿# Python cache and bytecode
+# Python cache and bytecode
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Python tooling caches
+# Python tooling caches and reports
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Python virtual environments
 venv/
@@ -29,66 +32,4 @@ dist/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
-frontend/.env
-
-# Local environment and secrets
-.env
-.env.*
-*.env
-!.env.example
-config/secrets/
-secrets/
-
-# Runtime sandbox generated outputs
-runtime_workspace/outbox/
-runtime_workspace/evidence/
-runtime_workspace/reports/
-runtime_workspace/*.db
-runtime_workspace/agent_runtime.db
-runtime_workspace/public/evidence_demo_note.txt
-runtime_workspace/public/runtime_demo_note.txt
-
-# Generated dashboard and experiment outputs
-Results/Result_*.html
-Results/Result_*.json
-experiments/results/
-
-# Logs
-logs/
-logs/*.log
-logs/*.jsonl
-*.log
-
-# Temporary install bundles and archives
-*.zip
-semantic_guard_bundle*/
-semantic_guard_bundle*.zip
-
-# Temporary backup files
-*.bak
-*.backup
-*.bak-*
-*.backup-*
-pytest_fail*.txt
-
-# ChatGPT audit temporary files
-_project_audit_for_chatgpt/
-project_audit_for_chatgpt.zip
-
-# Root-level mistaken npm files
-/package-lock.json
-
-# OS/editor files
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-# Teacher review cleanup generated files
-_backup_teacher_review_*/
-_backup_before_*/
-_patch_apply_temp/
-# Local archives
-/package.json
-# Python cache
-# Local environment files
-!frontend/.env.example
+frontend
