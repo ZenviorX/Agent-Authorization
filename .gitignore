@@ -71,7 +71,7 @@ semantic_guard_bundle*.zip
 pytest_fail*.txt
 cleanup_teacher_review.py
 
-# ChatGPT cleanup temporary files
+# Temporary cleanup and backup files
 _backup_teacher_review_*/
 _backup_before_*/
 _patch_apply_temp/
