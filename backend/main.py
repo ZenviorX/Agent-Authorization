@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +21,7 @@ from backend.routes.agent_runtime_routes import router as agent_runtime_router
 from backend.routes.benchmark_dashboard_routes import router as benchmark_dashboard_router
 from backend.routes.tool_proxy_routes import router as tool_proxy_router
 from backend.routes.external_agent_routes import router as external_agent_router
+from backend.routes.evaluation_result_routes import router as evaluation_result_router
 
 
 app = FastAPI(
@@ -93,6 +94,7 @@ app.include_router(agent_runtime_router)
 app.include_router(benchmark_dashboard_router)
 app.include_router(tool_proxy_router)
 app.include_router(external_agent_router)
+app.include_router(evaluation_result_router)
 
 
 # -----------------------------
@@ -264,3 +266,4 @@ def _install_legacy_frontend_route_notice():
 
 _install_legacy_frontend_route_notice()
 # === End teacher review cleanup ===
+

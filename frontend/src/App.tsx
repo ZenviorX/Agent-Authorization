@@ -8,18 +8,26 @@ import { AuditPage } from './pages/AuditPage';
 import { EvaluationPage } from './pages/EvaluationPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { api } from './services/api';
-import type { AuditLog, EvaluationMetric, GatewayRequest, Overview, PolicyRule, SystemSetting } from './types/domain';
+import type {
+  AuditLog,
+  EvaluationMetric,
+  GatewayRequest,
+  Overview,
+  PolicyRule,
+  StrategyComparisonResponse,
+  SystemSetting
+} from './types/domain';
 import './styles/global.css';
 import './styles/layout.css';
 
 const navItems = [
-  { key: 'workbench', label: '网关工作台', icon: 'shield' },
-  { key: 'dashboard', label: '态势总览', icon: 'dashboard' },
-  { key: 'requests', label: '请求审查', icon: 'requests' },
-  { key: 'policies', label: '策略中心', icon: 'policies' },
-  { key: 'audit', label: '审计日志', icon: 'audit' },
-  { key: 'evaluation', label: '效果评测', icon: 'lab' },
-  { key: 'settings', label: '系统设置', icon: 'settings' }
+  { key: 'workbench', label: '?????', icon: 'shield' },
+  { key: 'dashboard', label: '????', icon: 'dashboard' },
+  { key: 'requests', label: '????', icon: 'requests' },
+  { key: 'policies', label: '????', icon: 'policies' },
+  { key: 'audit', label: '????', icon: 'audit' },
+  { key: 'evaluation', label: '????', icon: 'lab' },
+  { key: 'settings', label: '????', icon: 'settings' }
 ] as const;
 
 type PageKey = typeof navItems[number]['key'];
@@ -32,18 +40,28 @@ export default function App() {
   const [policies, setPolicies] = useState<PolicyRule[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [evaluations, setEvaluations] = useState<EvaluationMetric[]>([]);
+  const [strategyComparison, setStrategyComparison] = useState<StrategyComparisonResponse | null>(null);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
 
   useEffect(() => {
     let mounted = true;
     async function load() {
       setLoading(true);
-      const [overviewData, requestData, policyData, auditData, evaluationData, settingData] = await Promise.all([
+      const [
+        overviewData,
+        requestData,
+        policyData,
+        auditData,
+        evaluationData,
+        strategyComparisonData,
+        settingData
+      ] = await Promise.all([
         api.getOverview(),
         api.getRequests(),
         api.getPolicies(),
         api.getAuditLogs(),
         api.getEvaluations(),
+        api.getStrategyComparison(),
         api.getSettings()
       ]);
       if (!mounted) return;
@@ -52,6 +70,7 @@ export default function App() {
       setPolicies(policyData);
       setAuditLogs(auditData);
       setEvaluations(evaluationData);
+      setStrategyComparison(strategyComparisonData);
       setSettings(settingData);
       setLoading(false);
     }
@@ -59,7 +78,7 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
-  const currentTitle = useMemo(() => navItems.find((item) => item.key === page)?.label ?? '总览', [page]);
+  const currentTitle = useMemo(() => navItems.find((item) => item.key === page)?.label ?? '??', [page]);
 
   async function handleDecision(id: string, result: 'approved' | 'rejected') {
     await api.submitDecision(id, result);
@@ -67,7 +86,7 @@ export default function App() {
       ...item,
       status: result,
       decision: result === 'approved' ? 'allow' : 'deny',
-      reason: result === 'approved' ? `${item.reason} 人工复核后通过。` : `${item.reason} 人工复核后拒绝。`
+      reason: result === 'approved' ? `${item.reason} ????????` : `${item.reason} ????????`
     } : item));
   }
 
@@ -77,7 +96,7 @@ export default function App() {
     requests: <RequestsPage requests={requests} onApprove={(id) => void handleDecision(id, 'approved')} onReject={(id) => void handleDecision(id, 'rejected')} />,
     policies: <PoliciesPage policies={policies} />,
     audit: <AuditPage logs={auditLogs} />,
-    evaluation: <EvaluationPage metrics={evaluations} />,
+    evaluation: <EvaluationPage metrics={evaluations} strategyComparison={strategyComparison} />,
     settings: <SettingsPage settings={settings} />
   }[page];
 
@@ -88,7 +107,7 @@ export default function App() {
           <div className="brand-mark"><Icon name="shield" /></div>
           <div>
             <strong>ZenviorX</strong>
-            <span>AI 安全网关</span>
+            <span>AI ????</span>
           </div>
         </div>
 
@@ -108,26 +127,26 @@ export default function App() {
         <div className="sidebar-card">
           <span>System Status</span>
           <strong>{loading ? 'Loading...' : 'Protected'}</strong>
-          <small>Command → Agent → Gateway · {overview?.activePolicies ?? 0} policies</small>
+          <small>Command ? Agent ? Gateway ? {overview?.activePolicies ?? 0} policies</small>
         </div>
       </aside>
 
       <main className="main-panel">
         <header className="topbar">
           <div>
-            <span className="eyebrow">当前页面</span>
+            <span className="eyebrow">????</span>
             <h1>{currentTitle}</h1>
           </div>
           <div className="topbar-actions">
-            <div className="search-box">⌕ 搜索请求 / 策略 / 日志</div>
-            <button className="primary-btn small" onClick={() => setPage('workbench')}>输入命令</button>
+            <div className="search-box">? ???? / ?? / ??</div>
+            <button className="primary-btn small" onClick={() => setPage('workbench')}>????</button>
           </div>
         </header>
 
         {loading ? (
           <div className="loading-screen">
             <div className="loader" />
-            <p>正在加载网关数据……</p>
+            <p>??????????</p>
           </div>
         ) : content}
       </main>

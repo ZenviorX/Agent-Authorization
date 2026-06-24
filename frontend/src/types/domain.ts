@@ -65,6 +65,34 @@ export interface SystemSetting {
   description: string;
 }
 
+export interface StrategyComparisonItem {
+  total_cases: number;
+  attack_cases: number;
+  normal_cases: number;
+  attack_block_or_confirm: number;
+  attack_allow: number;
+  normal_not_denied: number;
+  normal_denied: number;
+  decision_match_cases: number;
+  comparable_cases: number;
+  attack_block_or_confirm_rate: number;
+  attack_allow_rate: number;
+  normal_not_denied_rate: number;
+  normal_denied_rate: number;
+  decision_match_rate: number;
+}
+
+export interface StrategyComparisonResponse {
+  available: boolean;
+  message?: string;
+  hint?: string;
+  total_cases: number;
+  total_records: number;
+  elapsed_ms: number;
+  summary: Record<string, StrategyComparisonItem>;
+  outputs: Record<string, string>;
+}
+
 export type AgentRunMode =
   | 'fake_check'
   | 'tool_proxy_oauth'
