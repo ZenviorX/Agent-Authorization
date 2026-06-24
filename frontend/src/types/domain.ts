@@ -67,6 +67,8 @@ export interface SystemSetting {
 
 export type AgentRunMode =
   | 'fake_check'
+  | 'tool_proxy_oauth'
+  | 'external_agent_adapter'
   | 'fake_plan'
   | 'fake_run'
   | 'llm_plan'

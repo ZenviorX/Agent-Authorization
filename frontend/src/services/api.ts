@@ -196,13 +196,156 @@ async function runFakeAgentCheck(input: AgentCommandInput): Promise<AgentCommand
   };
 }
 
+async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCommandResponse> {
+  const endpoint = '/tool-proxy/authorize';
+  const lowered = input.userInput.toLowerCase();
+  const isExternalSend =
+    input.userInput.includes('外发')
+    || input.userInput.includes('发送')
+    || input.userInput.includes('邮箱')
+    || lowered.includes('email')
+    || lowered.includes('workbuddy');
+
+  const body = isExternalSend
+    ? {
+        user: input.user,
+        original_task: '请把内容发送给外部邮箱',
+        tool: 'email.send',
+        params: {
+          to: 'attacker@example.com',
+          content: 'demo content'
+        },
+        input_labels: [],
+        input_from_steps: [],
+        agent_confidence: 0.95,
+        execute: false,
+        agent_platform: 'workbuddy',
+        auth_mode: 'oauth_scope',
+        requested_scopes: ['tool:file:read'],
+        oauth_token_claims: {
+          sub: 'agent-workbuddy-demo',
+          client_id: 'workbuddy-demo-client',
+          scope: 'tool:file:read'
+        },
+        sandbox_profile: 'strict',
+        external_agent_metadata: {
+          demo_case: 'insufficient_scope_external_email'
+        }
+      }
+    : {
+        user: input.user,
+        original_task: '请读取 public/notice.txt 并总结',
+        tool: 'file.read',
+        params: {
+          path: 'public/notice.txt'
+        },
+        input_labels: [],
+        input_from_steps: [],
+        agent_confidence: 0.95,
+        execute: false,
+        agent_platform: 'openclaw',
+        auth_mode: 'oauth_scope',
+        requested_scopes: ['tool:file:read'],
+        oauth_token_claims: {
+          sub: 'agent-openclaw-demo',
+          client_id: 'openclaw-demo-client',
+          scope: 'tool:file:read'
+        },
+        sandbox_profile: 'local_readonly',
+        external_agent_metadata: {
+          demo_case: 'valid_scope_public_read'
+        }
+      };
+
+  const data = await postJson(endpoint, body);
+
+  return {
+    ok: true,
+    endpoint,
+    data: {
+      ...data,
+      source: 'frontend.tool_proxy_oauth',
+      message: isExternalSend
+        ? 'WorkBuddy 只声明 tool:file:read，却尝试 email.send，Tool Proxy 在 OAuth-style scope 检查阶段拒绝。'
+        : 'OpenClaw 声明 tool:file:read，并读取公开文件，Tool Proxy scope 检查通过后继续进入 Runtime Monitor。'
+    }
+  };
+}
+
+
+async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<AgentCommandResponse> {
+  const endpoint = '/external-agent/simulate';
+  const lowered = input.userInput.toLowerCase();
+
+  let platform = 'openclaw';
+  let scenario = 'valid_public_read';
+  let user = input.user;
+
+  if (
+    input.userInput.includes('外发')
+    || input.userInput.includes('scope 不足')
+    || input.userInput.includes('Scope 不足')
+    || input.userInput.includes('邮箱')
+    || lowered.includes('insufficient')
+    || lowered.includes('workbuddy')
+  ) {
+    platform = 'workbuddy';
+    scenario = 'insufficient_scope_email';
+  }
+
+  if (
+    input.userInput.includes('内部邮件')
+    || input.userInput.includes('人工确认')
+    || lowered.includes('confirm')
+  ) {
+    platform = 'workbuddy';
+    scenario = 'valid_internal_email_confirm';
+  }
+
+  if (
+    input.userInput.includes('shell')
+    || input.userInput.includes('命令')
+    || input.userInput.includes('沙箱')
+    || lowered.includes('sandbox')
+  ) {
+    platform = 'custom';
+    scenario = 'sandbox_block_shell';
+    user = 'admin';
+  }
+
+  const data = await postJson(endpoint, {
+    platform,
+    scenario,
+    user,
+    execute: false
+  });
+
+  return {
+    ok: true,
+    endpoint,
+    data: {
+      ...data,
+      source: 'frontend.external_agent_adapter',
+      message: '外部 Agent 请求已先进入 Adapter 标准化，再进入 Tool Proxy、OAuth-style scope、Capability Contract 和 Runtime Monitor。'
+    }
+  };
+}
+
 async function runCommand(input: AgentCommandInput): Promise<AgentCommandResponse> {
   try {
     if (input.mode === 'fake_check') {
       return await runFakeAgentCheck(input);
     }
 
-    const endpointMap: Record<Exclude<AgentCommandInput['mode'], 'fake_check'>, string> = {
+    if (input.mode === 'tool_proxy_oauth') {
+      return await runToolProxyOAuthDemo(input);
+    }
+
+    if (input.mode === 'external_agent_adapter') {
+      return await runExternalAgentAdapterDemo(input);
+    }
+
+    const endpointMap: Record<Exclude<AgentCommandInput['mode'], 'fake_check' | 'tool_proxy_oauth' | 'external_agent_adapter'>, string> = {
       fake_plan: '/demo/fake-agent/plan',
       fake_run: '/demo/fake-agent/run',
       llm_plan: '/agent-runtime/multistep-llm/plan',

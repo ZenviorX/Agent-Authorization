@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,7 @@ from backend.routes.showcase_report_routes import router as showcase_report_rout
 from backend.routes.agent_runtime_routes import router as agent_runtime_router
 from backend.routes.benchmark_dashboard_routes import router as benchmark_dashboard_router
 from backend.routes.tool_proxy_routes import router as tool_proxy_router
+from backend.routes.external_agent_routes import router as external_agent_router
 
 
 app = FastAPI(
@@ -91,6 +92,7 @@ app.include_router(showcase_report_router)
 app.include_router(agent_runtime_router)
 app.include_router(benchmark_dashboard_router)
 app.include_router(tool_proxy_router)
+app.include_router(external_agent_router)
 
 
 # -----------------------------
@@ -206,6 +208,7 @@ def api_status():
             "agent_runtime",
             "benchmark_dashboard",
             "tool_proxy",
+            "external_agent_adapter",
         ],
         "note": (
             "FakeAgent is demo-only. Real Agent runtime APIs are exposed under "
