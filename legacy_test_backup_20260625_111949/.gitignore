@@ -87,13 +87,3 @@ project_audit_for_chatgpt.zip
 Thumbs.db
 .vscode/
 .idea/
-
-# Independent test module generated outputs
-test/results/latest_*.json
-test/results/latest_*.csv
-test/results/latest_*.md
-test/results/latest_*.html
-test/results/run_*/
-test/results/archive/
-!test/results/.gitkeep
-
