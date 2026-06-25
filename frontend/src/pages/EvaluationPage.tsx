@@ -1,15 +1,46 @@
-import type { EvaluationMetric } from '../types/domain';
+import type { EvaluationMetric, StrategyComparisonResponse } from '../types/domain';
 import { MetricCard } from '../components/MetricCard';
 import { Section } from '../components/Section';
 
-export function EvaluationPage({ metrics }: { metrics: EvaluationMetric[] }) {
+function formatRate(value?: number) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '0.00%';
+  return `${(value * 100).toFixed(2)}%`;
+}
+
+function formatMs(value?: number) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '0.00 ms';
+  return `${value.toFixed(2)} ms`;
+}
+
+const strategyNames: Record<string, string> = {
+  allow_all: 'Allow All',
+  keyword_only: 'Keyword Only',
+  gateway: 'Gateway'
+};
+
+const strategyDescriptions: Record<string, string> = {
+  allow_all: '???????????????????',
+  keyword_only: '???????????????????',
+  gateway: '??????????????????????????'
+};
+
+export function EvaluationPage({
+  metrics,
+  strategyComparison
+}: {
+  metrics: EvaluationMetric[];
+  strategyComparison: StrategyComparisonResponse | null;
+}) {
+  const summary = strategyComparison?.summary ?? {};
+  const strategies = ['allow_all', 'keyword_only', 'gateway'].filter((name) => summary[name]);
+
   return (
     <div className="page-grid">
       <Section
         eyebrow="Evaluation Lab"
-        title="效果评测"
-        description="适合把实验里的 100 轮测试、攻击拦截率、误拦率和耗时统计展示出来。"
-        actions={<button className="primary-btn small">运行测试</button>}
+        title="????"
+        description="??????????????????????????????????"
+        actions={<span className="status-pill">{strategyComparison?.available ? '?????' : '??????'}</span>}
       >
         <div className="metric-grid compact">
           {metrics.map((metric) => (
@@ -25,14 +56,95 @@ export function EvaluationPage({ metrics }: { metrics: EvaluationMetric[] }) {
         </div>
       </Section>
 
-      <Section eyebrow="Test Cases" title="建议测试用例矩阵" description="答辩时可以说明你们不是只做 UI，而是有安全验证闭环。">
+      <Section
+        eyebrow="Strategy Comparison"
+        title="???????"
+        description="??????????? allow_all?keyword_only ? gateway ???????????"
+      >
+        {strategyComparison?.available ? (
+          <>
+            <div className="metric-grid compact">
+              <MetricCard
+                title="????"
+                value={strategyComparison.total_cases}
+                suffix=" cases"
+                hint="???????????????"
+                icon="lab"
+              />
+              <MetricCard
+                title="????"
+                value={strategyComparison.total_records}
+                suffix=" rows"
+                hint="???? ? ?????"
+                icon="dashboard"
+              />
+              <MetricCard
+                title="????"
+                value={Number(strategyComparison.elapsed_ms.toFixed(2))}
+                suffix=" ms"
+                hint="???????????"
+                icon="spark"
+              />
+            </div>
+
+            <div className="matrix-grid">
+              {strategies.map((name) => {
+                const item = summary[name];
+                return (
+                  <div key={name}>
+                    <strong>{strategyNames[name] ?? name}</strong>
+                    <span>{strategyDescriptions[name] ?? '??????'}</span>
+                    <span>????/????{formatRate(item.attack_block_or_confirm_rate)}</span>
+                    <span>???????{formatRate(item.attack_allow_rate)}</span>
+                    <span>???????{formatRate(item.normal_not_denied_rate)}</span>
+                    <span>??????{formatRate(item.decision_match_rate)}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="code-panel">
+              <strong>??????</strong>
+              <code>.\scripts\run_strategy_comparison.ps1</code>
+              <small>???????? Results/strategy_comparison_*?</small>
+            </div>
+          </>
+        ) : (
+          <div className="empty-state">
+            <strong>???????????</strong>
+            <p>{strategyComparison?.hint ?? '??????? scripts/run_strategy_comparison.ps1?'}</p>
+            <div className="code-panel">
+              <code>.\scripts\run_strategy_comparison.ps1</code>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section
+        eyebrow="Test Case Matrix"
+        title="??????"
+        description="????????????????????????????SQL ??????????????????"
+      >
         <div className="matrix-grid">
-          <div><strong>正常公开读取</strong><span>预期 allow</span></div>
-          <div><strong>路径穿越</strong><span>预期 deny</span></div>
-          <div><strong>删除文件</strong><span>预期 confirm</span></div>
-          <div><strong>Shell 高危命令</strong><span>预期 deny</span></div>
-          <div><strong>订单提交</strong><span>预期 confirm</span></div>
-          <div><strong>策略修改</strong><span>预期 review</span></div>
+          <div><strong>??????</strong><span>?? allow ? confirm</span></div>
+          <div><strong>????</strong><span>?? deny</span></div>
+          <div><strong>????</strong><span>?? confirm ? deny</span></div>
+          <div><strong>Shell ????</strong><span>?? confirm ? deny</span></div>
+          <div><strong>SQL ??</strong><span>?? confirm ? deny</span></div>
+          <div><strong>????</strong><span>?? confirm ? deny</span></div>
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="Result Files"
+        title="??????"
+        description={`???????${strategyComparison?.available ? '???' : '???'}??? ${formatMs(strategyComparison?.elapsed_ms)}?`}
+      >
+        <div className="matrix-grid">
+          <div><strong>CSV ??</strong><span>{strategyComparison?.outputs?.csv ?? 'Results/strategy_comparison.csv'}</span></div>
+          <div><strong>JSON ??</strong><span>{strategyComparison?.outputs?.json ?? 'Results/strategy_comparison_summary.json'}</span></div>
+          <div><strong>Markdown ??</strong><span>{strategyComparison?.outputs?.markdown ?? 'Results/strategy_comparison_report.md'}</span></div>
+          <div><strong>HTML ???</strong><span>{strategyComparison?.outputs?.html ?? 'Results/strategy_comparison_dashboard.html'}</span></div>
         </div>
       </Section>
     </div>

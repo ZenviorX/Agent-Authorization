@@ -15,6 +15,16 @@ const modeOptions: Array<{
     description: '推荐演示入口：自然语言 -> 工具计划 -> 网关授权判定，不执行工具。'
   },
   {
+    value: 'tool_proxy_oauth',
+    label: '外部 Agent / OAuth Scope 演示',
+    description: '展示 OpenClaw / WorkBuddy 这类外部 Agent 如何通过 Tool Proxy、OAuth-style scope 和沙箱策略进入安全授权边界。'
+  },
+  {
+    value: 'external_agent_adapter',
+    label: 'OpenClaw / WorkBuddy Adapter 演示',
+    description: '展示外部 Agent 请求如何先被 Adapter 标准化，再进入 Tool Proxy 与 Runtime Monitor。'
+  },
+  {
     value: 'fake_plan',
     label: 'FakeAgent 只规划',
     description: '只看自然语言如何被转换成结构化 ToolCallPlan。'
@@ -43,6 +53,12 @@ const modeOptions: Array<{
 
 const samples = [
   { title: '公开文件读取', user: 'user', text: '读取文件 public/notice.txt', mode: 'fake_check' as AgentRunMode },
+  { title: 'OAuth 合法读取', user: 'user', text: 'OpenClaw 读取 public/notice.txt', mode: 'tool_proxy_oauth' as AgentRunMode },
+  { title: 'OAuth 外发拒绝', user: 'user', text: 'WorkBuddy scope 不足但尝试发送外部邮箱', mode: 'tool_proxy_oauth' as AgentRunMode },
+  { title: 'Adapter OpenClaw 读取', user: 'user', text: 'OpenClaw Adapter 合法读取公开文件', mode: 'external_agent_adapter' as AgentRunMode },
+  { title: 'Adapter WorkBuddy 外发拒绝', user: 'user', text: 'WorkBuddy Adapter scope 不足外发邮箱', mode: 'external_agent_adapter' as AgentRunMode },
+  { title: 'Adapter 内部邮件确认', user: 'user', text: 'WorkBuddy Adapter 内部邮件需要人工确认', mode: 'external_agent_adapter' as AgentRunMode },
+  { title: 'Adapter Shell 沙箱阻断', user: 'admin', text: 'Custom Agent shell 命令被沙箱阻断', mode: 'external_agent_adapter' as AgentRunMode },
   { title: '敏感文件拦截', user: 'user', text: '读取文件 secret/password.txt', mode: 'fake_check' as AgentRunMode },
   { title: '删除操作确认', user: 'user', text: '删除文件 public/notice.txt', mode: 'fake_check' as AgentRunMode },
   { title: '内部邮件确认', user: 'user', text: '给 teacher@sdu.edu.cn 发邮件，内容是 public notice', mode: 'fake_check' as AgentRunMode },
@@ -152,7 +168,19 @@ function extractResultView(data: JsonRecord) {
     || getNestedObject(data, 'tool_call')
     || getStepToolCall(latestStep);
 
+  const proxyResult = getNestedObject(data, 'proxy_result');
+
+  const directGatewayResult = data.decision || data.risk_score || data.reason
+    ? {
+        decision: data.decision,
+        risk_score: data.risk_score,
+        reason: data.reason
+      }
+    : undefined;
+
   const gatewayResult = getNestedObject(data, 'gateway_result')
+    || proxyResult
+    || directGatewayResult
     || getStepGatewayResult(latestStep);
 
   let finalDecision: unknown = 'unknown';
@@ -197,6 +225,21 @@ function ResultPanel({ result }: ResultPanelProps) {
   const data = result.data;
   const { session, steps, agentResult, toolCall, gatewayResult, finalDecision } = extractResultView(data);
   const reasons = toTextList(gatewayResult?.reason).concat(toTextList(data.error));
+  const proxyResult = getNestedObject(data, 'proxy_result');
+  const adapterTrace = toTextList(data.adapter_trace);
+  const normalizedToolRequest = getNestedObject(data, 'normalized_tool_request');
+  const agentAuthProfile = getNestedObject(data, 'agent_auth_profile') || getNestedObject(proxyResult, 'agent_auth_profile');
+  const authPrincipal = getNestedObject(agentAuthProfile, 'principal');
+  const requiredScopes = toTextList(agentAuthProfile?.required_scopes);
+  const declaredScopes = toTextList(agentAuthProfile?.declared_scopes);
+  const missingScopes = toTextList(agentAuthProfile?.missing_scopes);
+  const sandboxProxyResult = getNestedObject(data, 'proxy_result');
+  const sandboxEvaluation = getNestedObject(data, 'sandbox_evaluation') || getNestedObject(sandboxProxyResult, 'sandbox_evaluation');
+  const sandboxPolicy = getNestedObject(sandboxEvaluation, 'policy');
+  const sandboxReasons = toTextList(sandboxEvaluation?.reason);
+  const sandboxAllowedTools = toTextList(sandboxPolicy?.allowed_tools);
+  const sandboxDeniedTools = toTextList(sandboxPolicy?.denied_tools);
+
   const hasGatewayVerdict = Boolean(gatewayResult?.decision);
   const headlineLabel = hasGatewayVerdict ? 'Gateway Verdict' : 'Agent / Session Status';
 
@@ -233,6 +276,34 @@ function ResultPanel({ result }: ResultPanelProps) {
 
       {typeof data.message === 'string' && <p className="result-message">{data.message}</p>}
       {result.error && <p className="result-error">后端请求提示：{result.error}</p>}
+
+
+      {adapterTrace.length > 0 && (
+        <div className="pipeline-card">
+          <div className="pipeline-title">
+            <Badge tone="purple">Adapter</Badge>
+            <strong>外部 Agent Adapter 封装链路</strong>
+          </div>
+          <div className="reason-list">
+            {adapterTrace.map((item, index) => <p key={index}>{item}</p>)}
+          </div>
+          <div className="kv-grid">
+            <span>Platform</span><code>{String(data.platform || '-')}</code>
+            <span>Scenario</span><code>{String(data.scenario || '-')}</code>
+            <span>Source</span><code>{String(data.source || '-')}</code>
+          </div>
+        </div>
+      )}
+
+      {normalizedToolRequest && (
+        <div className="pipeline-card">
+          <div className="pipeline-title">
+            <Badge tone="blue">Normalized</Badge>
+            <strong>标准化 Tool Proxy 请求</strong>
+          </div>
+          <pre className="json-block">{stringify(normalizedToolRequest)}</pre>
+        </div>
+      )}
 
       {agentResult && (
         <div className="pipeline-card">
@@ -275,6 +346,42 @@ function ResultPanel({ result }: ResultPanelProps) {
         </div>
       )}
 
+      {agentAuthProfile && (
+        <div className="pipeline-card">
+          <div className="pipeline-title">
+            <Badge tone={getDecisionTone(agentAuthProfile.scope_decision)}>OAuth</Badge>
+            <strong>外部 Agent 授权画像</strong>
+          </div>
+
+          <div className="kv-grid">
+            <span>Agent Platform</span><code>{String(agentAuthProfile.agent_platform || '-')}</code>
+            <span>Auth Mode</span><code>{String(agentAuthProfile.auth_mode || '-')}</code>
+            <span>Scope Decision</span><code>{String(agentAuthProfile.scope_decision || '-')}</code>
+            <span>Sandbox Profile</span><code>{String(agentAuthProfile.sandbox_profile || data.sandbox_profile || '-')}</code>
+            <span>Subject</span><code>{String(authPrincipal?.subject || '-')}</code>
+            <span>Client ID</span><code>{String(authPrincipal?.client_id || '-')}</code>
+          </div>
+
+          <div className="step-list">
+            <div className="step-item">
+              <Badge tone="blue">required</Badge>
+              <strong>Required Scopes</strong>
+              <code>{requiredScopes.length ? requiredScopes.join(' / ') : '-'}</code>
+            </div>
+            <div className="step-item">
+              <Badge tone="green">declared</Badge>
+              <strong>Declared Scopes</strong>
+              <code>{declaredScopes.length ? declaredScopes.join(' / ') : '-'}</code>
+            </div>
+            <div className="step-item">
+              <Badge tone={missingScopes.length ? 'red' : 'green'}>missing</Badge>
+              <strong>Missing Scopes</strong>
+              <code>{missingScopes.length ? missingScopes.join(' / ') : 'none'}</code>
+            </div>
+          </div>
+        </div>
+      )}
+
       {steps.length > 0 && (
         <div className="pipeline-card">
           <div className="pipeline-title">
@@ -290,6 +397,43 @@ function ResultPanel({ result }: ResultPanelProps) {
                 <code>{String(step.decision || 'pending')} · risk {String(step.risk_score ?? '-')}</code>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+
+      {sandboxEvaluation && (
+        <div className="pipeline-card">
+          <div className="pipeline-title">
+            <Badge tone={getDecisionTone(sandboxEvaluation.decision)}>Sandbox</Badge>
+            <strong>Sandbox Policy 评估结果</strong>
+          </div>
+
+          <div className="kv-grid">
+            <span>Sandbox Profile</span><code>{String(sandboxEvaluation.profile || sandboxProxyResult?.sandbox_profile || data.sandbox_profile || '-')}</code>
+            <span>Sandbox Decision</span><code>{String(sandboxEvaluation.decision || '-')}</code>
+            <span>Risk Delta</span><code>{String(sandboxEvaluation.risk_delta ?? '-')}</code>
+            <span>Filesystem</span><code>{String(sandboxPolicy?.filesystem || '-')}</code>
+            <span>Network</span><code>{String(sandboxPolicy?.network || '-')}</code>
+            <span>Shell Enabled</span><code>{String(sandboxPolicy?.shell_enabled ?? '-')}</code>
+            <span>Side Effects</span><code>{String(sandboxPolicy?.side_effects || '-')}</code>
+          </div>
+
+          <div className="step-list">
+            <div className="step-item">
+              <Badge tone="green">allow</Badge>
+              <strong>Allowed Tools</strong>
+              <code>{sandboxAllowedTools.length ? sandboxAllowedTools.join(' / ') : '-'}</code>
+            </div>
+            <div className="step-item">
+              <Badge tone={sandboxDeniedTools.length ? 'red' : 'green'}>deny</Badge>
+              <strong>Denied Tools</strong>
+              <code>{sandboxDeniedTools.length ? sandboxDeniedTools.join(' / ') : 'none'}</code>
+            </div>
+          </div>
+
+          <div className="reason-list">
+            {sandboxReasons.length ? sandboxReasons.map((reason, index) => <p key={index}>{reason}</p>) : <p>沙箱策略未返回具体 reason。</p>}
           </div>
         </div>
       )}
