@@ -107,13 +107,6 @@ def showcase_page():
         "Showcase frontend file is missing",
     )
 
-@app.get("/benchmark-dashboard")
-def benchmark_dashboard_page():
-    return _serve_frontend_html(
-        FRONTEND_BENCHMARK_DASHBOARD,
-        "Benchmark dashboard frontend file is missing",
-    )
-
 @app.get("/tool-proxy")
 def tool_proxy_page():
     return _serve_frontend_html(
