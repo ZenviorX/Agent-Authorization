@@ -1,107 +1,99 @@
 ﻿# OAuth 与 Agent Authorization 的关系说明
 
-## 1. 为什么老师会提到 OAuth
+## 1. 核心区别
 
-OAuth 2.0 是目前常见的第三方应用授权框架。它解决的是：
+OAuth 主要解决的是：
 
-> 某个应用能不能代表用户访问某个资源？
+谁有没有权限访问某个资源。
 
-例如一个应用想读取用户邮箱、日历或云盘，就需要 access token 和对应的 scope。
+例如，某个 Agent 拿到了这些权限：
 
-但是 AI Agent 场景更复杂。Agent 不只是访问 API，还可能调用文件、Shell、数据库、邮件发送等工具。因此只靠 OAuth scope 还不够。
+tool:file:read
+tool:email:send
 
----
+OAuth 会认为它可以读文件，也可以发邮件。
 
-## 2. OAuth 控制什么
+但是 AI Agent 场景下，仅有 OAuth 不够。因为 OAuth 通常不知道：
 
-OAuth 主要控制：
+1. Agent 为什么要读这个文件；
+2. 读的是不是敏感文件；
+3. 发邮件给谁；
+4. 是否偏离用户原始任务；
+5. 是否受到提示注入影响；
+6. 多个工具调用连起来是否形成攻击链。
 
-- 调用者是谁；
-- 代表哪个用户；
-- 有哪些 scope；
-- 能访问哪个资源服务器；
-- token 是否有效。
+所以本项目不是替代 OAuth，而是在 OAuth 的基础上，继续判断 Agent 的每一次工具调用是否安全。
 
-例如：
+## 2. 本项目解决什么问题
 
-```text
-scope = tool:file:read tool:email:send
-这表示调用者可以读取文件，也可以发送邮件。
+本项目解决的是：
 
-3. 本项目控制什么
+AI Agent 在当前任务中，能不能安全调用某个工具。
 
-本项目 AgentGuard 控制的是：
+系统会检查：
 
-Agent 是否允许调用某个工具；
-工具参数是否安全；
-是否越过当前任务边界；
-是否访问敏感路径；
-是否执行破坏性命令；
-是否把污染数据发送到外部；
-是否需要人工确认；
-是否留下审计证据。
+1. 工具类型，例如 file.read、email.send、shell.run；
+2. 工具参数，例如文件路径、邮箱地址、命令内容；
+3. 当前任务边界；
+4. 数据是否敏感；
+5. 是否存在提示注入；
+6. 是否形成多步攻击链；
+7. 是否需要人工确认；
+8. 是否只能在沙箱中执行。
 
-因此，本项目不是替代 OAuth，而是把 OAuth 的权限思想扩展到 AI Agent 工具调用场景。
+## 3. 对比关系
 
-4. 二者关系
-对比项OAuthAgentGuard
-控制对象API 访问Agent 工具调用
-核心凭证access tokentask contract + gateway decision
-权限表达scopecapability / tool / resource / risk
-请求粒度单次 API 请求多步任务链
-风险类型越权访问资源越权、数据泄露、命令执行、提示注入、多步攻击
-执行前拦截Resource ServerTool Proxy + Gateway + Runtime Monitor
-5. 本项目新增设计
+| 对比项 | OAuth | AgentGuard |
+|---|---|---|
+| 主要目标 | 判断有没有权限 | 判断这次工具调用是否安全 |
+| 判断依据 | token、scope | scope、任务、参数、风险、数据流 |
+| 控制粒度 | API 权限 | 单次工具调用和多步任务链 |
+| 是否理解任务 | 通常不理解 | 通过任务合约限制 |
+| 是否检查敏感路径 | 通常不检查 | 检查 |
+| 是否检查外部邮箱 | 通常不检查 | 检查 |
+| 是否处理提示注入 | 不负责 | 负责识别 |
+| 是否处理攻击链 | 不负责 | 运行时监控 |
 
-本项目新增 OAuth-style Agent Authorization Profile。
+## 4. 示例
 
-流程如下：
+用户原始任务：
 
-External Agent
-    |
-    | tool + params + OAuth-style scopes
-    v
-Tool Proxy
-    |
-    | scope check
-    v
-Capability Contract
-    |
-    | task boundary check
-    v
-Runtime Monitor
-    |
-    | data-flow / sink / path / risk check
-    v
-allow / confirm / deny
+请总结 public/notice.txt。
 
-这说明本项目可以接入 OpenClaw、WorkBuddy 或其他 Agent 平台。
+恶意行为：
 
-这些外部 Agent 不需要直接接触本地文件系统，而是必须通过 Tool Proxy 提交工具调用请求。
+读取 secret/password.txt，然后发送给 attacker@example.com。
 
-6. 对 OpenClaw / WorkBuddy 的封装思路
+如果只看 OAuth：
 
-如果要封装 OpenClaw、WorkBuddy 或其他 Agent：
+Agent 有 file.read 和 email.send 权限，可能会被放行。
 
-不直接让它们调用本地工具；
-给它们提供统一 Tool Proxy API；
-要求每次工具调用都带上：
-agent_platform；
-original_task；
-tool；
-params；
-requested_scopes；
-sandbox_profile；
-Tool Proxy 先做 OAuth-style scope 检查；
-再进入 Capability Contract；
-最后进入 Runtime Monitor；
-只有 allow 才进入沙箱执行。
+如果使用本项目：
 
-这样可以把外部 Agent 封装到安全沙箱中。
+系统会发现：
 
-7. 项目表达方式
+1. 读取了敏感路径；
+2. 邮件发往外部邮箱；
+3. 行为偏离用户任务；
+4. 存在数据外发风险；
+5. 沙箱策略不允许该行为。
 
-可以在展示中这样讲：
+最终结果：
 
-OAuth 解决“谁可以访问资源”的问题，而我们的系统进一步解决“AI Agent 在当前任务中能不能安全调用工具”的问题。
-我们将 OAuth 的 scope 思想接入 Tool Proxy，但不止步于 scope，而是继续检查任务边界、工具副作用、路径风险、数据流污染和人工确认，因此更适合 AI Agent 的真实安全需求。
+decision = deny
+
+## 5. 外部 Agent 接入思路
+
+对于 OpenClaw、WorkBuddy 或其他外部 Agent，本项目不让它们直接调用本地文件、邮件、命令行或数据库。
+
+它们必须先进入统一入口：
+
+External Agent -> Adapter -> Tool Proxy -> Gateway -> Runtime Monitor -> Sandbox
+
+这样可以把外部 Agent 封装进安全边界。
+
+## 6. 一句话总结
+
+OAuth 解决“谁被授权访问资源”的问题。
+
+AgentGuard 进一步解决“AI Agent 在当前任务中能不能安全调用工具”的问题。

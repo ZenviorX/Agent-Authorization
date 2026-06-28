@@ -6,6 +6,8 @@ import { RequestsPage } from './pages/RequestsPage';
 import { PoliciesPage } from './pages/PoliciesPage';
 import { AuditPage } from './pages/AuditPage';
 import { EvaluationPage } from './pages/EvaluationPage';
+import { ResearchComparisonPage } from './pages/ResearchComparisonPage';
+import { TwoPhaseAuthorizationPage } from './pages/TwoPhaseAuthorizationPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { api } from './services/api';
 import type {
@@ -21,13 +23,15 @@ import './styles/global.css';
 import './styles/layout.css';
 
 const navItems = [
-  { key: 'workbench', label: '?????', icon: 'shield' },
-  { key: 'dashboard', label: '????', icon: 'dashboard' },
-  { key: 'requests', label: '????', icon: 'requests' },
-  { key: 'policies', label: '????', icon: 'policies' },
-  { key: 'audit', label: '????', icon: 'audit' },
-  { key: 'evaluation', label: '????', icon: 'lab' },
-  { key: 'settings', label: '????', icon: 'settings' }
+  { key: 'workbench', label: '授权工作台', icon: 'shield' },
+  { key: 'dashboard', label: '总览仪表盘', icon: 'dashboard' },
+  { key: 'requests', label: '授权请求', icon: 'requests' },
+  { key: 'policies', label: '策略管理', icon: 'policies' },
+  { key: 'audit', label: '审计日志', icon: 'audit' },
+  { key: 'evaluation', label: '评测对比', icon: 'lab' },
+  { key: 'research', label: '科研对比', icon: 'lab' },
+  { key: 'twoPhase', label: '两阶段授权', icon: 'shield' },
+  { key: 'settings', label: '系统设置', icon: 'settings' }
 ] as const;
 
 type PageKey = typeof navItems[number]['key'];
@@ -78,7 +82,7 @@ export default function App() {
     return () => { mounted = false; };
   }, []);
 
-  const currentTitle = useMemo(() => navItems.find((item) => item.key === page)?.label ?? '??', [page]);
+  const currentTitle = useMemo(() => navItems.find((item) => item.key === page)?.label ?? '页面', [page]);
 
   async function handleDecision(id: string, result: 'approved' | 'rejected') {
     await api.submitDecision(id, result);
@@ -86,7 +90,7 @@ export default function App() {
       ...item,
       status: result,
       decision: result === 'approved' ? 'allow' : 'deny',
-      reason: result === 'approved' ? `${item.reason} ????????` : `${item.reason} ????????`
+      reason: result === 'approved' ? `${item.reason}（已人工批准）` : `${item.reason}（已人工拒绝）`
     } : item));
   }
 
@@ -97,6 +101,8 @@ export default function App() {
     policies: <PoliciesPage policies={policies} />,
     audit: <AuditPage logs={auditLogs} />,
     evaluation: <EvaluationPage metrics={evaluations} strategyComparison={strategyComparison} />,
+    research: <ResearchComparisonPage />,
+    twoPhase: <TwoPhaseAuthorizationPage />,
     settings: <SettingsPage settings={settings} />
   }[page];
 
@@ -107,7 +113,7 @@ export default function App() {
           <div className="brand-mark"><Icon name="shield" /></div>
           <div>
             <strong>ZenviorX</strong>
-            <span>AI ????</span>
+            <span>AI Agent 授权</span>
           </div>
         </div>
 
@@ -134,19 +140,19 @@ export default function App() {
       <main className="main-panel">
         <header className="topbar">
           <div>
-            <span className="eyebrow">????</span>
+            <span className="eyebrow">AgentGuard</span>
             <h1>{currentTitle}</h1>
           </div>
           <div className="topbar-actions">
-            <div className="search-box">? ???? / ?? / ??</div>
-            <button className="primary-btn small" onClick={() => setPage('workbench')}>????</button>
+            <div className="search-box">搜索 / 请求 / 策略</div>
+            <button className="primary-btn small" onClick={() => setPage('workbench')}>新建授权</button>
           </div>
         </header>
 
         {loading ? (
           <div className="loading-screen">
             <div className="loader" />
-            <p>??????????</p>
+            <p>正在加载安全网关数据...</p>
           </div>
         ) : content}
       </main>

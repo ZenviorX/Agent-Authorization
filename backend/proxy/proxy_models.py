@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
@@ -55,6 +55,26 @@ class ToolProxyAuthorizeRequest(BaseModel):
         default_factory=dict,
         description="OAuth-like token claims from external Agent.",
     )
+    capability_token: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Task-scoped signed capability token issued by AgentGuard.",
+    )
+
+    capability_token_validation: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Capability token validation result.",
+    )
+
+    authorization_trace: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Ordered authorization decision trace.",
+    )
+
+    task_boundary_evaluation: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Task boundary guard evaluation result.",
+    )
+
     sandbox_profile: str = Field(
         default="default",
         description="Sandbox profile name.",
@@ -63,6 +83,12 @@ class ToolProxyAuthorizeRequest(BaseModel):
         default_factory=dict,
         description="Additional metadata from external Agent adapter.",
     )
+
+    capability_token: str = Field(
+        default="",
+        description="Optional task-scoped capability token issued by AgentGuard.",
+    )
+
 
 
 class ToolProxyAuthorizeResponse(BaseModel):
@@ -84,6 +110,26 @@ class ToolProxyAuthorizeResponse(BaseModel):
         default_factory=dict,
         description="OAuth-style Agent authorization profile.",
     )
+    capability_token: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Task-scoped signed capability token issued by AgentGuard.",
+    )
+
+    capability_token_validation: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Capability token validation result.",
+    )
+
+    authorization_trace: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Ordered authorization decision trace.",
+    )
+
+    task_boundary_evaluation: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Task boundary guard evaluation result.",
+    )
+
     sandbox_profile: str = Field(
         default="default",
         description="Sandbox profile name.",

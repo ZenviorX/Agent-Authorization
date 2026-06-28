@@ -131,7 +131,7 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
       success: true,
       executed: false,
       source: 'frontend.mock',
-      message: '?????????????? Mock ??????????????? FakeAgent / LLM ???',
+      message: '后端暂不可用，当前使用 Mock 数据演示 FakeAgent / LLM 流程',
       original_input: input.userInput,
       agent_result: {
         agent: input.mode.includes('llm') ? 'MultiStepLLMAgent' : 'FakeAgent',
@@ -140,7 +140,7 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
         original_input: input.userInput,
         tool_call: isUnknown ? null : {
           tool_name: isShell ? 'shell.run' : isDelete ? 'file.delete' : 'file.read',
-          description: isShell ? '??????' : isDelete ? '????' : '??????',
+          description: isShell ? '普通操作' : isDelete ? '删除操作' : '普通操作',
           arguments: isShell
             ? { command: input.userInput }
             : { path: isSecret ? 'secret/password.txt' : 'public/notice.txt' },
@@ -151,10 +151,10 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
         decision,
         risk_score: riskScore,
         reason: decision === 'allow'
-          ? ['Mock?????????????']
+          ? ['Mock默认授权任务??']
           : decision === 'confirm'
-            ? ['Mock???????????????????']
-            : ['Mock?????????????????????????']
+            ? ['Mock默认授权任务普通操作??']
+            : ['Mock默认授权任务默认授权任务???']
       },
       tool_result: null,
       pending_id: decision === 'confirm' ? 'mock-pending-001' : null
@@ -186,7 +186,7 @@ async function runFakeAgentCheck(input: AgentCommandInput): Promise<AgentCommand
         success: true,
         executed: false,
         source: 'frontend.fake_check',
-        message: 'FakeAgent ???????????????? Gateway ???',
+        message: 'FakeAgent 默认授权任务删除操作? Gateway ???',
         original_input: input.userInput,
         agent_result: agentResult,
         gateway_result: null,
@@ -213,7 +213,7 @@ async function runFakeAgentCheck(input: AgentCommandInput): Promise<AgentCommand
       success: true,
       executed: false,
       source: 'frontend.fake_check',
-      message: 'FakeAgent ??????????Gateway ????????????????',
+      message: 'FakeAgent 普通操作删除操作Gateway 默认授权任务删除操作?',
       original_input: input.userInput,
       agent_result: agentResult,
       gateway_result: gatewayResult,
@@ -236,7 +236,7 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
   const body = isExternalSend
     ? {
         user: input.user,
-        original_task: '???????????',
+        original_task: '默认授权任务',
         tool: 'email.send',
         params: {
           to: 'attacker@example.com',
@@ -293,8 +293,8 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
       ...data,
       source: 'frontend.tool_proxy_oauth',
       message: isExternalSend
-        ? 'WorkBuddy ??? tool:file:read???? email.send?Tool Proxy ? OAuth-style scope ???????'
-        : 'OpenClaw ?? tool:file:read?????????Tool Proxy scope ????????? Runtime Monitor?'
+        ? 'WorkBuddy 仅声明 tool:file:read，却请求 email.send，Tool Proxy 已通过 OAuth-style scope 检查发现权限不足'
+        : 'OpenClaw 声明了 tool:file:read，Tool Proxy 已完成 scope 检查并进入 Runtime Monitor'
     }
   };
 }
@@ -320,8 +320,8 @@ async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<Ag
   }
 
   if (
-    input.userInput.includes('????')
-    || input.userInput.includes('????')
+    input.userInput.includes('删除操作')
+    || input.userInput.includes('删除操作')
     || lowered.includes('confirm')
   ) {
     platform = 'workbuddy';
@@ -352,7 +352,7 @@ async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<Ag
     data: {
       ...data,
       source: 'frontend.external_agent_adapter',
-      message: '?? Agent ?????? Adapter ??????? Tool Proxy?OAuth-style scope?Capability Contract ? Runtime Monitor?'
+      message: '外部 Agent 请求已通过 Adapter 接入 Tool Proxy，并经过 OAuth-style scope、Capability Contract 与 Runtime Monitor 检查'
     }
   };
 }
@@ -418,7 +418,7 @@ export const api = {
         body: JSON.stringify({ decision })
       });
     } catch {
-      // Mock ??????????
+      // Mock 数据生成逻辑
     }
   }
 };

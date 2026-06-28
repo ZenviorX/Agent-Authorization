@@ -1,4 +1,4 @@
-import type { EvaluationMetric, StrategyComparisonResponse } from '../types/domain';
+﻿import type { EvaluationMetric, StrategyComparisonResponse } from '../types/domain';
 import { MetricCard } from '../components/MetricCard';
 import { Section } from '../components/Section';
 
@@ -15,13 +15,13 @@ function formatMs(value?: number) {
 const strategyNames: Record<string, string> = {
   allow_all: 'Allow All',
   keyword_only: 'Keyword Only',
-  gateway: 'Gateway'
+  gateway: 'AgentGuard Gateway'
 };
 
 const strategyDescriptions: Record<string, string> = {
-  allow_all: '???????????????????',
-  keyword_only: '???????????????????',
-  gateway: '??????????????????????????'
+  allow_all: '不做任何防护，所有工具调用直接放行',
+  keyword_only: '只基于关键词进行简单拦截',
+  gateway: '使用 AgentGuard 授权网关进行风险评分、策略判断和人工确认'
 };
 
 export function EvaluationPage({
@@ -38,9 +38,9 @@ export function EvaluationPage({
     <div className="page-grid">
       <Section
         eyebrow="Evaluation Lab"
-        title="????"
-        description="??????????????????????????????????"
-        actions={<span className="status-pill">{strategyComparison?.available ? '?????' : '??????'}</span>}
+        title="评测实验室"
+        description="用于展示不同授权策略在攻击样例和正常样例上的表现。"
+        actions={<span className="status-pill">{strategyComparison?.available ? '结果已生成' : '等待运行'}</span>}
       >
         <div className="metric-grid compact">
           {metrics.map((metric) => (
@@ -58,31 +58,31 @@ export function EvaluationPage({
 
       <Section
         eyebrow="Strategy Comparison"
-        title="???????"
-        description="??????????? allow_all?keyword_only ? gateway ???????????"
+        title="策略横向对比"
+        description="对比 allow_all、keyword_only 与 gateway 三种策略在安全样例中的表现。"
       >
         {strategyComparison?.available ? (
           <>
             <div className="metric-grid compact">
               <MetricCard
-                title="????"
+                title="测试样例"
                 value={strategyComparison.total_cases}
                 suffix=" cases"
-                hint="???????????????"
+                hint="参与评测的用例数量"
                 icon="lab"
               />
               <MetricCard
-                title="????"
+                title="评测记录"
                 value={strategyComparison.total_records}
                 suffix=" rows"
-                hint="???? ? ?????"
+                hint="策略与样例组合后的总记录数"
                 icon="dashboard"
               />
               <MetricCard
-                title="????"
+                title="耗时"
                 value={Number(strategyComparison.elapsed_ms.toFixed(2))}
                 suffix=" ms"
-                hint="???????????"
+                hint="本轮评测执行时间"
                 icon="spark"
               />
             </div>
@@ -93,26 +93,26 @@ export function EvaluationPage({
                 return (
                   <div key={name}>
                     <strong>{strategyNames[name] ?? name}</strong>
-                    <span>{strategyDescriptions[name] ?? '??????'}</span>
-                    <span>????/????{formatRate(item.attack_block_or_confirm_rate)}</span>
-                    <span>???????{formatRate(item.attack_allow_rate)}</span>
-                    <span>???????{formatRate(item.normal_not_denied_rate)}</span>
-                    <span>??????{formatRate(item.decision_match_rate)}</span>
+                    <span>{strategyDescriptions[name] ?? '暂无策略说明'}</span>
+                    <span>攻击拦截率：{formatRate(item.attack_block_or_confirm_rate)}</span>
+                    <span>攻击误放行率：{formatRate(item.attack_allow_rate)}</span>
+                    <span>正常样例通过率：{formatRate(item.normal_not_denied_rate)}</span>
+                    <span>决策匹配率：{formatRate(item.decision_match_rate)}</span>
                   </div>
                 );
               })}
             </div>
 
             <div className="code-panel">
-              <strong>??????</strong>
+              <strong>重新运行评测</strong>
               <code>.\scripts\run_strategy_comparison.ps1</code>
-              <small>???????? Results/strategy_comparison_*?</small>
+              <small>运行后会刷新 Results/strategy_comparison_* 文件。</small>
             </div>
           </>
         ) : (
           <div className="empty-state">
-            <strong>???????????</strong>
-            <p>{strategyComparison?.hint ?? '??????? scripts/run_strategy_comparison.ps1?'}</p>
+            <strong>暂无策略对比结果</strong>
+            <p>{strategyComparison?.hint ?? '请先运行 scripts/run_strategy_comparison.ps1。'}</p>
             <div className="code-panel">
               <code>.\scripts\run_strategy_comparison.ps1</code>
             </div>
@@ -122,29 +122,29 @@ export function EvaluationPage({
 
       <Section
         eyebrow="Test Case Matrix"
-        title="??????"
-        description="????????????????????????????SQL ??????????????????"
+        title="测试用例矩阵"
+        description="覆盖文件读取、邮件发送、Shell 命令、SQL 查询等典型 Agent 工具调用场景。"
       >
         <div className="matrix-grid">
-          <div><strong>??????</strong><span>?? allow ? confirm</span></div>
-          <div><strong>????</strong><span>?? deny</span></div>
-          <div><strong>????</strong><span>?? confirm ? deny</span></div>
-          <div><strong>Shell ????</strong><span>?? confirm ? deny</span></div>
-          <div><strong>SQL ??</strong><span>?? confirm ? deny</span></div>
-          <div><strong>????</strong><span>?? confirm ? deny</span></div>
+          <div><strong>公开读取</strong><span>期望 allow 或 confirm</span></div>
+          <div><strong>敏感读取</strong><span>期望 deny</span></div>
+          <div><strong>外发邮件</strong><span>期望 confirm 或 deny</span></div>
+          <div><strong>Shell 命令</strong><span>期望 confirm 或 deny</span></div>
+          <div><strong>SQL 查询</strong><span>期望 confirm 或 deny</span></div>
+          <div><strong>提示注入</strong><span>期望 confirm 或 deny</span></div>
         </div>
       </Section>
 
       <Section
         eyebrow="Result Files"
-        title="??????"
-        description={`???????${strategyComparison?.available ? '???' : '???'}??? ${formatMs(strategyComparison?.elapsed_ms)}?`}
+        title="结果文件"
+        description={`当前评测结果${strategyComparison?.available ? '已生成' : '未生成'}，耗时 ${formatMs(strategyComparison?.elapsed_ms)}。`}
       >
         <div className="matrix-grid">
-          <div><strong>CSV ??</strong><span>{strategyComparison?.outputs?.csv ?? 'Results/strategy_comparison.csv'}</span></div>
-          <div><strong>JSON ??</strong><span>{strategyComparison?.outputs?.json ?? 'Results/strategy_comparison_summary.json'}</span></div>
-          <div><strong>Markdown ??</strong><span>{strategyComparison?.outputs?.markdown ?? 'Results/strategy_comparison_report.md'}</span></div>
-          <div><strong>HTML ???</strong><span>{strategyComparison?.outputs?.html ?? 'Results/strategy_comparison_dashboard.html'}</span></div>
+          <div><strong>CSV 文件</strong><span>{strategyComparison?.outputs?.csv ?? 'Results/strategy_comparison.csv'}</span></div>
+          <div><strong>JSON 文件</strong><span>{strategyComparison?.outputs?.json ?? 'Results/strategy_comparison_summary.json'}</span></div>
+          <div><strong>Markdown 报告</strong><span>{strategyComparison?.outputs?.markdown ?? 'Results/strategy_comparison_report.md'}</span></div>
+          <div><strong>HTML 看板</strong><span>{strategyComparison?.outputs?.html ?? 'Results/strategy_comparison_dashboard.html'}</span></div>
         </div>
       </Section>
     </div>

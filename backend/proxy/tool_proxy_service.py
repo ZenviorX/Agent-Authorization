@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +14,9 @@ from backend.runtime.runtime_monitor import (
     run_runtime_step,
 )
 from backend.sandbox.sandbox_policy import evaluate_sandbox_policy
+from backend.guardrails.task_boundary_guard import evaluate_task_boundary_policy
+from backend.guardrails.authorization_trace import build_authorization_trace
+from backend.guardrails.capability_token import issue_capability_token, validate_capability_token_for_request, mark_capability_token_consumed
 from backend.task_session.session_executor import model_to_dict
 from backend.tools.tool_executor import execute_tool
 
@@ -59,6 +62,57 @@ def _apply_sandbox_deny(
     return result_dict
 
 
+
+def _apply_task_boundary_decision(
+    result_dict: Dict[str, Any],
+    task_boundary_evaluation: Dict[str, Any],
+) -> Dict[str, Any]:
+    result_dict = dict(result_dict)
+
+    boundary_decision = str(task_boundary_evaluation.get("decision") or "allow")
+    current_decision = str(result_dict.get("decision") or "allow")
+
+    if boundary_decision == "deny":
+        result_dict["decision"] = "deny"
+    elif boundary_decision == "confirm" and current_decision == "allow":
+        result_dict["decision"] = "confirm"
+
+    result_dict["risk_score"] = max(
+        int(result_dict.get("risk_score") or 0),
+        int(task_boundary_evaluation.get("risk_delta") or 0),
+    )
+
+    reasons = _as_reason_list(result_dict.get("reason"))
+    reasons.append("Task Boundary Guard evaluated this tool call.")
+    reasons.extend(_as_reason_list(task_boundary_evaluation.get("reason")))
+
+    result_dict["reason"] = reasons
+    return result_dict
+
+
+
+def _apply_capability_token_decision(
+    result_dict: Dict[str, Any],
+    capability_token_validation: Dict[str, Any],
+) -> Dict[str, Any]:
+    result_dict = dict(result_dict)
+
+    if capability_token_validation.get("decision") == "deny":
+        result_dict["decision"] = "deny"
+
+    result_dict["risk_score"] = max(
+        int(result_dict.get("risk_score") or 0),
+        int(capability_token_validation.get("risk_delta") or 0),
+    )
+
+    reasons = _as_reason_list(result_dict.get("reason"))
+    reasons.append("Capability Token validation evaluated this tool call.")
+    reasons.extend(_as_reason_list(capability_token_validation.get("reason")))
+
+    result_dict["reason"] = reasons
+    return result_dict
+
+
 def authorize_tool_call(
     request: ToolProxyAuthorizeRequest,
 ) -> ToolProxyAuthorizeResponse:
@@ -99,6 +153,25 @@ def authorize_tool_call(
         params=request.params,
     )
 
+    task_boundary_evaluation = evaluate_task_boundary_policy(
+        original_task=request.original_task,
+        tool=request.tool,
+        params=request.params,
+        input_labels=request.input_labels,
+    )
+
+    capability_token_validation = validate_capability_token_for_request(
+        token=getattr(request, "capability_token", ""),
+        user=request.user,
+        agent_platform=request.agent_platform,
+        original_task=request.original_task,
+        expected_contract=task_boundary_evaluation.get("capability_contract", {}),
+        tool=request.tool,
+        params=request.params,
+        sandbox_profile=request.sandbox_profile,
+        require_token=bool(request.execute),
+    )
+
     executed = False
     tool_result: Optional[Dict[str, Any]] = None
 
@@ -128,6 +201,18 @@ def authorize_tool_call(
 
         result_dict = model_to_dict(runtime_result)
 
+        if task_boundary_evaluation.get("decision") in {"deny", "confirm"}:
+            result_dict = _apply_task_boundary_decision(
+                result_dict=result_dict,
+                task_boundary_evaluation=task_boundary_evaluation,
+            )
+
+        if capability_token_validation.get("decision") == "deny":
+            result_dict = _apply_capability_token_decision(
+                result_dict=result_dict,
+                capability_token_validation=capability_token_validation,
+            )
+
         # 3. Sandbox Policy 进一步约束外部 Agent 工具调用。
         if sandbox_evaluation.get("decision") == "deny":
             result_dict = _apply_sandbox_deny(
@@ -140,13 +225,59 @@ def authorize_tool_call(
         tool_result = execute_tool(
             tool=request.tool,
             params=request.params,
-        )
+            )
         executed = bool(tool_result.get("success") is True)
 
     security_graph = build_runtime_security_graph(runtime_state)
 
+    if executed and capability_token_validation.get("decision") == "allow":
+        capability_token_validation = dict(capability_token_validation)
+        capability_token_validation["consumption"] = mark_capability_token_consumed(
+            getattr(request, "capability_token", "")
+        )
+        reasons = _as_reason_list(capability_token_validation.get("reason"))
+        reasons.append("Capability token was consumed after successful execution.")
+        capability_token_validation["reason"] = reasons
+
+    if str(result_dict.get("decision", "deny")) == "allow" and not bool(request.execute):
+        capability_token = issue_capability_token(
+            user=request.user,
+            agent_platform=request.agent_platform,
+            original_task=request.original_task,
+            capability_contract=task_boundary_evaluation.get("capability_contract", {}),
+            tool=request.tool,
+            params=request.params,
+            sandbox_profile=request.sandbox_profile,
+        )
+        capability_token["issued"] = True
+    elif str(result_dict.get("decision", "deny")) == "allow" and bool(request.execute):
+        capability_token = {
+            "token_type": "agentguard_capability_token",
+            "issued": False,
+            "reason": "Execution phase consumes capability token and does not issue a new token.",
+        }
+    else:
+        capability_token = {
+            "token_type": "agentguard_capability_token",
+            "issued": False,
+            "reason": "Capability token is only issued when final decision is allow.",
+        }
+
+    authorization_trace = build_authorization_trace(
+        agent_auth_profile=agent_auth_profile,
+        capability_token_validation=capability_token_validation,
+        task_boundary_evaluation=task_boundary_evaluation,
+        sandbox_evaluation=sandbox_evaluation,
+        final_decision=str(result_dict.get("decision", "deny")),
+        final_risk_score=int(result_dict.get("risk_score", 0) or 0),
+        executed=executed,
+    )
+
     return ToolProxyAuthorizeResponse(
         success=True,
+        authorization_trace=authorization_trace,
+        capability_token_validation=capability_token_validation,
+        capability_token=capability_token,
         mode="tool_proxy_authorize",
         decision=str(result_dict.get("decision", "deny")),
         risk_score=int(result_dict.get("risk_score", 0) or 0),

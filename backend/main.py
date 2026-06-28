@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +20,12 @@ from backend.routes.showcase_report_routes import router as showcase_report_rout
 from backend.routes.agent_runtime_routes import router as agent_runtime_router
 from backend.routes.tool_proxy_routes import router as tool_proxy_router
 from backend.routes.external_agent_routes import router as external_agent_router
+from backend.routes.oauth_comparison_routes import router as oauth_comparison_router
+from backend.routes.research_eval_routes import router as research_eval_router
+from backend.routes.research_strategy_routes import router as research_strategy_router
 
+from backend.routes.two_phase_tool_proxy_routes import router as two_phase_tool_proxy_router
+from backend.routes.capability_token_routes import router as capability_token_router
 app = FastAPI(
     title="AI Agent Auth Gateway",
     description=(
@@ -83,6 +88,9 @@ app.include_router(showcase_report_router)
 app.include_router(agent_runtime_router)
 app.include_router(tool_proxy_router)
 app.include_router(external_agent_router)
+app.include_router(oauth_comparison_router)
+app.include_router(research_eval_router)
+app.include_router(research_strategy_router)
 # -----------------------------
 # Demo-only APIs
 # -----------------------------
@@ -232,3 +240,7 @@ def _install_legacy_frontend_route_notice():
 _install_legacy_frontend_route_notice()
 # === End teacher review cleanup ===
 
+
+app.include_router(two_phase_tool_proxy_router)
+
+app.include_router(capability_token_router)
