@@ -1,4 +1,4 @@
-name: CI
+﻿name: CI
 
 on:
   push:
@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  test-module:
-    name: Independent test module
+  backend-and-frontend:
+    name: Backend tests and frontend build
     runs-on: ubuntu-latest
 
     steps:
@@ -27,19 +27,37 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Run independent gateway test module
+      - name: Run backend authorization regression
+        run: |
+          python scripts/run_backend_authorization_tests.py
+
+      - name: Run legacy independent test module
         run: |
           python -m test.run --case-dir test/cases --output-dir test/results
 
-      - name: Upload test results
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        run: |
+          npm --prefix frontend install
+
+      - name: Build frontend
+        run: |
+          npm --prefix frontend run build
+
+      - name: Upload legacy test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: agent-authorization-test-results
           path: |
             test/results/**
+            Results/**

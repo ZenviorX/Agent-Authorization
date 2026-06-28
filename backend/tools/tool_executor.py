@@ -386,7 +386,8 @@ def run_shell(params: dict[str, Any]):
     """
     沙箱命令执行。
 
-    只允许极少数只读或无害命令，并且工作目录固定在 runtime_workspace。
+    为了避免 shell=True 带来的命令注入风险，这里不再调用系统 shell。
+    系统只实现极少数演示用的只读命令，并且所有文件访问仍限制在 runtime_workspace 内。
     """
 
     command = str(params.get("command", "")).strip()
@@ -408,7 +409,6 @@ def run_shell(params: dict[str, Any]):
 
     try:
         parts = shlex.split(command, posix=False)
-
     except ValueError as exc:
         return {
             "success": False,
@@ -422,6 +422,7 @@ def run_shell(params: dict[str, Any]):
         }
 
     command_name = parts[0].strip('"').strip("'").lower()
+    args = [item.strip('"').strip("'") for item in parts[1:]]
 
     if command_name not in SAFE_SHELL_COMMANDS:
         return {
@@ -429,33 +430,104 @@ def run_shell(params: dict[str, Any]):
             "result": f"沙箱仅允许安全命令：{sorted(SAFE_SHELL_COMMANDS)}",
         }
 
-    try:
-        completed = subprocess.run(
-            command,
-            cwd=SANDBOX_DIR,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-
-    except subprocess.TimeoutExpired:
+    if command_name in {"pwd"}:
         return {
-            "success": False,
-            "result": "命令执行超时，已被沙箱终止",
+            "success": True,
+            "result": {
+                "command": command,
+                "cwd": str(SANDBOX_DIR),
+                "stdout": str(SANDBOX_DIR),
+                "stderr": "",
+                "sandbox_interpreter": True,
+            },
+        }
+
+    if command_name in {"ls", "dir"}:
+        target = args[0] if args else "."
+        target_path, error = _safe_sandbox_path(target)
+
+        if error:
+            return {
+                "success": False,
+                "result": error,
+            }
+
+        if not target_path.exists():
+            return {
+                "success": False,
+                "result": f"路径不存在：{target}",
+            }
+
+        if target_path.is_file():
+            entries = [target_path.name]
+        else:
+            entries = sorted(item.name for item in target_path.iterdir())
+
+        return {
+            "success": True,
+            "result": {
+                "command": command,
+                "cwd": str(SANDBOX_DIR),
+                "stdout": "\n".join(entries),
+                "stderr": "",
+                "sandbox_interpreter": True,
+            },
+        }
+
+    if command_name in {"cat", "type"}:
+        if not args:
+            return {
+                "success": False,
+                "result": "缺少要读取的文件路径",
+            }
+
+        target_path, error = _safe_sandbox_path(args[0])
+
+        if error:
+            return {
+                "success": False,
+                "result": error,
+            }
+
+        if not target_path.exists() or not target_path.is_file():
+            return {
+                "success": False,
+                "result": f"文件不存在或不是普通文件：{args[0]}",
+            }
+
+        if target_path.stat().st_size > MAX_READ_BYTES:
+            return {
+                "success": False,
+                "result": "文件过大，沙箱命令拒绝读取",
+            }
+
+        return {
+            "success": True,
+            "result": {
+                "command": command,
+                "cwd": str(SANDBOX_DIR),
+                "stdout": target_path.read_text(encoding="utf-8"),
+                "stderr": "",
+                "sandbox_interpreter": True,
+            },
+        }
+
+    if command_name == "echo":
+        return {
+            "success": True,
+            "result": {
+                "command": command,
+                "cwd": str(SANDBOX_DIR),
+                "stdout": " ".join(args),
+                "stderr": "",
+                "sandbox_interpreter": True,
+            },
         }
 
     return {
-        "success": completed.returncode == 0,
-        "result": {
-            "command": command,
-            "cwd": str(SANDBOX_DIR),
-            "returncode": completed.returncode,
-            "stdout": completed.stdout,
-            "stderr": completed.stderr,
-        },
+        "success": False,
+        "result": f"命令暂未实现：{command_name}",
     }
-
 
 def query_db(params: dict[str, Any]):
     """

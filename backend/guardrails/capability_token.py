@@ -6,13 +6,12 @@ import hmac
 import json
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Optional
 
 from backend.guardrails.capability_token_ledger import get_token_status, record_token_consumed, record_token_issued
 
 
 DEFAULT_SECRET = "agentguard-dev-capability-secret"
-_CONSUMED_TOKEN_IDS: Set[str] = set()
 
 
 def _secret() -> bytes:
@@ -150,7 +149,10 @@ def validate_capability_token_for_request(
     reasons = ["Capability token signature and expiry were verified."]
 
     token_id = str(payload.get("token_id", ""))
-    if require_token and token_id in _CONSUMED_TOKEN_IDS:
+    ledger_status = get_token_status(token_id)
+    ledger_state = ledger_status.get("status", "unknown")
+
+    if require_token and ledger_state == "consumed":
         return {
             "provided": True,
             "decision": "deny",
@@ -159,10 +161,7 @@ def validate_capability_token_for_request(
             "reason": reasons + ["Capability token has already been consumed."],
         }
 
-    ledger_status = get_token_status(token_id)
-    ledger_state = ledger_status.get("status", "unknown")
-
-    if require_token and ledger_status.get("status") == "revoked":
+    if require_token and ledger_state == "revoked":
         return {
             "provided": True,
             "decision": "deny",
@@ -261,7 +260,6 @@ def mark_capability_token_consumed(token: str) -> Dict[str, Any]:
             "reason": "Capability token does not contain token_id.",
         }
 
-    _CONSUMED_TOKEN_IDS.add(token_id)
     record_token_consumed(token_id)
 
     return {

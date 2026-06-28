@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import subprocess
 import sys
@@ -31,6 +31,7 @@ TESTS = [
     "tests/test_capability_token_trace_status.py",
     "tests/test_execute_phase_no_new_token.py",
     "tests/test_capability_token_sandbox_binding.py",
+    "tests/test_sandbox_path_policy.py",
 ]
 
 def main() -> int:
