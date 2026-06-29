@@ -25,6 +25,11 @@ const modeOptions: Array<{
     description: '展示外部 Agent 请求如何先被 Adapter 标准化，再进入 Tool Proxy 与 Runtime Monitor。'
   },
   {
+    value: 'docker_sandbox_execute',
+    label: 'Docker 真沙箱执行',
+    description: '两阶段演示：先由 Tool Proxy 签发 Capability Token，再将允许的工具调用放入 Docker 容器隔离执行并返回证据。'
+  },
+  {
     value: 'fake_plan',
     label: 'FakeAgent 只规划',
     description: '只看自然语言如何被转换成结构化 ToolCallPlan。'
@@ -53,6 +58,9 @@ const modeOptions: Array<{
 
 const samples = [
   { title: '公开文件读取', user: 'user', text: '读取文件 public/notice.txt', mode: 'fake_check' as AgentRunMode },
+  { title: 'Docker 真沙箱读取', user: 'user', text: 'Docker 沙箱读取 public/notice.txt', mode: 'docker_sandbox_execute' as AgentRunMode },
+  { title: 'Docker 写入 outbox', user: 'user', text: 'Docker 沙箱写入 outbox/docker_demo.txt', mode: 'docker_sandbox_execute' as AgentRunMode },
+  { title: 'Docker 敏感读取阻断', user: 'user', text: 'Docker 沙箱尝试读取 secret/password.txt 敏感文件', mode: 'docker_sandbox_execute' as AgentRunMode },
   { title: 'OAuth 合法读取', user: 'user', text: 'OpenClaw 读取 public/notice.txt', mode: 'tool_proxy_oauth' as AgentRunMode },
   { title: 'OAuth 外发拒绝', user: 'user', text: 'WorkBuddy scope 不足但尝试发送外部邮箱', mode: 'tool_proxy_oauth' as AgentRunMode },
   { title: 'Adapter OpenClaw 读取', user: 'user', text: 'OpenClaw Adapter 合法读取公开文件', mode: 'external_agent_adapter' as AgentRunMode },
@@ -239,6 +247,15 @@ function ResultPanel({ result }: ResultPanelProps) {
   const sandboxReasons = toTextList(sandboxEvaluation?.reason);
   const sandboxAllowedTools = toTextList(sandboxPolicy?.allowed_tools);
   const sandboxDeniedTools = toTextList(sandboxPolicy?.denied_tools);
+  const executionResult = getNestedObject(data, 'execution_result');
+  const sandboxEvidence = getNestedObject(data, 'sandbox_evidence')
+    || getNestedObject(executionResult, 'sandbox_evidence')
+    || getNestedObject(sandboxProxyResult, 'sandbox_evidence');
+  const dockerPolicy = getNestedObject(sandboxEvidence, 'runtime_policy');
+  const dockerPaths = getNestedObject(sandboxEvidence, 'paths');
+  const dockerImageStatus = getNestedObject(sandboxEvidence, 'image_status');
+  const dockerToolResult = getNestedObject(sandboxEvidence, 'tool_result') || getNestedObject(data, 'tool_result');
+  const dockerMounts = Array.isArray(dockerPolicy?.mounts) ? dockerPolicy.mounts : [];
 
   const hasGatewayVerdict = Boolean(gatewayResult?.decision);
   const headlineLabel = hasGatewayVerdict ? 'Gateway Verdict' : 'Agent / Session Status';
@@ -255,6 +272,7 @@ function ResultPanel({ result }: ResultPanelProps) {
           {result.fromMock && <Badge tone="purple">Mock fallback</Badge>}
           {data.executed === true && <Badge tone="green">executed</Badge>}
           {data.executed === false && <Badge tone="blue">not executed</Badge>}
+          {sandboxEvidence && <Badge tone="green">Docker Sandbox</Badge>}
           {data.mode === 'plan_only' && <Badge tone="blue">plan only</Badge>}
         </div>
       </div>
@@ -276,7 +294,6 @@ function ResultPanel({ result }: ResultPanelProps) {
 
       {typeof data.message === 'string' && <p className="result-message">{data.message}</p>}
       {result.error && <p className="result-error">后端请求提示：{result.error}</p>}
-
 
       {adapterTrace.length > 0 && (
         <div className="pipeline-card">
@@ -401,11 +418,10 @@ function ResultPanel({ result }: ResultPanelProps) {
         </div>
       )}
 
-
       {sandboxEvaluation && (
         <div className="pipeline-card">
           <div className="pipeline-title">
-            <Badge tone={getDecisionTone(sandboxEvaluation.decision)}>Sandbox</Badge>
+            <Badge tone={getDecisionTone(sandboxEvaluation.decision)}>Policy Sandbox</Badge>
             <strong>Sandbox Policy 评估结果</strong>
           </div>
 
@@ -435,6 +451,49 @@ function ResultPanel({ result }: ResultPanelProps) {
           <div className="reason-list">
             {sandboxReasons.length ? sandboxReasons.map((reason, index) => <p key={index}>{reason}</p>) : <p>沙箱策略未返回具体 reason。</p>}
           </div>
+        </div>
+      )}
+
+      {sandboxEvidence && (
+        <div className="pipeline-card">
+          <div className="pipeline-title">
+            <Badge tone={dockerToolResult?.success === false ? 'red' : 'green'}>Docker</Badge>
+            <strong>Docker 真沙箱执行证据</strong>
+          </div>
+
+          <div className="kv-grid">
+            <span>Run ID</span><code>{String(sandboxEvidence.run_id || '-')}</code>
+            <span>Image</span><code>{String(sandboxEvidence.image || '-')}</code>
+            <span>Docker Available</span><code>{String(sandboxEvidence.docker_available ?? dockerImageStatus?.available ?? '-')}</code>
+            <span>Profile</span><code>{String(sandboxEvidence.sandbox_profile || '-')}</code>
+            <span>Network</span><code>{String(dockerPolicy?.network || '-')}</code>
+            <span>Read-only RootFS</span><code>{String(dockerPolicy?.read_only_rootfs ?? '-')}</code>
+            <span>Capabilities</span><code>{toTextList(dockerPolicy?.cap_drop).join(' / ') || '-'}</code>
+            <span>No New Privileges</span><code>{toTextList(dockerPolicy?.security_opt).join(' / ') || '-'}</code>
+            <span>Memory</span><code>{String(dockerPolicy?.memory || '-')}</code>
+            <span>CPU</span><code>{String(dockerPolicy?.cpus || '-')}</code>
+            <span>PIDs Limit</span><code>{String(dockerPolicy?.pids_limit || '-')}</code>
+            <span>Exit Code</span><code>{String(sandboxEvidence.exit_code ?? '-')}</code>
+            <span>Evidence Hash</span><code>{String(sandboxEvidence.evidence_hash || '-')}</code>
+            <span>Evidence File</span><code>{String(dockerPaths?.evidence || '-')}</code>
+          </div>
+
+          <div className="reason-list">
+            <p>容器以 `--network none`、`--read-only`、`--cap-drop ALL`、`no-new-privileges`、资源限制和只读挂载运行。</p>
+            <p>secret/private 没有挂载进容器；允许目录由 sandbox profile 决定。</p>
+          </div>
+
+          <div className="step-list">
+            {dockerMounts.map((mount, index) => (
+              <div className="step-item" key={index}>
+                <Badge tone={isRecord(mount) && mount.readonly === false ? 'yellow' : 'blue'}>mount</Badge>
+                <strong>{isRecord(mount) ? String(mount.target || '-') : '-'}</strong>
+                <code>{isRecord(mount) ? `${String(mount.source || '-')} · ${mount.readonly === false ? 'rw' : 'ro'}` : stringify(mount)}</code>
+              </div>
+            ))}
+          </div>
+
+          <pre className="json-block">{stringify(dockerToolResult || sandboxEvidence.tool_result || {})}</pre>
         </div>
       )}
 
@@ -482,6 +541,7 @@ export function GatewayWorkbench() {
           <h1>命令输入与授权判定工作台</h1>
           <p>
             这里不是单纯看指标，而是把用户自然语言任务送进 Agent，再由 FakeAgent / LLM 生成工具调用计划，最后交给 Gateway 或 Runtime Monitor 判断是否允许执行。
+            对于真实执行场景，系统会把工具调用封装进 Docker 沙箱，并返回可审计的隔离证据。
           </p>
         </div>
         <div className="flow-strip">
@@ -491,7 +551,7 @@ export function GatewayWorkbench() {
           <b>→</b>
           <span>网关判定</span>
           <b>→</b>
-          <span>执行 / 拦截 / 确认</span>
+          <span>Docker 沙箱 / 拦截 / 确认</span>
         </div>
       </section>
 
@@ -499,7 +559,7 @@ export function GatewayWorkbench() {
         <Section
           eyebrow="Command Input"
           title="输入用户命令"
-          description="建议课堂/比赛演示时默认使用 FakeAgent 规划 + Gateway 只判定，安全且能完整展示网关价值。"
+          description="建议课堂/比赛演示时默认使用 FakeAgent 规划 + Gateway 只判定；展示真沙箱时选择 Docker 真沙箱执行。"
         >
           <div className="command-form">
             <label>
@@ -552,13 +612,13 @@ export function GatewayWorkbench() {
               <textarea
                 value={input.userInput}
                 onChange={(event) => setInput({ ...input, userInput: event.target.value })}
-                placeholder="例如：读取文件 public/notice.txt"
+                placeholder="例如：Docker 沙箱读取 public/notice.txt"
               />
             </label>
 
             <div className="command-actions">
               <button className="primary-btn" disabled={running || !input.userInput.trim()} onClick={() => void handleSubmit()}>
-                {running ? '正在判定……' : '提交给网关判定'}
+                {running ? '正在判定 / 执行……' : '提交给网关判定'}
               </button>
               <button className="secondary-btn" onClick={() => setResult(null)}>清空结果</button>
             </div>
@@ -568,7 +628,7 @@ export function GatewayWorkbench() {
         <Section
           eyebrow="Demo Cases"
           title="一键演示样例"
-          description="这些样例对应公开读取、敏感读取、删除确认、邮件发送、Shell 命令和提示注入链路。"
+          description="这些样例对应公开读取、Docker 真沙箱、敏感读取、删除确认、邮件发送、Shell 命令和提示注入链路。"
         >
           <div className="sample-grid">
             {samples.map((sample) => (
@@ -584,8 +644,8 @@ export function GatewayWorkbench() {
 
       <Section
         eyebrow="Result"
-        title="Agent 规划与网关判定结果"
-        description="结果会同时展示 Agent 输出、结构化工具调用、Gateway 判定原因、多步 LLM 运行链路和原始 JSON。"
+        title="Agent 规划、网关判定与沙箱执行结果"
+        description="结果会同时展示 Agent 输出、结构化工具调用、Gateway 判定原因、策略沙箱、Docker 执行证据、多步 LLM 运行链路和原始 JSON。"
       >
         <ResultPanel result={result} />
       </Section>
