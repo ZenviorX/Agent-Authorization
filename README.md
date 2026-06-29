@@ -1,63 +1,215 @@
-﻿# Agent-Authorization
+# Agent-Authorization
 
-面向 AI Agent 工具调用的安全授权网关系统。
+面向 AI Agent 工具调用的授权、安全边界、沙箱执行与审计系统。
 
-本项目用于研究和演示：当 AI Agent 可以调用文件、数据库、邮件、命令等外部工具时，如何在工具执行前加入统一的安全授权层，避免越权访问、提示注入、危险操作和数据外发风险。
+本项目研究的问题是：当 AI Agent 能够调用文件、邮件、数据库、Shell 命令等外部工具时，如何在工具真正执行前加入一个统一、可解释、可审计的安全授权层，避免越权访问、提示注入、敏感信息泄露、危险命令执行和多步攻击链风险。
 
-系统核心思想是：**Agent 只负责规划工具调用，能不能执行由 Gateway 决定。**
+核心原则：
+
+> Agent 只负责提出工具调用计划；是否允许执行、是否需要确认、是否进入沙箱，由 Agent-Authorization Gateway 决定。
 
 ---
 
-## 1. 项目简介
+## 1. 项目定位
 
-大模型 Agent 的能力正在从“回答问题”扩展到“调用工具完成任务”。如果缺少安全边界，Agent 可能会因为用户输入、外部文档内容、模型误判或多步规划偏移而调用不该调用的工具。
+Agent-Authorization 不是普通聊天机器人，也不是单纯关键词过滤器。它是位于 **AI Agent 与真实工具之间** 的安全运行时网关。
 
-本项目在 Agent 和工具执行器之间加入 **Gateway 安全授权网关**，对每一次工具调用进行统一检查，并输出三类结果：
+系统对每一次工具调用输出三类决策：
 
 | 决策 | 含义 |
 |---|---|
-| `allow` | 低风险，允许继续执行 |
-| `confirm` | 中等风险，需要人工确认 |
-| `deny` | 高风险或越权，拒绝执行 |
+| `allow` | 低风险，允许进入受控执行流程 |
+| `confirm` | 存在副作用或中等风险，需要人工确认 |
+| `deny` | 高风险、越权或违反任务边界，拒绝执行 |
 
-项目支持从自然语言输入、Agent 规划、Gateway 判定、运行时监控、沙箱执行、人工确认、审计日志到安全评测报告的完整闭环。
+系统重点解决：
+
+- Agent 是否有权调用某个工具；
+- 当前任务是否允许这次工具调用；
+- 工具参数是否包含路径穿越、敏感路径、危险命令、外发风险；
+- OAuth-style scope 是否足够；
+- 多步工具调用是否形成攻击链；
+- 真实执行是否被限制在沙箱中；
+- 每一次判定和执行是否能形成审计证据。
 
 ---
 
-## 2. 系统流程
+## 2. 总体架构
 
 ```text
-用户自然语言命令
-        ↓
-FakeAgent / LLM Agent 进行任务规划
-        ↓
-生成结构化工具调用
-        ↓
-Gateway 进行授权判断
-        ↓
+User Task
+   ↓
+FakeAgent / LLM Agent / External Agent
+   ↓
+External Agent Adapter / Tool Proxy
+   ↓
+OAuth-style Scope Check
+   ↓
+Capability Contract / Task Boundary Guard
+   ↓
+Runtime Monitor / Attack Chain Detector
+   ↓
+Sandbox Policy
+   ↓
 allow / confirm / deny
-        ↓
-沙箱执行 / 人工确认 / 拒绝执行
+   ↓
+Hybrid Sandbox Executor
+   ├─ Docker Sandbox, if Docker is available
+   └─ Native Subprocess Sandbox, if Docker is not available
+   ↓
+Audit Log / Evidence / Frontend Display
 ```
 
-系统不会直接信任 Agent。无论是 FakeAgent 还是真实 LLM Agent，只要要调用工具，都必须经过 Gateway、任务合约和运行时监控检查。
+一句话概括：
+
+> Gateway 决定能不能执行；Capability Token 绑定这一次授权；Hybrid Sandbox 限制在哪里执行；Audit Evidence 证明发生了什么。
 
 ---
 
-## 3. 在一台没有部署环境的电脑上运行
+## 3. 核心能力
 
-本项目不需要服务器部署，不需要 Docker，不需要真实邮箱服务，也不需要外部数据库服务。只要本地安装 Python、Node.js 和 Git，即可运行。
+### 3.1 Gateway 授权网关
 
-### 3.1 环境要求
+支持标准工具调用：
+
+| 工具 | 用途 |
+|---|---|
+| `file.read` | 读取文件 |
+| `file.write` | 写入文件 |
+| `file.delete` | 删除文件 |
+| `email.send` | 邮件发送或 outbox 模拟 |
+| `shell.run` | 命令执行 |
+| `db.query` | 数据库查询 |
+| `http.post` | HTTP 外发场景建模 |
+
+每次调用会被转为结构化请求：
+
+```json
+{
+  "user": "user",
+  "tool": "file.read",
+  "params": {
+    "path": "public/notice.txt"
+  }
+}
+```
+
+Gateway 会结合用户身份、工具类型、资源路径、参数内容、策略配置、任务合约和运行时上下文输出最终决策。
+
+### 3.2 OAuth-style 外部 Agent 授权
+
+项目支持模拟 OpenClaw、WorkBuddy、Custom Agent 等外部 Agent 平台。外部 Agent 不直接访问本地工具，而是必须经过：
+
+```text
+External Agent → Adapter → Tool Proxy → Gateway → Runtime Monitor → Sandbox
+```
+
+OAuth-style scope 只解决“Agent 声明自己有什么权限”，本项目进一步判断：
+
+- 当前任务是否允许这个动作；
+- 工具参数是否安全；
+- 数据是否可能外发；
+- 是否偏离任务边界；
+- 是否需要 Capability Token；
+- 是否必须进入沙箱执行。
+
+### 3.3 两阶段授权与 Capability Token
+
+真执行流程采用两阶段设计：
+
+```text
+Phase 1: execute=false
+    Gateway 检查通过后签发 Capability Token
+
+Phase 2: execute=true + capability_token
+    Gateway 重新校验 token
+    token 与 user、agent_platform、task、tool、params、sandbox_profile 绑定
+    校验通过后才进入沙箱执行
+```
+
+这样可以避免 Agent 在拿到一次授权后修改工具、参数或执行环境。
+
+### 3.4 Hybrid Sandbox 真执行沙箱
+
+项目实现了两类执行沙箱，并自动选择：
+
+| 执行引擎 | 是否需要额外软件 | 隔离强度 | 用途 |
+|---|---:|---|---|
+| Docker Sandbox | 需要 Docker Desktop | 较强，容器级隔离 | 有 Docker 环境时使用 |
+| Native Subprocess Sandbox | 不需要额外软件 | 中等，项目内置受限子进程 | 默认本地演示 fallback |
+
+#### Docker Sandbox
+
+如果本机有 Docker，系统会使用短生命周期容器执行工具调用，并启用：
+
+- `--network none`
+- `--read-only`
+- `--cap-drop ALL`
+- `--security-opt no-new-privileges`
+- `--pids-limit`
+- `--memory`
+- `--cpus`
+- 只读或受限 bind mount
+
+#### Native Subprocess Sandbox
+
+如果没有 Docker Desktop，系统自动 fallback 到 Native Subprocess Sandbox。它不依赖任何额外软件，通过当前 Python 解释器启动受限子进程，并实现：
+
+- 工具白名单：只暴露 `file.read`、`file.write`、`email.send`、安全解释型 `shell.run`；
+- 路径白名单：所有路径必须在 `runtime_workspace` 内；
+- profile 控制：`local_readonly`、`local_safe_write`、`strict`、`no_shell`；
+- 无真实网络外发；
+- 写操作只允许进入 `outbox/`；
+- 每次运行生成 `evidence.json`。
+
+Native Subprocess Sandbox 不是 OS/VM 级隔离，不能等同于 Docker、gVisor 或 Firecracker，但它能保证项目在无 Docker 环境下也可以完整展示工具调用受控执行、路径限制和证据生成。
+
+### 3.5 独立测试模块
+
+项目将评测系统独立到 `test/` 目录：
+
+```text
+test/
+  cases/                 # Gateway 测试样例
+  results/               # 运行结果，默认 git ignore
+  run.py                 # 独立测试运行器
+  api.py                 # 测试结果 API 预留
+  README.md
+```
+
+运行：
+
+```powershell
+python -m test.run
+```
+
+输出：
+
+```text
+test/results/latest_summary.json
+test/results/latest_cases.json
+test/results/latest_detail.csv
+test/results/latest_report.md
+test/results/latest_dashboard.html
+```
+
+前端“评测对比”页面可一键触发测试并刷新结果。
+
+---
+
+## 4. 快速启动
+
+### 4.1 环境要求
 
 | 工具 | 推荐版本 | 用途 |
 |---|---|---|
-| Git | 任意较新版本 | 拉取项目 |
-| Python | 3.11 或 3.12 | 运行 FastAPI 后端与测试 |
-| Node.js | 20 LTS | 运行 React + Vite 前端 |
+| Git | 较新版本 | 拉取项目 |
+| Python | 3.11 / 3.12 | 后端、测试、Native Sandbox |
+| Node.js | 20 LTS | React + Vite 前端 |
 | npm | 随 Node.js 安装 | 安装前端依赖 |
+| Docker Desktop | 可选 | Docker Sandbox，非必需 |
 
-检查命令：
+检查：
 
 ```powershell
 python --version
@@ -66,557 +218,226 @@ npm -v
 git --version
 ```
 
-Windows 如果没有安装 Node.js，可以执行：
+### 4.2 安装依赖
 
 ```powershell
-winget install -e --id OpenJS.NodeJS.LTS
-```
+cd "D:\文档\15信安赛项目\仓库\Agent-Authorization"
 
-安装完成后重新打开 PowerShell，再执行 `node -v` 和 `npm -v` 检查。
-
----
-
-### 3.2 拉取项目
-
-```powershell
-git clone https://github.com/ZenviorX/Agent-Authorization.git
-cd Agent-Authorization
-```
-
-如果已经拉取过：
-
-```powershell
-git pull
-```
-
----
-
-### 3.3 一键启动
-
-项目根目录下提供统一启动脚本：
-
-```powershell
-python .\start_project.py
-```
-
-脚本会自动完成：
-
-1. 检查 Python 虚拟环境；
-2. 创建或复用 `venv`；
-3. 检查并安装后端依赖；
-4. 检查 Node.js 和 npm；
-5. 检查并安装前端依赖；
-6. 写入前端本地代理配置；
-7. 启动后端服务；
-8. 启动前端服务；
-9. 自动打开浏览器。
-
-启动成功后访问：
-
-```text
-http://127.0.0.1:5173
-```
-
-后端 API 文档：
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-后端状态检查：
-
-```text
-http://127.0.0.1:8000/api/status
-```
-
----
-
-### 3.4 手动启动
-
-如果一键启动失败，可以手动分两个终端启动。
-
-#### 终端一：后端
-
-```powershell
-cd Agent-Authorization
-python -m venv venv
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 .\venv\Scripts\Activate.ps1
-python -m pip install -U pip
-pip install -r requirements.txt
-python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+python -m pip install -r requirements.txt
+
+npm --prefix ".\frontend" install
 ```
 
-macOS / Linux：
-
-```bash
-cd Agent-Authorization
-python3 -m venv venv
-source venv/bin/activate
-python -m pip install -U pip
-pip install -r requirements.txt
-python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-#### 终端二：前端
+### 4.3 一键启动
 
 ```powershell
-cd Agent-Authorization
-npm --prefix ".\frontend" config set registry https://registry.npmmirror.com
-npm --prefix ".\frontend" install --registry=https://registry.npmmirror.com
-npm --prefix ".\frontend" run dev
+python .\start_project.py --clean
 ```
 
-浏览器访问：
+启动后访问：
 
 ```text
-http://127.0.0.1:5173
+前端：http://localhost:5173
+后端：http://127.0.0.1:8000
+API 文档：http://127.0.0.1:8000/docs
 ```
-
-注意：不要在项目根目录直接运行 `npm run dev`，前端的 `package.json` 位于 `frontend/` 目录。
 
 ---
 
-## 4. 推荐演示方式
+## 5. 常用验证命令
 
-在简单测试时推荐使用前端页面中的：
-
-```text
-FakeAgent 规划 + Gateway 只判定
-```
-
-该模式不依赖外部大模型 API Key，适合稳定演示。
-
-| 输入类型 | 展示效果 |
-|---|---|
-| 读取公开文件 | Gateway 判定为低风险 |
-| 访问敏感演示路径 | Gateway 拒绝 |
-| 删除公开演示文件 | Gateway 要求人工确认 |
-| 执行命令类操作 | 普通用户被限制，管理员也需要更严格检查 |
-| 含有提示注入意图的输入 | Gateway 根据原始输入和工具参数识别风险 |
-
----
-
-## 5. LLM 模式说明
-
-FakeAgent 模式不需要 API Key。
-
-如果要使用真实 LLM Agent，需要复制环境变量示例：
+### 5.1 后端状态
 
 ```powershell
-Copy-Item .\.env.example .\.env
+Invoke-RestMethod http://127.0.0.1:8000/api/status
 ```
 
-然后填写自己的模型服务配置。不要把真实 `.env` 或 API Key 提交到 GitHub。
-
----
-
-## 6. 项目目录结构
-
-```text
-Agent-Authorization
-├─ .github/workflows/       # GitHub Actions 自动化测试与报告生成
-├─ Results/                 # 实验评测结果与证据包
-├─ backend/                 # FastAPI 后端、安全网关、运行时监控、工具执行器
-├─ config/                  # 策略配置文件
-├─ docs/                    # 项目文档与归档材料
-├─ examples/                # 示例材料
-├─ experiments/             # 实验评测脚本
-├─ frontend/                # React + Vite 前端页面
-├─ runtime_workspace/       # 本地安全沙箱
-├─ scripts/                 # 辅助脚本
-├─ security_cases/          # 安全测试用例
-├─ tests/                   # pytest 自动化测试
-├─ .env.example             # 后端环境变量示例
-├─ requirements.txt         # Python 依赖
-├─ start_project.py         # 一键启动脚本
-└─ README.md                # 项目说明
-```
-
----
-
-## 7. 目录说明
-
-### `.github/workflows/`
-
-GitHub Actions 工作流目录。当前 CI 会在提交或 PR 时运行测试，并生成安全评测报告 artifact。
-
-### `backend/`
-
-后端核心目录，基于 FastAPI。主要包含：
-
-| 子模块 | 作用 |
-|---|---|
-| `gateway/` | 工具调用授权网关核心逻辑 |
-| `routes/` | 后端 API 路由 |
-| `demo/` | FakeAgent 演示链路 |
-| `agents/` | 真实 LLM Agent 规划逻辑 |
-| `capability/` | Capability Contract 能力约束 |
-| `task_contract/` | 任务授权合约 |
-| `runtime/` | 运行时监控、数据流标签、证据包 |
-| `attack_chain/` | 多步攻击链检测 |
-| `tools/` | 沙箱工具执行器 |
-| `audit/` | 审计日志与哈希链 |
-| `approval/` | 人工确认队列 |
-
-### `frontend/`
-
-React + Vite 前端。用于展示命令输入、Agent 规划、Gateway 判定、风险原因、审计和评测概览。
-
-### `config/`
-
-策略配置目录。
-
-- `policy.yaml`：配置工具、角色、路径、风险分、关键词、决策阈值；
-- `semantic_guard.yaml`：配置语义风险标签、样例和阈值。
-
-### `runtime_workspace/`
-
-本地安全沙箱。真实工具执行只会影响这个目录，不会影响用户电脑其他文件。
-
-典型内容：
-
-```text
-runtime_workspace
-├─ public/
-├─ private/
-├─ secret/
-├─ outbox/
-└─ agent_runtime.db
-```
-
-### `security_cases/`
-
-安全测试用例目录，用于批量验证 Gateway 对正常样例、可疑样例和攻击样例的判断能力。
-
-### `experiments/`
-
-实验评测脚本目录，用于运行对比实验、攻击链评测和运行时流程评测。
-
-### `Results/`
-
-实验结果目录。本地或 CI 运行后会生成 HTML/JSON 报告。普通 `Result_*.html` 和 `Result_*.json` 默认不提交到仓库，避免运行产物污染项目。
-
-### `tests/`
-
-pytest 自动化测试目录，用于验证后端接口、Gateway 策略、任务合约、运行时监控、攻击链检测、审计完整性等功能。
-
-### `docs/`
-
-项目文档和过程归档目录，便于老师或评审理解项目设计。
-
-### `scripts/`
-
-辅助脚本目录，用于保存运行、评测、报告生成或维护类脚本。
-
----
-
-## 8. 核心功能
-
-### 8.1 Gateway 授权网关
-
-Gateway 是项目核心。它接收 Agent 生成的工具调用请求，综合判断后返回 `allow / confirm / deny`。
-
-核心接口：
-
-```text
-POST /gateway/check
-POST /gateway/call
-POST /agent/call
-```
-
-### 8.2 FakeAgent 演示链路
-
-FakeAgent 用于稳定演示自然语言到工具调用的转换。
-
-核心接口：
-
-```text
-GET  /demo/cases
-POST /demo/fake-agent/plan
-POST /demo/fake-agent/run
-POST /demo/cases/{case_id}/run
-```
-
-### 8.3 LLM Agent 多步规划
-
-真实 LLM Agent 用于更接近真实场景的多步任务规划。
-
-核心接口：
-
-```text
-POST /agent-runtime/multistep-llm/plan
-POST /agent-runtime/multistep-llm/run
-POST /agent-runtime/stepwise-llm/run
-GET  /agent-runtime/sessions
-GET  /agent-runtime/sessions/{session_id}
-```
-
-### 8.4 Task Contract 任务授权合约
-
-根据用户原始任务生成任务边界，限制 Agent 不偏离当前任务。
-
-核心接口：
-
-```text
-POST /task-contract/build
-```
-
-### 8.5 Capability Contract v2
-
-将自然语言任务编译成更细粒度的能力合约，约束工具、资源、步骤数、风险预算和输入输出标签。
-
-核心接口：
-
-```text
-POST /capability/compile
-POST /capability/enforce
-```
-
-### 8.6 Runtime Monitor 运行时监控
-
-用于多步任务中的动态检查、数据标签追踪、安全图谱和证据包生成。
-
-核心接口：
-
-```text
-POST /runtime/start
-POST /runtime/{task_id}/step
-GET  /runtime/{task_id}/graph
-GET  /runtime/{task_id}/evidence
-POST /runtime/{task_id}/evidence/export
-GET  /runtime/{task_id}/state
-GET  /runtime
-```
-
-### 8.7 攻击链检测
-
-识别单步看似正常，但多步组合后产生风险的行为链。
-
-核心接口：
-
-```text
-POST /attack-chain/check
-GET  /attack-chain/session/{session_id}
-POST /attack-chain/reset/{session_id}
-```
-
-### 8.8 人工确认
-
-中等风险操作进入 pending 队列，由人工确认或拒绝。确认时会再次经过 Gateway 检查。
-
-核心接口：
-
-```text
-GET  /approval/pending
-POST /approval/confirm/{pending_id}
-POST /approval/reject/{pending_id}
-```
-
-### 8.9 审计日志
-
-系统记录工具调用、Gateway 决策、执行状态和人工确认结果，并支持哈希链完整性校验。
-
-核心接口：
-
-```text
-GET /audit/logs
-GET /audit/verify
-```
-
-### 8.10 沙箱工具执行器
-
-工具执行器支持文件、邮件、命令和数据库演示操作，但所有执行都被限制在 `runtime_workspace` 中。
-
-沙箱状态接口：
-
-```text
-GET /runtime/sandbox/status
-GET /runtime/sandbox/files
-GET /runtime/sandbox/outbox
-GET /runtime/sandbox/database
-GET /runtime/sandbox/demo-run
-```
-
-### 8.11 安全概览与评测报告
-
-项目提供安全概览和 Benchmark 报告读取接口：
-
-```text
-GET /security/overview
-GET /benchmark/reports
-GET /benchmark/latest
-GET /benchmark/latest/integrity
-GET /benchmark/latest/graph/{case_id}
-GET /benchmark/latest/effectiveness
-```
-
----
-
-## 9. GitHub Actions 工作流
-
-项目配置了 CI：
-
-```text
-.github/workflows/ci.yml
-```
-
-触发条件：
-
-- push 到 `main`；
-- push 到 `improve-risk-policy`；
-- pull request 到 `main`；
-- 手动触发。
-
-CI 包含两个主要任务：
-
-| Job | 功能 |
-|---|---|
-| `basic-test` | 安装依赖并运行 `python -m pytest tests -q` |
-| `dashboard` | 生成安全评测仪表盘并上传 artifact |
-
-生成的 artifact 名称为：
-
-```text
-ci-test-dashboard
-```
-
----
-
-## 10. 本地测试与构建
-
-运行后端测试：
+### 5.2 Native Sandbox，无需 Docker
 
 ```powershell
-python -m pytest
+Invoke-RestMethod http://127.0.0.1:8000/sandbox-native/health
+
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/sandbox-native/execute `
+  -ContentType "application/json; charset=utf-8" `
+  -Body '{"tool":"file.read","params":{"path":"public/notice.txt"},"sandbox_profile":"local_readonly"}'
 ```
 
-运行前端构建检查：
+敏感读取阻断：
+
+```powershell
+Invoke-RestMethod -Method Post http://127.0.0.1:8000/sandbox-native/execute `
+  -ContentType "application/json; charset=utf-8" `
+  -Body '{"tool":"file.read","params":{"path":"secret/password.txt"},"sandbox_profile":"strict"}'
+```
+
+### 5.3 Docker Sandbox，可选
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/sandbox-docker/health
+```
+
+如果没有 Docker Desktop，系统不会失败，Tool Proxy 真执行会自动使用 Native Subprocess Sandbox。
+
+### 5.4 独立评测
+
+```powershell
+python -m test.run
+```
+
+### 5.5 pytest 回归测试
+
+```powershell
+python -m pytest tests/test_native_sandbox_executor.py
+python -m pytest tests/test_docker_sandbox_executor.py
+python -m pytest tests -q
+```
+
+### 5.6 前端构建
 
 ```powershell
 npm --prefix ".\frontend" run build
 ```
 
-只启动后端：
-
-```powershell
-python .\start_project.py --backend-only
-```
-
-只启动前端：
-
-```powershell
-python .\start_project.py --frontend-only
-```
-
-不自动打开浏览器：
-
-```powershell
-python .\start_project.py --no-open
-```
-
 ---
 
-## 11. 常见问题
+## 6. 前端功能说明
 
-### 为什么打开 8000 不是前端页面？
+新版前端基于 React + Vite，主要页面包括：
 
-当前项目是前后端分离架构。正式前端入口是：
+| 页面 | 作用 |
+|---|---|
+| 授权工作台 | 输入自然语言命令，展示 Agent 规划、Gateway 判定、Capability Token、Hybrid Sandbox 证据 |
+| 总览仪表盘 | 展示请求量、阻断数、风险指标、最近请求和审计时间线 |
+| 授权请求 | 展示待确认或已处理的授权请求 |
+| 策略管理 | 展示策略规则和风险控制说明 |
+| 审计日志 | 展示操作审计与安全事件 |
+| 评测对比 | 一键运行 `test.run`，展示独立评测结果 |
+| 科研对比 | 展示 OAuth、传统权限、Agent 授权等对比 |
+| 两阶段授权 | 展示 Capability Token 的签发、绑定、消费流程 |
+| 系统设置 | 展示系统配置入口 |
+
+授权工作台推荐演示样例：
 
 ```text
-http://127.0.0.1:5173
+真沙箱读取 public
+真沙箱写入 outbox
+敏感读取阻断
+OAuth 合法读取
+OAuth 外发拒绝
+Adapter Shell 沙箱阻断
 ```
 
-8000 是后端 API 服务和 Swagger 文档地址。
+没有 Docker 时，前端仍然会展示：
 
-### 为什么 npm 找不到 package.json？
-
-前端项目在 `frontend/` 目录。请使用：
-
-```powershell
-npm --prefix ".\frontend" run dev
+```json
+"sandbox_evidence": {
+  "sandbox_type": "native_subprocess"
+}
 ```
-
-### 为什么 LLM 模式不能用？
-
-LLM 模式需要配置 `.env` 中的模型服务 API Key。课堂演示建议优先使用 FakeAgent 模式。
-
-### 项目会不会操作真实文件？
-
-不会。真实工具执行被限制在 `runtime_workspace/` 沙箱目录。
-
-### 前端会自动读取 GitHub Actions 结果吗？
-
-不会。Actions 生成的评测报告会作为 artifact 上传。后端可以读取本地 `Results/Result_*.json`，但 GitHub artifact 不会自动同步到本地前端。
 
 ---
 
-## 12. 项目总结
+## 7. 后端接口概览
 
-Agent-Authorization 构建了一个 AI Agent 工具调用安全网关原型。它将自然语言任务、Agent 工具规划、Gateway 授权、任务合约、运行时数据流监控、沙箱执行、人工确认、审计日志和安全评测整合成一个完整系统。
+| 模块 | 路径 | 说明 |
+|---|---|---|
+| Gateway | `/gateway/check` | 单次工具调用授权判断 |
+| Tool Proxy | `/tool-proxy/authorize` | 外部 Agent 统一工具调用入口 |
+| External Agent | `/external-agent/simulate` | OpenClaw / WorkBuddy / Custom Agent 模拟接入 |
+| Native Sandbox | `/sandbox-native/*` | 无 Docker 的内置执行沙箱 |
+| Docker Sandbox | `/sandbox-docker/*` | Docker 执行沙箱，可选 |
+| Test Results | `/test-results/*` | 独立测试结果读取与一键运行 |
+| Runtime | `/runtime/*` | 运行时状态与多步检测 |
+| Audit | `/audit/*` | 审计日志 |
+| Approval | `/approval/*` | 人工确认流程 |
 
-核心价值：
+---
 
-1. Agent 不能直接执行工具；
-2. 所有工具调用必须先经过 Gateway；
-3. 支持 `allow / confirm / deny` 三态决策；
-4. 支持策略配置化；
-5. 支持提示注入和敏感资源风险识别；
-6. 支持任务级能力约束；
-7. 支持多步运行时监控和攻击链检测；
-8. 支持沙箱执行与审计证据；
-9. 支持自动化测试和 CI 评测报告。
+## 8. 项目目录结构
 
-一句话概括：
+```text
+Agent-Authorization/
+  .github/workflows/        # CI
+  backend/                  # FastAPI 后端
+    adapters/               # 外部 Agent Adapter
+    capability/             # Capability Contract
+    guardrails/             # 任务边界、token、授权轨迹
+    proxy/                  # Tool Proxy 与 OAuth-style profile
+    routes/                 # API routes
+    runtime/                # Runtime Monitor
+    sandbox/                # Sandbox Policy / Docker / Native / Hybrid Executor
+    tools/                  # 受控工具执行器
+  config/                   # policy.yaml / semantic_guard.yaml
+  docs/                     # 架构、OAuth 对比、沙箱说明
+  examples/                 # 演示脚本
+  frontend/                 # React + Vite 前端
+  runtime_workspace/        # 本地沙箱工作区，运行产物默认忽略
+  scripts/                  # 辅助脚本
+  test/                     # 独立评测模块
+  tests/                    # pytest 回归测试
+  start_project.py          # 一键启动脚本
+  requirements.txt
+  README.md
+```
 
-> 本项目在 AI Agent 和真实工具之间建立了一道可配置、可解释、可审计的安全边界，让 Agent 能用工具，但不能越权、不能绕过策略、不能随意造成高风险影响。
+说明：
 
-<!-- PROJECT_EVALUATION_EVIDENCE_START -->
-## 项目评测证据包
+- `test/` 是产品化评测模块，面向展示、报告和前端结果读取；
+- `tests/` 是 pytest 自动化测试，面向开发回归；
+- `runtime_workspace/` 是本地沙箱目录，不应存放真实敏感文件；
+- Docker 不是必需依赖，Native Subprocess Sandbox 可直接运行。
 
-项目新增评测证据包，用于沉淀安全样例、评测流程和可复现实验材料：
+---
 
-- `docs/evaluation_evidence_pack.md`：说明项目评测证据链、样例覆盖范围和后续优化方向；
-- `security_cases/gateway_cases_v5_redteam.json`：补充间接提示注入、编码路径绕过、策略篡改、命令外带、SQL 注入等红队样例；
-- `scripts/run_project_evaluation.ps1`：一键运行红队回归测试与可选完整测试。
+## 9. 与 OAuth 的关系
 
-运行方式：
+OAuth 解决的是：
 
-```powershell
-.\scripts\run_project_evaluation.ps1
-运行完整测试：
+```text
+某个应用 / Agent 是否被授权访问某类资源。
+```
 
-.\scripts\run_project_evaluation.ps1 -Full
-<!-- PROJECT_EVALUATION_EVIDENCE_END -->
+Agent-Authorization 进一步解决的是：
 
-<!-- STRATEGY_COMPARISON_START -->
-多策略对比评测
+```text
+这个 Agent 在当前任务、当前上下文、当前工具参数下，能不能安全执行这一次具体动作。
+```
 
-项目新增多策略对比评测，用于在同一批安全样例上比较不同工具调用控制策略：
+例如，Agent 拥有 `tool:file:read` scope，并不代表它可以在任意任务中读取任意文件。系统仍会检查：
 
-allow_all：无前置安全控制，所有工具调用直接放行；
-keyword_only：仅依赖显式危险关键词和副作用工具判断；
-gateway：使用本项目完整安全网关进行综合授权判断。
+- 读取路径是否在任务边界内；
+- 是否访问 `secret/`、`private/`、`.env` 等敏感资源；
+- 是否来自提示注入链路；
+- 结果是否可能被外发；
+- 是否需要人工确认；
+- 是否必须进入沙箱执行。
 
-运行方式：
+---
 
-.\scripts\run_strategy_comparison.ps1
+## 10. 展示话术
 
-运行后会生成：
+可以这样介绍项目：
 
-Results/strategy_comparison.csv
-Results/strategy_comparison_summary.json
-Results/strategy_comparison_report.md
-Results/strategy_comparison_dashboard.html
+```text
+我们做的不是一个新的 OAuth，也不是普通聊天机器人。
+我们做的是 AI Agent 工具调用前的授权网关。
+当 OpenClaw、WorkBuddy 或企业自研 Agent 想调用文件、邮件、数据库或命令行工具时，它们不能直接执行，而是必须通过 Adapter 和 Tool Proxy 转成标准授权请求。
+系统再进行 OAuth-style scope 检查、任务边界检查、Capability Token 校验、Runtime Monitor、Sandbox Policy 和 Hybrid Sandbox 执行，最后输出 allow / confirm / deny，并生成可审计证据。
+```
 
-后端接口：
+---
 
-GET /evaluation/strategy-comparison
-GET /evaluation/strategy-comparison/report
-GET /evaluation/strategy-comparison/dashboard
+## 11. 当前边界
 
-前端“效果评测”页面会读取该结果并展示多策略对比指标。
+- Native Subprocess Sandbox 不等同于 Docker、gVisor 或 Firecracker；它是无需安装额外软件的本地可运行 fallback。
+- Docker Sandbox 是可选增强，适合有 Docker Desktop 的环境。
+- WorkBuddy / OpenClaw 当前是接入协议与模拟场景，不代表已经真实调用官方 API。
+- 前端仍保留少量 mock fallback，用于后端不可用时的演示兜底；核心授权、测试、沙箱接口已经接入真实后端。
 
-<!-- STRATEGY_COMPARISON_END -->
+---
 
+## 12. License
 
+This project is for research, teaching, and security demonstration purposes.
