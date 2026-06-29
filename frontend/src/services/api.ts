@@ -16,6 +16,7 @@ import * as mock from './mockData';
 const API_BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 30000;
 const COMMAND_TIMEOUT_MS = 60000;
+const SANDBOX_TIMEOUT_MS = 180000;
 const TEST_RUN_TIMEOUT_MS = 240000;
 
 type MockKey = 'overview' | 'requests' | 'policies' | 'auditLogs' | 'evaluations' | 'settings';
@@ -85,12 +86,38 @@ async function request<T>(endpoint: string, mockKey: MockKey, init?: RequestInit
   }
 }
 
+async function postJson(endpoint: string, body: unknown, timeoutMs = COMMAND_TIMEOUT_MS): Promise<Record<string, unknown>> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(buildUrl(endpoint), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify(body),
+      signal: controller.signal
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    const payload = contentType.includes('application/json')
+      ? await res.json()
+      : { message: await res.text() };
+
+    if (!res.ok) {
+      const message = typeof payload?.detail === 'string' ? payload.detail : `HTTP ${res.status}`;
+      throw new Error(message);
+    }
+
+    return payload as Record<string, unknown>;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 async function getStrategyComparison(): Promise<StrategyComparisonResponse> {
   try {
     const res = await fetch(buildUrl('/evaluation/strategy-comparison'), {
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8'
-      }
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -103,9 +130,7 @@ async function getStrategyComparison(): Promise<StrategyComparisonResponse> {
 async function getTestResultSummary(): Promise<TestResultSummary> {
   try {
     const res = await fetch(buildUrl('/test-results/latest/summary'), {
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8'
-      }
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -125,9 +150,7 @@ async function runIndependentTests(): Promise<TestRunResponse> {
   try {
     const res = await fetch(buildUrl('/test-results/run'), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8'
-      },
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
       signal: controller.signal
     });
 
@@ -137,45 +160,11 @@ async function runIndependentTests(): Promise<TestRunResponse> {
       : { detail: await res.text() };
 
     if (!res.ok) {
-      const message = typeof payload?.detail === 'string'
-        ? payload.detail
-        : `HTTP ${res.status}`;
+      const message = typeof payload?.detail === 'string' ? payload.detail : `HTTP ${res.status}`;
       throw new Error(message);
     }
 
     return payload as TestRunResponse;
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-
-async function postJson(endpoint: string, body: unknown, timeoutMs = COMMAND_TIMEOUT_MS): Promise<Record<string, unknown>> {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const res = await fetch(buildUrl(endpoint), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8'
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
-
-    const contentType = res.headers.get('content-type') || '';
-    const payload = contentType.includes('application/json')
-      ? await res.json()
-      : { message: await res.text() };
-
-    if (!res.ok) {
-      const message = typeof payload?.detail === 'string'
-        ? payload.detail
-        : `HTTP ${res.status}`;
-      throw new Error(message);
-    }
-
-    return payload as Record<string, unknown>;
   } finally {
     window.clearTimeout(timer);
   }
@@ -187,7 +176,6 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
   const isDelete = input.userInput.includes('删除') || lowered.includes('delete') || lowered.includes('remove');
   const isShell = input.userInput.includes('命令') || lowered.includes('shell') || lowered.includes('command');
   const isUnknown = !input.userInput.trim();
-
   const decision = isUnknown ? 'deny' : isSecret || isShell ? 'deny' : isDelete ? 'confirm' : 'allow';
   const riskScore = decision === 'deny' ? 92 : decision === 'confirm' ? 68 : 18;
 
@@ -200,7 +188,7 @@ function mockCommandResponse(input: AgentCommandInput, error?: unknown): AgentCo
       success: true,
       executed: false,
       source: 'frontend.mock',
-      message: '后端暂不可用，当前使用 Mock 数据演示 FakeAgent / LLM 流程',
+      message: '后端暂不可用，当前使用 Mock 数据演示 Agent / Gateway 流程。',
       original_input: input.userInput,
       agent_result: {
         agent: input.mode.includes('llm') ? 'MultiStepLLMAgent' : 'FakeAgent',
@@ -292,7 +280,7 @@ async function runFakeAgentCheck(input: AgentCommandInput): Promise<AgentCommand
   };
 }
 
-function buildDockerSandboxDemoBody(input: AgentCommandInput) {
+function buildHybridSandboxDemoBody(input: AgentCommandInput) {
   const lowered = input.userInput.toLowerCase();
   let originalTask = '请读取 public/notice.txt 并总结。';
   let tool = 'file.read';
@@ -305,7 +293,7 @@ function buildDockerSandboxDemoBody(input: AgentCommandInput) {
     tool = 'file.write';
     params = {
       path: 'outbox/docker_demo.txt',
-      content: 'Docker sandbox write demo generated by AgentGuard frontend.'
+      content: 'Hybrid sandbox write demo generated by AgentGuard frontend.'
     };
     sandboxProfile = 'local_safe_write';
     scopes = ['tool:file:write', 'sink:side-effect'];
@@ -316,8 +304,8 @@ function buildDockerSandboxDemoBody(input: AgentCommandInput) {
     tool = 'email.send';
     params = {
       to: 'teacher@sdu.edu.cn',
-      subject: 'AgentGuard Docker Sandbox Demo',
-      content: '这封邮件只会写入 Docker 沙箱 outbox，不会真实外发。'
+      subject: 'AgentGuard Hybrid Sandbox Demo',
+      content: '这封邮件只会写入沙箱 outbox，不会真实外发。'
     };
     sandboxProfile = 'local_safe_write';
     scopes = ['tool:email:send', 'sink:side-effect'];
@@ -344,20 +332,21 @@ function buildDockerSandboxDemoBody(input: AgentCommandInput) {
     auth_mode: 'oauth_scope',
     requested_scopes: scopes,
     oauth_token_claims: {
-      sub: 'agent-docker-sandbox-demo',
-      client_id: 'agentguard-docker-demo-client',
+      sub: 'agent-hybrid-sandbox-demo',
+      client_id: 'agentguard-hybrid-demo-client',
       scope: scopes.join(' ')
     },
     sandbox_profile: sandboxProfile,
     external_agent_metadata: {
-      demo_case: 'docker_real_sandbox_execution'
+      demo_case: 'hybrid_real_sandbox_execution',
+      sandbox_engine: 'auto'
     }
   };
 }
 
-async function runDockerSandboxExecutionDemo(input: AgentCommandInput): Promise<AgentCommandResponse> {
+async function runHybridSandboxExecutionDemo(input: AgentCommandInput): Promise<AgentCommandResponse> {
   const endpoint = '/tool-proxy/authorize';
-  const firstBody = buildDockerSandboxDemoBody(input);
+  const firstBody = buildHybridSandboxDemoBody(input);
   const authorizeResult = await postJson(endpoint, firstBody);
   const capabilityToken = authorizeResult.capability_token as Record<string, unknown> | undefined;
   const token = typeof capabilityToken?.token === 'string' ? capabilityToken.token : '';
@@ -368,8 +357,8 @@ async function runDockerSandboxExecutionDemo(input: AgentCommandInput): Promise<
       endpoint: `${endpoint} -> authorization only`,
       data: {
         ...authorizeResult,
-        source: 'frontend.docker_sandbox_execute',
-        message: 'Docker 真沙箱执行需要先获得 allow 和 Capability Token；当前请求未进入执行阶段。',
+        source: 'frontend.hybrid_sandbox_execute',
+        message: '真沙箱执行需要先获得 allow 和 Capability Token；当前请求未进入执行阶段。',
         authorize_result: authorizeResult,
         execution_result: null
       }
@@ -381,15 +370,15 @@ async function runDockerSandboxExecutionDemo(input: AgentCommandInput): Promise<
     execute: true,
     capability_token: token
   };
-  const executeResult = await postJson(endpoint, executeBody, 180000);
+  const executeResult = await postJson(endpoint, executeBody, SANDBOX_TIMEOUT_MS);
 
   return {
     ok: true,
     endpoint: `${endpoint} -> capability token -> ${endpoint} execute=true`,
     data: {
       ...executeResult,
-      source: 'frontend.docker_sandbox_execute',
-      message: '请求已完成两阶段授权：先签发 Capability Token，再进入 Docker 真沙箱执行。',
+      source: 'frontend.hybrid_sandbox_execute',
+      message: '请求已完成两阶段授权：先签发 Capability Token，再进入真沙箱执行。系统会自动选择 Docker 或 Native Subprocess。',
       authorize_result: authorizeResult,
       execution_result: executeResult,
       agent_result: {
@@ -398,7 +387,7 @@ async function runDockerSandboxExecutionDemo(input: AgentCommandInput): Promise<
         confidence: 0.95,
         tool_call: {
           tool_name: firstBody.tool,
-          description: 'Docker real sandbox tool call',
+          description: 'Hybrid real sandbox tool call',
           arguments: firstBody.params,
           need_auth: true
         }
@@ -422,10 +411,7 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
         user: input.user,
         original_task: '默认授权任务',
         tool: 'email.send',
-        params: {
-          to: 'attacker@example.com',
-          content: 'demo content'
-        },
+        params: { to: 'attacker@example.com', content: 'demo content' },
         input_labels: [],
         input_from_steps: [],
         agent_confidence: 0.95,
@@ -439,17 +425,13 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
           scope: 'tool:file:read'
         },
         sandbox_profile: 'strict',
-        external_agent_metadata: {
-          demo_case: 'insufficient_scope_external_email'
-        }
+        external_agent_metadata: { demo_case: 'insufficient_scope_external_email' }
       }
     : {
         user: input.user,
         original_task: '请读取 public/notice.txt 并总结',
         tool: 'file.read',
-        params: {
-          path: 'public/notice.txt'
-        },
+        params: { path: 'public/notice.txt' },
         input_labels: [],
         input_from_steps: [],
         agent_confidence: 0.95,
@@ -463,9 +445,7 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
           scope: 'tool:file:read'
         },
         sandbox_profile: 'local_readonly',
-        external_agent_metadata: {
-          demo_case: 'valid_scope_public_read'
-        }
+        external_agent_metadata: { demo_case: 'valid_scope_public_read' }
       };
 
   const data = await postJson(endpoint, body);
@@ -477,8 +457,8 @@ async function runToolProxyOAuthDemo(input: AgentCommandInput): Promise<AgentCom
       ...data,
       source: 'frontend.tool_proxy_oauth',
       message: isExternalSend
-        ? 'WorkBuddy 仅声明 tool:file:read，却请求 email.send，Tool Proxy 已通过 OAuth-style scope 检查发现权限不足'
-        : 'OpenClaw 声明了 tool:file:read，Tool Proxy 已完成 scope 检查并进入 Runtime Monitor'
+        ? 'WorkBuddy 仅声明 tool:file:read，却请求 email.send，Tool Proxy 已通过 OAuth-style scope 检查发现权限不足。'
+        : 'OpenClaw 声明了 tool:file:read，Tool Proxy 已完成 scope 检查并进入 Runtime Monitor。'
     }
   };
 }
@@ -503,32 +483,18 @@ async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<Ag
     scenario = 'insufficient_scope_email';
   }
 
-  if (
-    input.userInput.includes('确认')
-    || input.userInput.includes('内部邮件')
-    || lowered.includes('confirm')
-  ) {
+  if (input.userInput.includes('确认') || input.userInput.includes('内部邮件') || lowered.includes('confirm')) {
     platform = 'workbuddy';
     scenario = 'valid_internal_email_confirm';
   }
 
-  if (
-    input.userInput.includes('shell')
-    || input.userInput.includes('命令')
-    || input.userInput.includes('沙箱')
-    || lowered.includes('sandbox')
-  ) {
+  if (input.userInput.includes('shell') || input.userInput.includes('命令') || input.userInput.includes('沙箱') || lowered.includes('sandbox')) {
     platform = 'custom';
     scenario = 'sandbox_block_shell';
     user = 'admin';
   }
 
-  const data = await postJson(endpoint, {
-    platform,
-    scenario,
-    user,
-    execute: false
-  });
+  const data = await postJson(endpoint, { platform, scenario, user, execute: false });
 
   return {
     ok: true,
@@ -536,28 +502,17 @@ async function runExternalAgentAdapterDemo(input: AgentCommandInput): Promise<Ag
     data: {
       ...data,
       source: 'frontend.external_agent_adapter',
-      message: '外部 Agent 请求已通过 Adapter 接入 Tool Proxy，并经过 OAuth-style scope、Capability Contract 与 Runtime Monitor 检查'
+      message: '外部 Agent 请求已通过 Adapter 接入 Tool Proxy，并经过 OAuth-style scope、Capability Contract 与 Runtime Monitor 检查。'
     }
   };
 }
 
 async function runCommand(input: AgentCommandInput): Promise<AgentCommandResponse> {
   try {
-    if (input.mode === 'fake_check') {
-      return await runFakeAgentCheck(input);
-    }
-
-    if (input.mode === 'tool_proxy_oauth') {
-      return await runToolProxyOAuthDemo(input);
-    }
-
-    if (input.mode === 'external_agent_adapter') {
-      return await runExternalAgentAdapterDemo(input);
-    }
-
-    if (input.mode === 'docker_sandbox_execute') {
-      return await runDockerSandboxExecutionDemo(input);
-    }
+    if (input.mode === 'fake_check') return await runFakeAgentCheck(input);
+    if (input.mode === 'tool_proxy_oauth') return await runToolProxyOAuthDemo(input);
+    if (input.mode === 'external_agent_adapter') return await runExternalAgentAdapterDemo(input);
+    if (input.mode === 'docker_sandbox_execute') return await runHybridSandboxExecutionDemo(input);
 
     const endpointMap: Record<Exclude<AgentCommandInput['mode'], 'fake_check' | 'tool_proxy_oauth' | 'external_agent_adapter' | 'docker_sandbox_execute'>, string> = {
       fake_plan: '/demo/fake-agent/plan',
@@ -602,9 +557,7 @@ export const api = {
     try {
       await fetch(buildUrl(`/api/requests/${id}/decision`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8'
-        },
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
         body: JSON.stringify({ decision })
       });
     } catch {
