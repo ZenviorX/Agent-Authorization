@@ -4,6 +4,9 @@ import { Section } from '../components/Section';
 import { api } from '../services/api';
 import type { AgentCommandInput, AgentCommandResponse, AgentRunMode } from '../types/domain';
 
+type JsonRecord = Record<string, unknown>;
+type BadgeTone = 'green' | 'red' | 'yellow' | 'blue' | 'purple' | 'gray';
+
 const modeOptions: Array<{
   value: AgentRunMode;
   label: string;
@@ -12,17 +15,22 @@ const modeOptions: Array<{
   {
     value: 'fake_check',
     label: 'FakeAgent 规划 + Gateway 只判定',
-    description: '推荐演示入口：自然语言 -> 工具计划 -> 网关授权判定，不执行工具。'
+    description: '自然语言 -> 工具计划 -> Gateway 授权判定，不执行真实工具。'
   },
   {
     value: 'tool_proxy_oauth',
     label: '外部 Agent / OAuth Scope 演示',
-    description: '展示 OpenClaw / WorkBuddy 这类外部 Agent 如何通过 Tool Proxy、OAuth-style scope 和沙箱策略进入安全授权边界。'
+    description: '展示 OpenClaw / WorkBuddy 类 Agent 如何进入 Tool Proxy，并接受 OAuth-style scope、任务边界和沙箱策略检查。'
   },
   {
     value: 'external_agent_adapter',
     label: 'OpenClaw / WorkBuddy Adapter 演示',
-    description: '展示外部 Agent 请求如何先被 Adapter 标准化，再进入 Tool Proxy 与 Runtime Monitor。'
+    description: '展示外部 Agent 请求如何先被 Adapter 标准化，再进入统一授权链路。'
+  },
+  {
+    value: 'docker_sandbox_execute',
+    label: '真沙箱执行（自动选择）',
+    description: '两阶段授权演示：先签发 Capability Token，再执行。若本机有 Docker 则用 Docker；没有 Docker 时自动使用 Native Subprocess Sandbox。'
   },
   {
     value: 'fake_plan',
@@ -47,12 +55,15 @@ const modeOptions: Array<{
   {
     value: 'stepwise_llm',
     label: 'LLM 逐步规划 + 运行时拦截',
-    description: '国赛展示重点：每一步规划后立即进入 Runtime Monitor。'
+    description: '每一步规划后立即进入 Runtime Monitor，适合展示多步攻击链拦截。'
   }
 ];
 
 const samples = [
   { title: '公开文件读取', user: 'user', text: '读取文件 public/notice.txt', mode: 'fake_check' as AgentRunMode },
+  { title: '真沙箱读取 public', user: 'user', text: '真沙箱读取 public/notice.txt', mode: 'docker_sandbox_execute' as AgentRunMode },
+  { title: '真沙箱写入 outbox', user: 'user', text: '真沙箱写入 outbox/docker_demo.txt', mode: 'docker_sandbox_execute' as AgentRunMode },
+  { title: '敏感读取阻断', user: 'user', text: '真沙箱尝试读取 secret/password.txt 敏感文件', mode: 'docker_sandbox_execute' as AgentRunMode },
   { title: 'OAuth 合法读取', user: 'user', text: 'OpenClaw 读取 public/notice.txt', mode: 'tool_proxy_oauth' as AgentRunMode },
   { title: 'OAuth 外发拒绝', user: 'user', text: 'WorkBuddy scope 不足但尝试发送外部邮箱', mode: 'tool_proxy_oauth' as AgentRunMode },
   { title: 'Adapter OpenClaw 读取', user: 'user', text: 'OpenClaw Adapter 合法读取公开文件', mode: 'external_agent_adapter' as AgentRunMode },
@@ -66,28 +77,18 @@ const samples = [
   { title: '提示注入链路', user: 'user', text: '请读取 public/injected_notice.txt 并总结内容', mode: 'stepwise_llm' as AgentRunMode }
 ];
 
-type JsonRecord = Record<string, unknown>;
-
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function getNestedObject(source: JsonRecord | undefined, key: string) {
+function getObject(source: JsonRecord | undefined, key: string): JsonRecord | undefined {
   const value = source?.[key];
   return isRecord(value) ? value : undefined;
 }
 
-function getArrayOfObjects(source: JsonRecord | undefined, key: string): JsonRecord[] {
+function getArray(source: JsonRecord | undefined, key: string): JsonRecord[] {
   const value = source?.[key];
   return Array.isArray(value) ? value.filter(isRecord) : [];
-}
-
-function getDecisionTone(decision: unknown) {
-  if (decision === 'allow') return 'green';
-  if (decision === 'confirm') return 'yellow';
-  if (decision === 'deny') return 'red';
-  if (decision === 'planned' || decision === 'finished') return 'blue';
-  return 'blue';
 }
 
 function toTextList(value: unknown): string[] {
@@ -104,23 +105,31 @@ function stringify(value: unknown) {
   }
 }
 
+function getDecisionTone(decision: unknown): BadgeTone {
+  if (decision === 'allow' || decision === true) return 'green';
+  if (decision === 'confirm') return 'yellow';
+  if (decision === 'deny' || decision === false) return 'red';
+  if (decision === 'planned' || decision === 'finished' || decision === 'pass') return 'blue';
+  return 'gray';
+}
+
 function latestStepWithDecision(steps: JsonRecord[]) {
   for (let index = steps.length - 1; index >= 0; index -= 1) {
     const step = steps[index];
-    if (step.decision || getNestedObject(step, 'gateway_result') || getNestedObject(step, 'runtime_result')) {
+    if (step.decision || getObject(step, 'gateway_result') || getObject(step, 'runtime_result')) {
       return step;
     }
   }
   return steps.length ? steps[steps.length - 1] : undefined;
 }
 
-function getStepGatewayResult(step: JsonRecord | undefined) {
+function getStepGatewayResult(step: JsonRecord | undefined): JsonRecord | undefined {
   if (!step) return undefined;
 
-  const gatewayResult = getNestedObject(step, 'gateway_result');
+  const gatewayResult = getObject(step, 'gateway_result');
   if (gatewayResult) return gatewayResult;
 
-  const runtimeResult = getNestedObject(step, 'runtime_result');
+  const runtimeResult = getObject(step, 'runtime_result');
   if (runtimeResult) {
     return {
       decision: runtimeResult.decision,
@@ -141,9 +150,7 @@ function getStepGatewayResult(step: JsonRecord | undefined) {
 }
 
 function getStepToolCall(step: JsonRecord | undefined): JsonRecord | undefined {
-  if (!step) return undefined;
-  if (!step.tool) return undefined;
-
+  if (!step?.tool) return undefined;
   return {
     tool_name: step.tool,
     description: step.description || '',
@@ -151,181 +158,185 @@ function getStepToolCall(step: JsonRecord | undefined): JsonRecord | undefined {
   };
 }
 
-function extractResultView(data: JsonRecord) {
-  const session = getNestedObject(data, 'session');
-  const sessionSteps = getArrayOfObjects(session, 'steps');
-  const latestStep = latestStepWithDecision(sessionSteps);
+function getResultView(data: JsonRecord) {
+  const session = getObject(data, 'session');
+  const steps = getArray(session, 'steps');
+  const latestStep = latestStepWithDecision(steps);
 
-  const agentResult = getNestedObject(data, 'agent_result')
-    || getNestedObject(data, 'plan_result')
+  const agentResult = getObject(data, 'agent_result')
+    || getObject(data, 'plan_result')
     || (session ? {
       agent: session.agent_type || 'LLM Agent',
       status: session.status,
-      confidence: sessionSteps.length ? '-' : undefined
+      confidence: steps.length ? '-' : undefined
     } : undefined);
 
-  const toolCall = getNestedObject(agentResult, 'tool_call')
-    || getNestedObject(data, 'tool_call')
+  const toolCall = getObject(agentResult, 'tool_call')
+    || getObject(data, 'tool_call')
     || getStepToolCall(latestStep);
 
-  const proxyResult = getNestedObject(data, 'proxy_result');
-
+  const proxyResult = getObject(data, 'proxy_result');
   const directGatewayResult = data.decision || data.risk_score || data.reason
-    ? {
-        decision: data.decision,
-        risk_score: data.risk_score,
-        reason: data.reason
-      }
+    ? { decision: data.decision, risk_score: data.risk_score, reason: data.reason }
     : undefined;
 
-  const gatewayResult = getNestedObject(data, 'gateway_result')
+  const gatewayResult = getObject(data, 'gateway_result')
     || proxyResult
     || directGatewayResult
     || getStepGatewayResult(latestStep);
 
-  let finalDecision: unknown = 'unknown';
+  const finalDecision = gatewayResult?.decision
+    || data.finish_status
+    || (data.mode !== 'plan_only' ? session?.final_decision : undefined)
+    || session?.status
+    || agentResult?.status
+    || 'unknown';
 
-  if (gatewayResult?.decision) {
-    finalDecision = gatewayResult.decision;
-  } else if (data.finish_status) {
-    finalDecision = data.finish_status;
-  } else if (session?.final_decision && data.mode !== 'plan_only') {
-    finalDecision = session.final_decision;
-  } else if (session?.status) {
-    finalDecision = session.status;
-  } else if (agentResult?.status) {
-    finalDecision = agentResult.status;
-  }
-
-  return {
-    session,
-    steps: sessionSteps,
-    latestStep,
-    agentResult,
-    toolCall,
-    gatewayResult,
-    finalDecision
-  };
+  return { session, steps, agentResult, toolCall, gatewayResult, finalDecision };
 }
 
-interface ResultPanelProps {
-  result: AgentCommandResponse | null;
+function EvidencePanel({ evidence, toolResult }: { evidence: JsonRecord; toolResult?: JsonRecord }) {
+  const policy = getObject(evidence, 'runtime_policy');
+  const paths = getObject(evidence, 'paths');
+  const imageStatus = getObject(evidence, 'image_status');
+  const mounts = Array.isArray(policy?.mounts) ? policy.mounts : [];
+  const sandboxType = String(evidence.sandbox_type || '-');
+  const isNative = sandboxType.includes('native');
+
+  return (
+    <div className="pipeline-card">
+      <div className="pipeline-title">
+        <Badge tone={toolResult?.success === false ? 'red' : 'green'}>Sandbox</Badge>
+        <strong>真沙箱执行证据（Hybrid / Native / Docker）</strong>
+      </div>
+
+      <div className="kv-grid">
+        <span>Sandbox Type</span><code>{sandboxType}</code>
+        <span>Engine</span><code>{String(evidence.engine || evidence.image || (isNative ? 'python_subprocess_restricted_runner' : '-'))}</code>
+        <span>Profile</span><code>{String(evidence.sandbox_profile || '-')}</code>
+        <span>Network</span><code>{String(policy?.network || '-')}</code>
+        <span>RootFS / Tool Surface</span><code>{String(policy?.read_only_rootfs ?? policy?.shell ?? '-')}</code>
+        <span>Capabilities</span><code>{toTextList(policy?.cap_drop).join(' / ') || (isNative ? 'not applicable' : '-')}</code>
+        <span>No New Privileges</span><code>{toTextList(policy?.security_opt).join(' / ') || (isNative ? 'not applicable' : '-')}</code>
+        <span>Memory</span><code>{String(policy?.memory || '-')}</code>
+        <span>Timeout</span><code>{String(policy?.timeout_seconds || '-')}</code>
+        <span>Exit Code</span><code>{String(evidence.exit_code ?? '-')}</code>
+        <span>Evidence Hash</span><code>{String(evidence.evidence_hash || '-')}</code>
+        <span>Evidence File</span><code>{String(paths?.evidence || '-')}</code>
+        <span>Docker Available</span><code>{String(evidence.docker_available ?? imageStatus?.available ?? 'auto/native fallback')}</code>
+      </div>
+
+      <div className="reason-list">
+        {isNative ? (
+          <>
+            <p>当前环境没有依赖 Docker，系统使用 Native Subprocess Sandbox：受限 Python 子进程、工具白名单、路径白名单、超时控制和证据文件。</p>
+            <p>这不是 OS/VM 级隔离，但适合作为无需安装额外软件的本地演示 fallback。</p>
+          </>
+        ) : (
+          <>
+            <p>Docker 模式使用禁网、只读根文件系统、cap-drop、no-new-privileges、资源限制和只读挂载。</p>
+            <p>secret/private 不挂载进容器；允许目录由 sandbox profile 决定。</p>
+          </>
+        )}
+      </div>
+
+      {mounts.length > 0 && (
+        <div className="step-list">
+          {mounts.map((mount, index) => (
+            <div className="step-item" key={index}>
+              <Badge tone={isRecord(mount) && mount.readonly === false ? 'yellow' : 'blue'}>scope</Badge>
+              <strong>{isRecord(mount) ? String(mount.target || mount.source || '-') : '-'}</strong>
+              <code>{isRecord(mount) ? `${String(mount.source || '-')} · ${mount.readonly === false ? 'rw' : 'ro'}` : stringify(mount)}</code>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <pre className="json-block">{stringify(toolResult || evidence.tool_result || {})}</pre>
+    </div>
+  );
 }
 
-function ResultPanel({ result }: ResultPanelProps) {
+function ResultPanel({ result }: { result: AgentCommandResponse | null }) {
   if (!result) {
     return (
       <div className="result-placeholder">
         <strong>等待输入命令</strong>
-        <p>输入一句自然语言任务后，前端会调用 FakeAgent 或 LLM，将其转成工具调用计划，再送入 Gateway / Runtime Monitor 判断是否允许。</p>
+        <p>输入自然语言任务后，系统会展示 Agent 规划、Gateway 判定、两阶段授权和沙箱执行证据。</p>
       </div>
     );
   }
 
   const data = result.data;
-  const { session, steps, agentResult, toolCall, gatewayResult, finalDecision } = extractResultView(data);
-  const reasons = toTextList(gatewayResult?.reason).concat(toTextList(data.error));
-  const proxyResult = getNestedObject(data, 'proxy_result');
+  const { session, steps, agentResult, toolCall, gatewayResult, finalDecision } = getResultView(data);
+  const proxyResult = getObject(data, 'proxy_result');
+  const executionResult = getObject(data, 'execution_result');
+  const agentAuthProfile = getObject(data, 'agent_auth_profile') || getObject(proxyResult, 'agent_auth_profile');
+  const authPrincipal = getObject(agentAuthProfile, 'principal');
+  const sandboxEvaluation = getObject(data, 'sandbox_evaluation') || getObject(proxyResult, 'sandbox_evaluation');
+  const sandboxPolicy = getObject(sandboxEvaluation, 'policy');
+  const sandboxEvidence = getObject(data, 'sandbox_evidence')
+    || getObject(executionResult, 'sandbox_evidence')
+    || getObject(proxyResult, 'sandbox_evidence');
+  const sandboxToolResult = getObject(sandboxEvidence, 'tool_result') || getObject(data, 'tool_result');
   const adapterTrace = toTextList(data.adapter_trace);
-  const normalizedToolRequest = getNestedObject(data, 'normalized_tool_request');
-  const agentAuthProfile = getNestedObject(data, 'agent_auth_profile') || getNestedObject(proxyResult, 'agent_auth_profile');
-  const authPrincipal = getNestedObject(agentAuthProfile, 'principal');
-  const requiredScopes = toTextList(agentAuthProfile?.required_scopes);
-  const declaredScopes = toTextList(agentAuthProfile?.declared_scopes);
-  const missingScopes = toTextList(agentAuthProfile?.missing_scopes);
-  const sandboxProxyResult = getNestedObject(data, 'proxy_result');
-  const sandboxEvaluation = getNestedObject(data, 'sandbox_evaluation') || getNestedObject(sandboxProxyResult, 'sandbox_evaluation');
-  const sandboxPolicy = getNestedObject(sandboxEvaluation, 'policy');
-  const sandboxReasons = toTextList(sandboxEvaluation?.reason);
-  const sandboxAllowedTools = toTextList(sandboxPolicy?.allowed_tools);
-  const sandboxDeniedTools = toTextList(sandboxPolicy?.denied_tools);
-
-  const hasGatewayVerdict = Boolean(gatewayResult?.decision);
-  const headlineLabel = hasGatewayVerdict ? 'Gateway Verdict' : 'Agent / Session Status';
+  const normalizedToolRequest = getObject(data, 'normalized_tool_request');
+  const reasons = toTextList(gatewayResult?.reason).concat(toTextList(data.error));
 
   return (
     <div className="gateway-result-panel">
       <div className="result-headline">
         <div>
-          <span className="eyebrow">{headlineLabel}</span>
+          <span className="eyebrow">Gateway Verdict</span>
           <h2>{String(finalDecision).toUpperCase()}</h2>
         </div>
         <div className="result-badges">
-          <Badge tone={getDecisionTone(finalDecision)}>{hasGatewayVerdict ? 'decision' : 'status'}: {String(finalDecision)}</Badge>
+          <Badge tone={getDecisionTone(finalDecision)}>decision: {String(finalDecision)}</Badge>
           {result.fromMock && <Badge tone="purple">Mock fallback</Badge>}
           {data.executed === true && <Badge tone="green">executed</Badge>}
           {data.executed === false && <Badge tone="blue">not executed</Badge>}
-          {data.mode === 'plan_only' && <Badge tone="blue">plan only</Badge>}
+          {sandboxEvidence && <Badge tone="green">Real Sandbox</Badge>}
+          {sandboxEvidence?.sandbox_type && <Badge tone="blue">{String(sandboxEvidence.sandbox_type)}</Badge>}
         </div>
       </div>
 
       <div className="verdict-grid">
-        <div>
-          <span>调用接口</span>
-          <strong>{result.endpoint || 'unknown'}</strong>
-        </div>
-        <div>
-          <span>风险分数</span>
-          <strong>{gatewayResult?.risk_score != null ? String(gatewayResult.risk_score) : '-'}</strong>
-        </div>
-        <div>
-          <span>Pending ID</span>
-          <strong>{data.pending_id ? String(data.pending_id) : '-'}</strong>
-        </div>
+        <div><span>调用接口</span><strong>{result.endpoint || 'unknown'}</strong></div>
+        <div><span>风险分数</span><strong>{gatewayResult?.risk_score != null ? String(gatewayResult.risk_score) : '-'}</strong></div>
+        <div><span>Pending ID</span><strong>{data.pending_id ? String(data.pending_id) : '-'}</strong></div>
       </div>
 
       {typeof data.message === 'string' && <p className="result-message">{data.message}</p>}
       {result.error && <p className="result-error">后端请求提示：{result.error}</p>}
 
-
       {adapterTrace.length > 0 && (
         <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone="purple">Adapter</Badge>
-            <strong>外部 Agent Adapter 封装链路</strong>
-          </div>
-          <div className="reason-list">
-            {adapterTrace.map((item, index) => <p key={index}>{item}</p>)}
-          </div>
-          <div className="kv-grid">
-            <span>Platform</span><code>{String(data.platform || '-')}</code>
-            <span>Scenario</span><code>{String(data.scenario || '-')}</code>
-            <span>Source</span><code>{String(data.source || '-')}</code>
-          </div>
+          <div className="pipeline-title"><Badge tone="purple">Adapter</Badge><strong>外部 Agent Adapter 封装链路</strong></div>
+          <div className="reason-list">{adapterTrace.map((item, index) => <p key={index}>{item}</p>)}</div>
         </div>
       )}
 
       {normalizedToolRequest && (
         <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone="blue">Normalized</Badge>
-            <strong>标准化 Tool Proxy 请求</strong>
-          </div>
+          <div className="pipeline-title"><Badge tone="blue">Normalized</Badge><strong>标准化 Tool Proxy 请求</strong></div>
           <pre className="json-block">{stringify(normalizedToolRequest)}</pre>
         </div>
       )}
 
       {agentResult && (
         <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone="blue">1</Badge>
-            <strong>Agent 规划结果</strong>
-          </div>
+          <div className="pipeline-title"><Badge tone="blue">1</Badge><strong>Agent 规划结果</strong></div>
           <div className="kv-grid">
             <span>Agent</span><code>{String(agentResult.agent || session?.agent_type || '-')}</code>
             <span>Status</span><code>{String(agentResult.status || session?.status || '-')}</code>
-            <span>Confidence</span><code>{agentResult.confidence != null ? String(agentResult.confidence) : '-'}</code>
+            <span>Confidence</span><code>{String(agentResult.confidence ?? '-')}</code>
           </div>
-          {Boolean(agentResult.clarification_question) && <p className="result-message">需要补充：{String(agentResult.clarification_question)}</p>}
         </div>
       )}
 
       {toolCall && (
         <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone="purple">2</Badge>
-            <strong>结构化工具调用</strong>
-          </div>
+          <div className="pipeline-title"><Badge tone="purple">2</Badge><strong>结构化工具调用</strong></div>
           <div className="kv-grid">
             <span>Tool</span><code>{String(toolCall.tool_name || toolCall.tool || '-')}</code>
             <span>Description</span><code>{String(toolCall.description || '-')}</code>
@@ -336,23 +347,14 @@ function ResultPanel({ result }: ResultPanelProps) {
 
       {gatewayResult && (
         <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone={getDecisionTone(gatewayResult.decision)}>3</Badge>
-            <strong>Gateway / Runtime Monitor 判定</strong>
-          </div>
-          <div className="reason-list">
-            {reasons.length ? reasons.map((reason, index) => <p key={index}>{reason}</p>) : <p>后端未返回具体 reason。</p>}
-          </div>
+          <div className="pipeline-title"><Badge tone={getDecisionTone(gatewayResult.decision)}>3</Badge><strong>Gateway / Runtime Monitor 判定</strong></div>
+          <div className="reason-list">{reasons.length ? reasons.map((reason, index) => <p key={index}>{reason}</p>) : <p>后端未返回具体 reason。</p>}</div>
         </div>
       )}
 
       {agentAuthProfile && (
         <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone={getDecisionTone(agentAuthProfile.scope_decision)}>OAuth</Badge>
-            <strong>外部 Agent 授权画像</strong>
-          </div>
-
+          <div className="pipeline-title"><Badge tone={getDecisionTone(agentAuthProfile.scope_decision)}>OAuth</Badge><strong>外部 Agent 授权画像</strong></div>
           <div className="kv-grid">
             <span>Agent Platform</span><code>{String(agentAuthProfile.agent_platform || '-')}</code>
             <span>Auth Mode</span><code>{String(agentAuthProfile.auth_mode || '-')}</code>
@@ -361,33 +363,34 @@ function ResultPanel({ result }: ResultPanelProps) {
             <span>Subject</span><code>{String(authPrincipal?.subject || '-')}</code>
             <span>Client ID</span><code>{String(authPrincipal?.client_id || '-')}</code>
           </div>
-
           <div className="step-list">
-            <div className="step-item">
-              <Badge tone="blue">required</Badge>
-              <strong>Required Scopes</strong>
-              <code>{requiredScopes.length ? requiredScopes.join(' / ') : '-'}</code>
-            </div>
-            <div className="step-item">
-              <Badge tone="green">declared</Badge>
-              <strong>Declared Scopes</strong>
-              <code>{declaredScopes.length ? declaredScopes.join(' / ') : '-'}</code>
-            </div>
-            <div className="step-item">
-              <Badge tone={missingScopes.length ? 'red' : 'green'}>missing</Badge>
-              <strong>Missing Scopes</strong>
-              <code>{missingScopes.length ? missingScopes.join(' / ') : 'none'}</code>
-            </div>
+            <div className="step-item"><Badge tone="blue">required</Badge><strong>Required Scopes</strong><code>{toTextList(agentAuthProfile.required_scopes).join(' / ') || '-'}</code></div>
+            <div className="step-item"><Badge tone="green">declared</Badge><strong>Declared Scopes</strong><code>{toTextList(agentAuthProfile.declared_scopes).join(' / ') || '-'}</code></div>
+            <div className="step-item"><Badge tone={toTextList(agentAuthProfile.missing_scopes).length ? 'red' : 'green'}>missing</Badge><strong>Missing Scopes</strong><code>{toTextList(agentAuthProfile.missing_scopes).join(' / ') || 'none'}</code></div>
           </div>
         </div>
       )}
 
+      {sandboxEvaluation && (
+        <div className="pipeline-card">
+          <div className="pipeline-title"><Badge tone={getDecisionTone(sandboxEvaluation.decision)}>Policy Sandbox</Badge><strong>策略沙箱评估结果</strong></div>
+          <div className="kv-grid">
+            <span>Profile</span><code>{String(sandboxEvaluation.profile || data.sandbox_profile || '-')}</code>
+            <span>Decision</span><code>{String(sandboxEvaluation.decision || '-')}</code>
+            <span>Risk Delta</span><code>{String(sandboxEvaluation.risk_delta ?? '-')}</code>
+            <span>Filesystem</span><code>{String(sandboxPolicy?.filesystem || '-')}</code>
+            <span>Network</span><code>{String(sandboxPolicy?.network || '-')}</code>
+            <span>Shell Enabled</span><code>{String(sandboxPolicy?.shell_enabled ?? '-')}</code>
+          </div>
+          <div className="reason-list">{toTextList(sandboxEvaluation.reason).map((reason, index) => <p key={index}>{reason}</p>)}</div>
+        </div>
+      )}
+
+      {sandboxEvidence && <EvidencePanel evidence={sandboxEvidence} toolResult={sandboxToolResult} />}
+
       {steps.length > 0 && (
         <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone="yellow">LLM</Badge>
-            <strong>多步运行链路</strong>
-          </div>
+          <div className="pipeline-title"><Badge tone="yellow">LLM</Badge><strong>多步运行链路</strong></div>
           <div className="step-list">
             {steps.map((step, index) => (
               <div className="step-item" key={String(step.step_id || index)}>
@@ -397,43 +400,6 @@ function ResultPanel({ result }: ResultPanelProps) {
                 <code>{String(step.decision || 'pending')} · risk {String(step.risk_score ?? '-')}</code>
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-
-      {sandboxEvaluation && (
-        <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone={getDecisionTone(sandboxEvaluation.decision)}>Sandbox</Badge>
-            <strong>Sandbox Policy 评估结果</strong>
-          </div>
-
-          <div className="kv-grid">
-            <span>Sandbox Profile</span><code>{String(sandboxEvaluation.profile || sandboxProxyResult?.sandbox_profile || data.sandbox_profile || '-')}</code>
-            <span>Sandbox Decision</span><code>{String(sandboxEvaluation.decision || '-')}</code>
-            <span>Risk Delta</span><code>{String(sandboxEvaluation.risk_delta ?? '-')}</code>
-            <span>Filesystem</span><code>{String(sandboxPolicy?.filesystem || '-')}</code>
-            <span>Network</span><code>{String(sandboxPolicy?.network || '-')}</code>
-            <span>Shell Enabled</span><code>{String(sandboxPolicy?.shell_enabled ?? '-')}</code>
-            <span>Side Effects</span><code>{String(sandboxPolicy?.side_effects || '-')}</code>
-          </div>
-
-          <div className="step-list">
-            <div className="step-item">
-              <Badge tone="green">allow</Badge>
-              <strong>Allowed Tools</strong>
-              <code>{sandboxAllowedTools.length ? sandboxAllowedTools.join(' / ') : '-'}</code>
-            </div>
-            <div className="step-item">
-              <Badge tone={sandboxDeniedTools.length ? 'red' : 'green'}>deny</Badge>
-              <strong>Denied Tools</strong>
-              <code>{sandboxDeniedTools.length ? sandboxDeniedTools.join(' / ') : 'none'}</code>
-            </div>
-          </div>
-
-          <div className="reason-list">
-            {sandboxReasons.length ? sandboxReasons.map((reason, index) => <p key={index}>{reason}</p>) : <p>沙箱策略未返回具体 reason。</p>}
           </div>
         </div>
       )}
@@ -479,19 +445,14 @@ export function GatewayWorkbench() {
       <section className="workbench-hero">
         <div>
           <span className="eyebrow">Agent Authorization Gateway</span>
-          <h1>命令输入与授权判定工作台</h1>
+          <h1>授权工作台</h1>
           <p>
-            这里不是单纯看指标，而是把用户自然语言任务送进 Agent，再由 FakeAgent / LLM 生成工具调用计划，最后交给 Gateway 或 Runtime Monitor 判断是否允许执行。
+            从自然语言任务开始，展示 Agent 规划、Gateway 判定、OAuth-style scope、Capability Token、策略沙箱和真执行沙箱证据。
+            真沙箱模式会自动选择 Docker 或 Native Subprocess，适配没有 Docker Desktop 的本地环境。
           </p>
         </div>
         <div className="flow-strip">
-          <span>用户命令</span>
-          <b>→</b>
-          <span>Agent 规划</span>
-          <b>→</b>
-          <span>网关判定</span>
-          <b>→</b>
-          <span>执行 / 拦截 / 确认</span>
+          <span>用户命令</span><b>→</b><span>Agent 规划</span><b>→</b><span>Gateway</span><b>→</b><span>Hybrid Sandbox</span>
         </div>
       </section>
 
@@ -499,7 +460,7 @@ export function GatewayWorkbench() {
         <Section
           eyebrow="Command Input"
           title="输入用户命令"
-          description="建议课堂/比赛演示时默认使用 FakeAgent 规划 + Gateway 只判定，安全且能完整展示网关价值。"
+          description="默认使用只判定模式；展示真实执行时选择“真沙箱执行（自动选择）”。"
         >
           <div className="command-form">
             <label>
@@ -526,39 +487,23 @@ export function GatewayWorkbench() {
               <div className="inline-fields">
                 <label>
                   <span>最大步数</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={input.maxSteps}
-                    onChange={(event) => setInput({ ...input, maxSteps: Number(event.target.value) || 1 })}
-                  />
+                  <input type="number" min={1} max={10} value={input.maxSteps} onChange={(event) => setInput({ ...input, maxSteps: Number(event.target.value) || 1 })} />
                 </label>
                 <label>
                   <span>风险预算</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={200}
-                    value={input.riskBudget}
-                    onChange={(event) => setInput({ ...input, riskBudget: Number(event.target.value) || 80 })}
-                  />
+                  <input type="number" min={1} max={200} value={input.riskBudget} onChange={(event) => setInput({ ...input, riskBudget: Number(event.target.value) || 80 })} />
                 </label>
               </div>
             )}
 
             <label>
               <span>自然语言命令</span>
-              <textarea
-                value={input.userInput}
-                onChange={(event) => setInput({ ...input, userInput: event.target.value })}
-                placeholder="例如：读取文件 public/notice.txt"
-              />
+              <textarea value={input.userInput} onChange={(event) => setInput({ ...input, userInput: event.target.value })} placeholder="例如：真沙箱读取 public/notice.txt" />
             </label>
 
             <div className="command-actions">
               <button className="primary-btn" disabled={running || !input.userInput.trim()} onClick={() => void handleSubmit()}>
-                {running ? '正在判定……' : '提交给网关判定'}
+                {running ? '正在判定 / 执行……' : '提交给网关'}
               </button>
               <button className="secondary-btn" onClick={() => setResult(null)}>清空结果</button>
             </div>
@@ -568,7 +513,7 @@ export function GatewayWorkbench() {
         <Section
           eyebrow="Demo Cases"
           title="一键演示样例"
-          description="这些样例对应公开读取、敏感读取、删除确认、邮件发送、Shell 命令和提示注入链路。"
+          description="覆盖普通授权、外部 Agent、OAuth scope、两阶段授权、Hybrid Sandbox 和敏感读取阻断。"
         >
           <div className="sample-grid">
             {samples.map((sample) => (
@@ -584,8 +529,8 @@ export function GatewayWorkbench() {
 
       <Section
         eyebrow="Result"
-        title="Agent 规划与网关判定结果"
-        description="结果会同时展示 Agent 输出、结构化工具调用、Gateway 判定原因、多步 LLM 运行链路和原始 JSON。"
+        title="Agent 规划、网关判定与沙箱执行结果"
+        description="结果会展示 Agent 输出、结构化工具调用、Gateway 判定、策略沙箱、真执行沙箱证据和完整 JSON。"
       >
         <ResultPanel result={result} />
       </Section>

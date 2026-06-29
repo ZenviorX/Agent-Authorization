@@ -158,6 +158,7 @@ export type AgentRunMode =
   | 'fake_check'
   | 'tool_proxy_oauth'
   | 'external_agent_adapter'
+  | 'docker_sandbox_execute'
   | 'fake_plan'
   | 'fake_run'
   | 'llm_plan'

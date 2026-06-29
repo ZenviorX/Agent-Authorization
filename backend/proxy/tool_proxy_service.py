@@ -13,12 +13,12 @@ from backend.runtime.runtime_monitor import (
     create_runtime_state,
     run_runtime_step,
 )
+from backend.sandbox.real_sandbox_executor import execute_tool_in_real_sandbox
 from backend.sandbox.sandbox_policy import evaluate_sandbox_policy
 from backend.guardrails.task_boundary_guard import evaluate_task_boundary_policy
 from backend.guardrails.authorization_trace import build_authorization_trace
 from backend.guardrails.capability_token import issue_capability_token, validate_capability_token_for_request, mark_capability_token_consumed
 from backend.task_session.session_executor import model_to_dict
-from backend.tools.tool_executor import execute_tool
 
 
 def _as_reason_list(value: Any) -> List[str]:
@@ -62,7 +62,6 @@ def _apply_sandbox_deny(
     return result_dict
 
 
-
 def _apply_task_boundary_decision(
     result_dict: Dict[str, Any],
     task_boundary_evaluation: Dict[str, Any],
@@ -88,7 +87,6 @@ def _apply_task_boundary_decision(
 
     result_dict["reason"] = reasons
     return result_dict
-
 
 
 def _apply_capability_token_decision(
@@ -127,6 +125,7 @@ def authorize_tool_call(
         -> Sandbox Policy
         -> Capability Contract
         -> Runtime Monitor
+        -> Hybrid Real Sandbox Executor
         -> allow / confirm / deny
 
     该函数的目标不是替代 Agent Runtime，而是提供外部 Agent 工具调用的
@@ -174,6 +173,7 @@ def authorize_tool_call(
 
     executed = False
     tool_result: Optional[Dict[str, Any]] = None
+    sandbox_evidence: Optional[Dict[str, Any]] = None
 
     # 1. OAuth-style scope 不足：直接拒绝，不进入真实工具执行。
     if agent_auth_profile.get("scope_decision") == "deny":
@@ -220,12 +220,20 @@ def authorize_tool_call(
                 sandbox_evaluation=sandbox_evaluation,
             )
 
-    # 4. 只有明确 allow 且 execute=True 时才真实执行工具。
+    # 4. 只有明确 allow 且 execute=True 时才进入真执行沙箱。
+    #    默认 auto：有 Docker 用 Docker；无 Docker 自动降级到无需安装的 native_subprocess sandbox。
     if request.execute and result_dict.get("decision") == "allow":
-        tool_result = execute_tool(
+        real_sandbox_result = execute_tool_in_real_sandbox(
             tool=request.tool,
             params=request.params,
-            )
+            profile_name=request.sandbox_profile,
+            prefer="auto",
+        )
+        sandbox_evidence = real_sandbox_result.get("sandbox_evidence")
+        tool_result = real_sandbox_result.get("tool_result") or {
+            "success": bool(real_sandbox_result.get("success")),
+            "result": real_sandbox_result.get("result"),
+        }
         executed = bool(tool_result.get("success") is True)
 
     security_graph = build_runtime_security_graph(runtime_state)
@@ -236,7 +244,7 @@ def authorize_tool_call(
             getattr(request, "capability_token", "")
         )
         reasons = _as_reason_list(capability_token_validation.get("reason"))
-        reasons.append("Capability token was consumed after successful execution.")
+        reasons.append("Capability token was consumed after successful real sandbox execution.")
         capability_token_validation["reason"] = reasons
 
     if str(result_dict.get("decision", "deny")) == "allow" and not bool(request.execute):
@@ -284,6 +292,7 @@ def authorize_tool_call(
         reason=_as_reason_list(result_dict.get("reason")),
         executed=executed,
         tool_result=tool_result,
+        sandbox_evidence=sandbox_evidence,
         contract=model_to_dict(contract),
         runtime_state=model_to_dict(runtime_state),
         security_graph=security_graph,

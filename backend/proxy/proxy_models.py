@@ -55,9 +55,10 @@ class ToolProxyAuthorizeRequest(BaseModel):
         default_factory=dict,
         description="OAuth-like token claims from external Agent.",
     )
-    capability_token: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Task-scoped signed capability token issued by AgentGuard.",
+
+    capability_token: str = Field(
+        default="",
+        description="Optional task-scoped capability token issued by AgentGuard.",
     )
 
     capability_token_validation: Dict[str, Any] = Field(
@@ -84,12 +85,6 @@ class ToolProxyAuthorizeRequest(BaseModel):
         description="Additional metadata from external Agent adapter.",
     )
 
-    capability_token: str = Field(
-        default="",
-        description="Optional task-scoped capability token issued by AgentGuard.",
-    )
-
-
 
 class ToolProxyAuthorizeResponse(BaseModel):
     success: bool = True
@@ -101,6 +96,7 @@ class ToolProxyAuthorizeResponse(BaseModel):
 
     executed: bool = False
     tool_result: Optional[Dict[str, Any]] = None
+    sandbox_evidence: Optional[Dict[str, Any]] = None
 
     contract: Dict[str, Any] = Field(default_factory=dict)
     runtime_state: Dict[str, Any] = Field(default_factory=dict)
