@@ -50,6 +50,10 @@ runtime_workspace/agent_runtime.db
 runtime_workspace/public/evidence_demo_note.txt
 runtime_workspace/public/runtime_demo_note.txt
 
+# Sandbox execution evidence outputs
+runtime_workspace/native_sandbox_runs/
+runtime_workspace/sandbox_runs/
+
 # Generated experiment outputs
 Results/Result_*.html
 Results/Result_*.json
@@ -96,4 +100,3 @@ test/results/latest_*.html
 test/results/run_*/
 test/results/archive/
 !test/results/.gitkeep
-
