@@ -23,6 +23,7 @@ from backend.routes.oauth_comparison_routes import router as oauth_comparison_ro
 from backend.routes.research_eval_routes import router as research_eval_router
 from backend.routes.research_strategy_routes import router as research_strategy_router
 from backend.routes.test_results_routes import router as test_results_router
+from backend.routes.docker_sandbox_routes import router as docker_sandbox_router
 from backend.routes.two_phase_tool_proxy_routes import router as two_phase_tool_proxy_router
 from backend.routes.capability_token_routes import router as capability_token_router
 
@@ -96,6 +97,12 @@ app.include_router(research_eval_router)
 app.include_router(research_strategy_router)
 app.include_router(two_phase_tool_proxy_router)
 app.include_router(capability_token_router)
+
+# -----------------------------
+# Real execution sandbox APIs
+# -----------------------------
+
+app.include_router(docker_sandbox_router)
 
 # -----------------------------
 # Independent test result APIs
@@ -193,7 +200,7 @@ def api_status():
             ),
             "real_agent": (
                 "MultiStepLLMAgent -> Capability Contract -> "
-                "Runtime Monitor -> Sandbox Executor"
+                "Runtime Monitor -> Docker Sandbox Executor"
             ),
             "demo": "FakeAgent -> Demo API -> Gateway -> ToolExecutor",
         },
@@ -203,6 +210,7 @@ def api_status():
             "runtime_monitor",
             "attack_chain_detector",
             "sandbox_evidence",
+            "docker_sandbox_executor",
             "showcase_report",
             "agent_runtime",
             "tool_proxy",
