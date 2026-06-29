@@ -25,7 +25,8 @@ export default defineConfig(({ mode }) => {
         '/benchmark-dashboard': proxyConfig,
         '/tool-proxy': proxyConfig,
         '/external-agent': proxyConfig,
-        '/test-results': proxyConfig
+        '/test-results': proxyConfig,
+        '/sandbox-docker': proxyConfig
       }
     }
   };
