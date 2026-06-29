@@ -17,7 +17,8 @@ import type {
   Overview,
   PolicyRule,
   StrategyComparisonResponse,
-  SystemSetting
+  SystemSetting,
+  TestResultSummary
 } from './types/domain';
 import './styles/global.css';
 import './styles/layout.css';
@@ -45,7 +46,16 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [evaluations, setEvaluations] = useState<EvaluationMetric[]>([]);
   const [strategyComparison, setStrategyComparison] = useState<StrategyComparisonResponse | null>(null);
+  const [testSummary, setTestSummary] = useState<TestResultSummary | null>(null);
+  const [testRunning, setTestRunning] = useState(false);
+  const [testRunMessage, setTestRunMessage] = useState<string | null>(null);
   const [settings, setSettings] = useState<SystemSetting[]>([]);
+
+  async function refreshTestSummary() {
+    const summary = await api.getTestResultSummary();
+    setTestSummary(summary);
+    return summary;
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -58,6 +68,7 @@ export default function App() {
         auditData,
         evaluationData,
         strategyComparisonData,
+        testSummaryData,
         settingData
       ] = await Promise.all([
         api.getOverview(),
@@ -66,6 +77,7 @@ export default function App() {
         api.getAuditLogs(),
         api.getEvaluations(),
         api.getStrategyComparison(),
+        api.getTestResultSummary(),
         api.getSettings()
       ]);
       if (!mounted) return;
@@ -75,6 +87,7 @@ export default function App() {
       setAuditLogs(auditData);
       setEvaluations(evaluationData);
       setStrategyComparison(strategyComparisonData);
+      setTestSummary(testSummaryData);
       setSettings(settingData);
       setLoading(false);
     }
@@ -94,13 +107,43 @@ export default function App() {
     } : item));
   }
 
+  async function handleRunIndependentTests() {
+    setTestRunning(true);
+    setTestRunMessage('正在运行独立测试模块，请稍候...');
+
+    try {
+      const result = await api.runIndependentTests();
+      setTestSummary(result.summary);
+      setTestRunMessage(
+        result.success
+          ? `测试完成：${result.summary.passed_cases}/${result.summary.total_cases} 通过。`
+          : `测试执行失败：退出码 ${result.returncode}。`
+      );
+    } catch (error) {
+      setTestRunMessage(error instanceof Error ? error.message : '测试执行失败。');
+      await refreshTestSummary();
+    } finally {
+      setTestRunning(false);
+    }
+  }
+
   const content = {
     workbench: <GatewayWorkbench />,
     dashboard: <Dashboard overview={overview} requests={requests} auditLogs={auditLogs} onApprove={(id) => void handleDecision(id, 'approved')} onReject={(id) => void handleDecision(id, 'rejected')} />,
     requests: <RequestsPage requests={requests} onApprove={(id) => void handleDecision(id, 'approved')} onReject={(id) => void handleDecision(id, 'rejected')} />,
     policies: <PoliciesPage policies={policies} />,
     audit: <AuditPage logs={auditLogs} />,
-    evaluation: <EvaluationPage metrics={evaluations} strategyComparison={strategyComparison} />,
+    evaluation: (
+      <EvaluationPage
+        metrics={evaluations}
+        strategyComparison={strategyComparison}
+        testSummary={testSummary}
+        testRunning={testRunning}
+        testRunMessage={testRunMessage}
+        onRunTests={() => void handleRunIndependentTests()}
+        onRefreshTestSummary={() => void refreshTestSummary()}
+      />
+    ),
     research: <ResearchComparisonPage />,
     twoPhase: <TwoPhaseAuthorizationPage />,
     settings: <SettingsPage settings={settings} />
@@ -133,7 +176,7 @@ export default function App() {
         <div className="sidebar-card">
           <span>System Status</span>
           <strong>{loading ? 'Loading...' : 'Protected'}</strong>
-          <small>Command ? Agent ? Gateway ? {overview?.activePolicies ?? 0} policies</small>
+          <small>Command → Agent → Gateway → {overview?.activePolicies ?? 0} policies</small>
         </div>
       </aside>
 

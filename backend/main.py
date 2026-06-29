@@ -3,7 +3,6 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 
 from backend.routes.approval_routes import router as approval_router
 from backend.routes.audit_routes import router as audit_router
@@ -23,9 +22,11 @@ from backend.routes.external_agent_routes import router as external_agent_router
 from backend.routes.oauth_comparison_routes import router as oauth_comparison_router
 from backend.routes.research_eval_routes import router as research_eval_router
 from backend.routes.research_strategy_routes import router as research_strategy_router
-
+from backend.routes.test_results_routes import router as test_results_router
 from backend.routes.two_phase_tool_proxy_routes import router as two_phase_tool_proxy_router
 from backend.routes.capability_token_routes import router as capability_token_router
+
+
 app = FastAPI(
     title="AI Agent Auth Gateway",
     description=(
@@ -46,6 +47,7 @@ FRONTEND_AUTHORIZED_EVIDENCE = BASE_DIR / "frontend" / "authorized_evidence.html
 FRONTEND_SHOWCASE = BASE_DIR / "frontend" / "showcase.html"
 FRONTEND_TOOL_PROXY = BASE_DIR / "frontend" / "tool_proxy.html"
 
+
 def _serve_frontend_html(path: Path, missing_message: str):
     if path.exists():
         return FileResponse(path)
@@ -54,6 +56,7 @@ def _serve_frontend_html(path: Path, missing_message: str):
         "message": missing_message,
         "expected_path": str(path),
     }
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,6 +94,15 @@ app.include_router(external_agent_router)
 app.include_router(oauth_comparison_router)
 app.include_router(research_eval_router)
 app.include_router(research_strategy_router)
+app.include_router(two_phase_tool_proxy_router)
+app.include_router(capability_token_router)
+
+# -----------------------------
+# Independent test result APIs
+# -----------------------------
+
+app.include_router(test_results_router)
+
 # -----------------------------
 # Demo-only APIs
 # -----------------------------
@@ -108,12 +120,14 @@ def index():
         "Frontend file is missing",
     )
 
+
 @app.get("/showcase")
 def showcase_page():
     return _serve_frontend_html(
         FRONTEND_SHOWCASE,
         "Showcase frontend file is missing",
     )
+
 
 @app.get("/tool-proxy")
 def tool_proxy_page():
@@ -122,12 +136,14 @@ def tool_proxy_page():
         "Tool Proxy frontend file is missing",
     )
 
+
 @app.get("/task-chain")
 def task_chain_page():
     return _serve_frontend_html(
         FRONTEND_TASK_CHAIN,
         "Task chain frontend file is missing",
     )
+
 
 @app.get("/attack-chain-runtime")
 def attack_chain_runtime_page():
@@ -136,12 +152,14 @@ def attack_chain_runtime_page():
         "Attack chain runtime frontend file is missing",
     )
 
+
 @app.get("/security-dashboard")
 def security_dashboard_page():
     return _serve_frontend_html(
         FRONTEND_SECURITY_DASHBOARD,
         "Security dashboard frontend file is missing",
     )
+
 
 @app.get("/sandbox-dashboard")
 def sandbox_dashboard_page():
@@ -150,12 +168,14 @@ def sandbox_dashboard_page():
         "Sandbox frontend file is missing",
     )
 
+
 @app.get("/authorized-evidence")
 def authorized_evidence_page():
     return _serve_frontend_html(
         FRONTEND_AUTHORIZED_EVIDENCE,
         "Authorized evidence frontend file is missing",
     )
+
 
 # -----------------------------
 # Health check
@@ -185,14 +205,16 @@ def api_status():
             "sandbox_evidence",
             "showcase_report",
             "agent_runtime",
-"tool_proxy",
+            "tool_proxy",
             "external_agent_adapter",
+            "independent_test_runner",
         ],
         "note": (
             "FakeAgent is demo-only. Real Agent runtime APIs are exposed under "
             "/agent-runtime and still require Gateway / Runtime Monitor checks."
         ),
     }
+
 
 # === Teacher review cleanup: legacy frontend route notice ===
 # The project has migrated from FastAPI-served static HTML pages to
@@ -206,7 +228,7 @@ def _install_legacy_frontend_route_notice():
     legacy_paths = {
         "/",
         "/showcase",
-"/task-chain",
+        "/task-chain",
         "/attack-chain-runtime",
         "/security-dashboard",
         "/sandbox-dashboard",
@@ -237,10 +259,6 @@ def _install_legacy_frontend_route_notice():
     for path in sorted(legacy_paths):
         app.add_api_route(path, legacy_frontend_notice, methods=["GET"], include_in_schema=False)
 
+
 _install_legacy_frontend_route_notice()
 # === End teacher review cleanup ===
-
-
-app.include_router(two_phase_tool_proxy_router)
-
-app.include_router(capability_token_router)

@@ -23,7 +23,9 @@ export default defineConfig(({ mode }) => {
         '/runtime': proxyConfig,
         '/security-overview': proxyConfig,
         '/benchmark-dashboard': proxyConfig,
-        '/tool-proxy': proxyConfig
+        '/tool-proxy': proxyConfig,
+        '/external-agent': proxyConfig,
+        '/test-results': proxyConfig
       }
     }
   };

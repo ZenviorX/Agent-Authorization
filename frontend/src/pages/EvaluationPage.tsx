@@ -1,4 +1,4 @@
-﻿import type { EvaluationMetric, StrategyComparisonResponse } from '../types/domain';
+import type { EvaluationMetric, StrategyComparisonResponse, TestResultSummary } from '../types/domain';
 import { MetricCard } from '../components/MetricCard';
 import { Section } from '../components/Section';
 
@@ -7,9 +7,31 @@ function formatRate(value?: number) {
   return `${(value * 100).toFixed(2)}%`;
 }
 
+function formatPercentNumber(value?: number) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '0.00';
+  return (value * 100).toFixed(2);
+}
+
 function formatMs(value?: number) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '0.00 ms';
   return `${value.toFixed(2)} ms`;
+}
+
+function renderDistribution(title: string, data?: Record<string, number>) {
+  const entries = Object.entries(data ?? {});
+
+  if (entries.length === 0) {
+    return <div><strong>{title}</strong><span>暂无数据</span></div>;
+  }
+
+  return (
+    <div>
+      <strong>{title}</strong>
+      {entries.slice(0, 6).map(([key, value]) => (
+        <span key={key}>{key}: {value}</span>
+      ))}
+    </div>
+  );
 }
 
 const strategyNames: Record<string, string> = {
@@ -26,21 +48,120 @@ const strategyDescriptions: Record<string, string> = {
 
 export function EvaluationPage({
   metrics,
-  strategyComparison
+  strategyComparison,
+  testSummary,
+  testRunning,
+  testRunMessage,
+  onRunTests,
+  onRefreshTestSummary
 }: {
   metrics: EvaluationMetric[];
   strategyComparison: StrategyComparisonResponse | null;
+  testSummary: TestResultSummary | null;
+  testRunning: boolean;
+  testRunMessage: string | null;
+  onRunTests: () => void;
+  onRefreshTestSummary: () => void;
 }) {
   const summary = strategyComparison?.summary ?? {};
   const strategies = ['allow_all', 'keyword_only', 'gateway'].filter((name) => summary[name]);
+  const latestTestAvailable = Boolean(testSummary?.available);
 
   return (
     <div className="page-grid">
       <Section
+        eyebrow="Independent Test Module"
+        title="自动测试结果"
+        description="读取 test/cases/gateway_cases*.json，输入 Gateway，自动生成 test/results/latest_* 结果。"
+        actions={(
+          <div className="row-actions">
+            <button className="secondary-btn small" onClick={onRefreshTestSummary} disabled={testRunning}>刷新结果</button>
+            <button className="primary-btn small" onClick={onRunTests} disabled={testRunning}>
+              {testRunning ? '测试运行中...' : '一键运行测试'}
+            </button>
+          </div>
+        )}
+      >
+        <div className="metric-grid compact">
+          <MetricCard
+            title="测试样例"
+            value={testSummary?.total_cases ?? 0}
+            suffix=" cases"
+            hint="本轮被读取并输入 Gateway 的样例数量"
+            icon="lab"
+          />
+          <MetricCard
+            title="通过样例"
+            value={testSummary?.passed_cases ?? 0}
+            suffix=" cases"
+            hint="实际 decision 与 expected_decision 匹配的样例"
+            icon="check"
+          />
+          <MetricCard
+            title="失败样例"
+            value={testSummary?.failed_cases ?? 0}
+            suffix=" cases"
+            hint="实际 decision 与预期不一致的样例"
+            icon="shield"
+          />
+          <MetricCard
+            title="准确率"
+            value={formatPercentNumber(testSummary?.accuracy)}
+            suffix="%"
+            hint="passed_cases / total_cases"
+            icon="spark"
+          />
+        </div>
+
+        <div className="metric-grid compact">
+          <MetricCard
+            title="风险阻断/确认率"
+            value={formatPercentNumber(testSummary?.risk_block_or_confirm_rate)}
+            suffix="%"
+            hint="风险样例被 confirm 或 deny 的比例"
+            icon="shield"
+          />
+          <MetricCard
+            title="风险误放行率"
+            value={formatPercentNumber(testSummary?.risk_unsafe_allow_rate)}
+            suffix="%"
+            hint="风险样例被错误 allow 的比例"
+            icon="arrow"
+          />
+          <MetricCard
+            title="正常误拒率"
+            value={formatPercentNumber(testSummary?.normal_false_deny_rate)}
+            suffix="%"
+            hint="正常样例被 deny 的比例"
+            icon="dashboard"
+          />
+          <MetricCard
+            title="平均延迟"
+            value={testSummary?.avg_latency_ms ?? 0}
+            suffix=" ms"
+            hint="Gateway 判定平均耗时"
+            icon="spark"
+          />
+        </div>
+
+        <div className="matrix-grid">
+          {renderDistribution('决策分布', testSummary?.decision_distribution)}
+          {renderDistribution('类别分布', testSummary?.category_distribution)}
+          {renderDistribution('工具分布', testSummary?.tool_distribution)}
+        </div>
+
+        <div className="code-panel">
+          <strong>{latestTestAvailable ? '最新结果已生成' : '暂无最新结果'}</strong>
+          <code>{testSummary?.generated_at ?? testSummary?.hint ?? '点击“一键运行测试”生成结果'}</code>
+          <small>{testRunMessage ?? testSummary?.message ?? '按钮会调用后端 /test-results/run，并刷新 test/results/latest_summary.json。'}</small>
+        </div>
+      </Section>
+
+      <Section
         eyebrow="Evaluation Lab"
         title="评测实验室"
-        description="用于展示不同授权策略在攻击样例和正常样例上的表现。"
-        actions={<span className="status-pill">{strategyComparison?.available ? '结果已生成' : '等待运行'}</span>}
+        description="用于展示前端内置指标和后端评测指标。当前主数据源应以独立测试模块为准。"
+        actions={<span className="status-pill">{latestTestAvailable ? '测试结果已同步' : '等待运行'}</span>}
       >
         <div className="metric-grid compact">
           {metrics.map((metric) => (
@@ -58,8 +179,8 @@ export function EvaluationPage({
 
       <Section
         eyebrow="Strategy Comparison"
-        title="策略横向对比"
-        description="对比 allow_all、keyword_only 与 gateway 三种策略在安全样例中的表现。"
+        title="旧策略横向对比"
+        description="保留旧版 allow_all、keyword_only 与 gateway 对比展示。新评测入口已经迁移到上方独立测试模块。"
       >
         {strategyComparison?.available ? (
           <>
@@ -102,20 +223,11 @@ export function EvaluationPage({
                 );
               })}
             </div>
-
-            <div className="code-panel">
-              <strong>重新运行评测</strong>
-              <code>.\scripts\run_strategy_comparison.ps1</code>
-              <small>运行后会刷新 Results/strategy_comparison_* 文件。</small>
-            </div>
           </>
         ) : (
           <div className="empty-state">
-            <strong>暂无策略对比结果</strong>
-            <p>{strategyComparison?.hint ?? '请先运行 scripts/run_strategy_comparison.ps1。'}</p>
-            <div className="code-panel">
-              <code>.\scripts\run_strategy_comparison.ps1</code>
-            </div>
+            <strong>旧策略对比结果未接入</strong>
+            <p>{strategyComparison?.hint ?? '当前推荐使用上方独立测试模块。'}</p>
           </div>
         )}
       </Section>
@@ -138,13 +250,15 @@ export function EvaluationPage({
       <Section
         eyebrow="Result Files"
         title="结果文件"
-        description={`当前评测结果${strategyComparison?.available ? '已生成' : '未生成'}，耗时 ${formatMs(strategyComparison?.elapsed_ms)}。`}
+        description={`当前独立测试结果${latestTestAvailable ? '已生成' : '未生成'}，耗时 ${formatMs(testSummary?.elapsed_ms)}。`}
       >
         <div className="matrix-grid">
-          <div><strong>CSV 文件</strong><span>{strategyComparison?.outputs?.csv ?? 'Results/strategy_comparison.csv'}</span></div>
-          <div><strong>JSON 文件</strong><span>{strategyComparison?.outputs?.json ?? 'Results/strategy_comparison_summary.json'}</span></div>
-          <div><strong>Markdown 报告</strong><span>{strategyComparison?.outputs?.markdown ?? 'Results/strategy_comparison_report.md'}</span></div>
-          <div><strong>HTML 看板</strong><span>{strategyComparison?.outputs?.html ?? 'Results/strategy_comparison_dashboard.html'}</span></div>
+          <div><strong>摘要 JSON</strong><span>{testSummary?.outputs?.latest_summary ?? 'test/results/latest_summary.json'}</span></div>
+          <div><strong>样例明细</strong><span>{testSummary?.outputs?.latest_cases ?? 'test/results/latest_cases.json'}</span></div>
+          <div><strong>CSV 明细</strong><span>{testSummary?.outputs?.latest_detail_csv ?? 'test/results/latest_detail.csv'}</span></div>
+          <div><strong>Markdown 报告</strong><span>{testSummary?.outputs?.latest_report_md ?? 'test/results/latest_report.md'}</span></div>
+          <div><strong>HTML 看板</strong><span>{testSummary?.outputs?.latest_dashboard_html ?? 'test/results/latest_dashboard.html'}</span></div>
+          <div><strong>运行目录</strong><span>{testSummary?.outputs?.run_summary ?? 'test/results/run_YYYYMMDD_HHMMSS/'}</span></div>
         </div>
       </Section>
     </div>

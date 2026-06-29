@@ -93,6 +93,67 @@ export interface StrategyComparisonResponse {
   outputs: Record<string, string>;
 }
 
+export interface TestResultSummary {
+  available?: boolean;
+  schema?: string;
+  generated_at?: string;
+  case_glob?: string;
+  gateway_import?: string;
+  request_import?: string;
+  total_cases: number;
+  passed_cases: number;
+  failed_cases: number;
+  accuracy: number;
+  elapsed_ms?: number;
+  avg_latency_ms?: number;
+  normal_cases?: number;
+  risk_cases?: number;
+  risk_block_or_confirm?: number;
+  risk_allow?: number;
+  risk_block_or_confirm_rate?: number;
+  risk_unsafe_allow_rate?: number;
+  normal_denied?: number;
+  normal_false_deny_rate?: number;
+  decision_distribution?: Record<string, number>;
+  source_distribution?: Record<string, number>;
+  category_distribution?: Record<string, number>;
+  tool_distribution?: Record<string, number>;
+  category_accuracy?: Record<string, {
+    total: number;
+    passed: number;
+    accuracy: number;
+  }>;
+  validation_errors?: unknown[];
+  outputs?: Record<string, string>;
+  status?: string;
+  message?: string;
+  hint?: string;
+}
+
+export interface TestCaseResultRow {
+  case_id: string;
+  source_file: string;
+  category: string;
+  tool: string;
+  is_normal: boolean;
+  expected: string;
+  actual: string;
+  matched: boolean;
+  risk_score?: number | string;
+  latency_ms?: number;
+  reason?: string;
+  error?: string;
+}
+
+export interface TestRunResponse {
+  success: boolean;
+  returncode: number;
+  command?: string;
+  stdout?: string;
+  stderr?: string;
+  summary: TestResultSummary;
+}
+
 export type AgentRunMode =
   | 'fake_check'
   | 'tool_proxy_oauth'
