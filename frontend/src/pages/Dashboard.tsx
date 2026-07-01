@@ -21,13 +21,13 @@ export function Dashboard({ overview, requests, auditLogs, onApprove, onReject }
     <div className="page-grid">
       <section className="hero-panel">
         <div className="hero-copy">
-          <span className="eyebrow">Project Overview</span>
+          <span className="eyebrow">Local Runtime Evidence</span>
           <h1>AI Agent 工具调用授权网关</h1>
           <p>
-            本页用于提交展示时先讲清楚项目定位：Agent 不直接执行工具，而是先进入 Tool Proxy、Gateway、Capability Token、Runtime Monitor、Sandbox Policy 与 Hybrid Sandbox，最终形成 allow / confirm / deny 和审计证据。
+            本页用于查看本机真实运行数据：Agent 工具调用进入 Tool Proxy、Gateway、Capability Token、Runtime Monitor、Sandbox Policy 与 Hybrid Sandbox 后，会形成 allow / confirm / deny 和审计证据。
           </p>
           <div className="hero-actions">
-            <button className="secondary-btn small" type="button">主线：授权判定</button>
+            <button className="secondary-btn small" type="button">数据：本地运行记录</button>
             <button className="secondary-btn small" type="button">执行：Hybrid Sandbox</button>
             <button className="secondary-btn small" type="button">证据：Audit / Evidence</button>
           </div>
@@ -49,23 +49,23 @@ export function Dashboard({ overview, requests, auditLogs, onApprove, onReject }
       </section>
 
       <div className="metric-grid">
-        <MetricCard title="总请求量" value={compactNumber(overview?.totalRequests ?? 0)} hint="前端演示数据：网关处理请求数" icon="dashboard" />
-        <MetricCard title="阻断请求" value={compactNumber(overview?.blockedRequests ?? 0)} hint="越权、危险命令、敏感资源等风险请求" icon="shield" />
-        <MetricCard title="平均耗时" value={overview?.averageLatencyMs ?? 0} suffix="ms" hint="授权判定的平均延迟" icon="spark" />
-        <MetricCard title="安全评分" value={overview?.securityScore ?? 0} suffix="/100" hint="按策略命中、阻断与误拦指标估算" icon="check" />
+        <MetricCard title="本地请求记录" value={compactNumber(overview?.totalRequests ?? 0)} hint="由本地审计与沙箱运行记录聚合" icon="dashboard" />
+        <MetricCard title="阻断请求" value={compactNumber(overview?.blockedRequests ?? 0)} hint="本地记录中 deny 的数量" icon="shield" />
+        <MetricCard title="平均耗时" value={overview?.averageLatencyMs ?? 0} suffix="ms" hint="来自最新测试摘要" icon="spark" />
+        <MetricCard title="安全评分" value={overview?.securityScore ?? 0} suffix="/100" hint="按本地测试结果估算" icon="check" />
       </div>
 
       <Section
         eyebrow="Requests"
-        title="最近授权请求"
-        description="这里展示 Agent 工具调用进入 Gateway 后的决策记录。提交演示时不需要从这里开始，推荐先进入“授权工作台”。"
+        title="最近本地授权 / 沙箱记录"
+        description="这里展示本机真实记录。运行授权演示后，再刷新本页即可看到新记录。"
         actions={<Badge tone="yellow">{pending.length} 个待确认</Badge>}
       >
         <RequestTable rows={requests.slice(0, 5)} onApprove={onApprove} onReject={onReject} compact />
       </Section>
 
       <section className="two-column">
-        <Section eyebrow="Audit" title="审计时间线" description="用于说明系统为什么可追责：每次授权、拦截和人工确认都会留下审计信息。">
+        <Section eyebrow="Audit" title="本地审计时间线" description="用于说明系统为什么可追责：每次授权、拦截和沙箱执行都会留下本地证据。">
           <div className="timeline">
             {auditLogs.map((log) => (
               <article className="timeline-item" key={log.id}>
