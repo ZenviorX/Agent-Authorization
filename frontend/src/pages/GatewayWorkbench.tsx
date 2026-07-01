@@ -17,19 +17,19 @@ const modes: Array<{
     value: 'fake_check',
     label: '普通授权判定',
     short: '只判断，不执行',
-    description: '适合先演示：Agent 把自然语言转为工具调用，Gateway 输出 allow / confirm / deny。'
+    description: 'Agent 把自然语言转为工具调用，Gateway 输出 allow / confirm / deny。'
   },
   {
     value: 'docker_sandbox_execute',
     label: '真沙箱执行',
     short: '自动选择 Docker / Native',
-    description: '适合重点展示：通过 Capability Token 后进入沙箱执行，并返回 evidence 证据。'
+    description: '通过 Capability Token 后进入沙箱执行，并返回 evidence 证据。'
   },
   {
     value: 'tool_proxy_oauth',
     label: '外部 Agent 授权',
     short: 'OAuth-style scope 检查',
-    description: '适合解释老师关心的 OAuth / WorkBuddy / OpenClaw 场景。'
+    description: '解释 OAuth、WorkBuddy、OpenClaw 这类外部 Agent 接入场景。'
   }
 ];
 
@@ -55,6 +55,20 @@ const samples: Array<{
     mode: 'fake_check'
   },
   {
+    title: '删除操作确认',
+    description: '副作用操作，应当 confirm。',
+    user: 'user',
+    text: '删除文件 public/notice.txt',
+    mode: 'fake_check'
+  },
+  {
+    title: 'Shell 命令拒绝',
+    description: '高危命令，应当 deny。',
+    user: 'admin',
+    text: '执行命令 command=dir',
+    mode: 'fake_check'
+  },
+  {
     title: '真沙箱读取',
     description: '进入 Native / Docker 沙箱并生成 evidence。',
     user: 'user',
@@ -67,6 +81,27 @@ const samples: Array<{
     user: 'user',
     text: '真沙箱写入 outbox/docker_demo.txt',
     mode: 'docker_sandbox_execute'
+  },
+  {
+    title: '沙箱敏感阻断',
+    description: 'strict profile 阻断 secret。',
+    user: 'user',
+    text: '真沙箱尝试读取 secret/password.txt 敏感文件',
+    mode: 'docker_sandbox_execute'
+  },
+  {
+    title: '沙箱邮件 outbox',
+    description: '邮件只写 outbox，不真实外发。',
+    user: 'user',
+    text: '真沙箱发送邮件到 teacher@sdu.edu.cn',
+    mode: 'docker_sandbox_execute'
+  },
+  {
+    title: 'OAuth 合法读取',
+    description: 'scope 匹配，进入后续检查。',
+    user: 'user',
+    text: 'OpenClaw 读取 public/notice.txt',
+    mode: 'tool_proxy_oauth'
   },
   {
     title: 'OAuth 外发拒绝',
@@ -316,7 +351,7 @@ export function GatewayWorkbench() {
         <Section
           eyebrow="Samples"
           title="推荐样例"
-          description="按顺序点击即可完成提交演示。"
+          description="两列按钮布局，点击即可填入演示输入。"
         >
           <div className="sample-grid clean-sample-grid">
             {samples.map((sample, index) => (
