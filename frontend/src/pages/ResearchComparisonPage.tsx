@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Badge } from '../components/Badge';
 import { Section } from '../components/Section';
 
@@ -51,16 +51,42 @@ export function ResearchComparisonPage() {
     <div className="page-grid">
       <section className="workbench-hero">
         <div>
-          <span className="eyebrow">Research Evaluation</span>
-          <h1>NoGuard vs OAuth-only vs AgentGuard</h1>
+          <span className="eyebrow">Project Explanation</span>
+          <h1>项目说明与对比逻辑</h1>
           <p>
-            这里用于展示科研级横向对比：无防护、只检查 OAuth scope、完整 AgentGuard 三种策略在风险样例上的误放行率。
+            本页用于答辩时解释“为什么普通 OAuth 不够”。NoGuard 代表没有防护，OAuth-only 只检查 scope，AgentGuard 则在 scope 之外继续检查任务边界、运行时风险、Capability Token、策略沙箱和执行证据。
           </p>
         </div>
-        <button className="primary-btn" onClick={runComparison} disabled={loading}>
-          {loading ? '运行中...' : '运行对比实验'}
-        </button>
+        <div className="flow-strip">
+          <span>NoGuard</span>
+          <b>vs</b>
+          <span>OAuth-only</span>
+          <b>vs</b>
+          <span>AgentGuard</span>
+        </div>
       </section>
+
+      <Section
+        eyebrow="Core Difference"
+        title="三种方案的差异"
+        description="这部分是说明性内容，用于把项目从普通权限系统中区分出来。"
+        actions={<button className="primary-btn small" onClick={runComparison} disabled={loading}>{loading ? '运行中...' : '运行对比实验'}</button>}
+      >
+        <div className="matrix-grid">
+          <div>
+            <strong>NoGuard</strong>
+            <span>Agent 提出工具调用后直接执行，没有任务边界、参数风险和审计证据。</span>
+          </div>
+          <div>
+            <strong>OAuth-only</strong>
+            <span>只判断 Agent 是否声明了某类 scope，无法判断本次调用是否符合当前任务。</span>
+          </div>
+          <div>
+            <strong>AgentGuard</strong>
+            <span>将 scope、任务、参数、运行时、沙箱和审计绑定到每一次工具调用。</span>
+          </div>
+        </div>
+      </Section>
 
       {report && (
         <>
