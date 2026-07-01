@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from backend.audit import write_log
 from backend.capability.capability_compiler import compile_capability_contract
 from backend.proxy.oauth_profile import build_agent_auth_profile
 from backend.proxy.proxy_models import (
@@ -109,6 +110,39 @@ def _apply_capability_token_decision(
 
     result_dict["reason"] = reasons
     return result_dict
+
+
+def _write_proxy_audit_log(
+    request: ToolProxyAuthorizeRequest,
+    result_dict: Dict[str, Any],
+    executed: bool,
+    tool_result: Optional[Dict[str, Any]],
+) -> None:
+    """Best-effort local audit log for frontend runtime evidence pages."""
+
+    try:
+        write_log(
+            user=request.user,
+            tool=request.tool,
+            params=request.params,
+            gateway_result={
+                "decision": str(result_dict.get("decision", "deny")),
+                "risk_score": int(result_dict.get("risk_score", 0) or 0),
+                "reason": _as_reason_list(result_dict.get("reason")),
+                "risk_level": None,
+            },
+            executed=executed,
+            original_input=request.original_task,
+            message=(
+                "Tool Proxy execute=true 已进入 Hybrid Sandbox。"
+                if executed
+                else "Tool Proxy 授权阶段已记录。"
+            ),
+            tool_result=tool_result,
+        )
+    except Exception:
+        # Audit logging must never break authorization or demo execution.
+        return
 
 
 def authorize_tool_call(
@@ -279,6 +313,13 @@ def authorize_tool_call(
         final_decision=str(result_dict.get("decision", "deny")),
         final_risk_score=int(result_dict.get("risk_score", 0) or 0),
         executed=executed,
+    )
+
+    _write_proxy_audit_log(
+        request=request,
+        result_dict=result_dict,
+        executed=executed,
+        tool_result=tool_result,
     )
 
     return ToolProxyAuthorizeResponse(
