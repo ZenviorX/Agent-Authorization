@@ -2,7 +2,7 @@
 
 面向 AI Agent 工具调用的授权、安全边界、沙箱执行与审计系统。
 
-本项目研究的问题是：当 AI Agent 能够调用文件、邮件、数据库、Shell 命令等外部工具时，如何在工具真正执行前加入一个统一、可解释、可审计的安全授权层，避免越权访问、提示注入、敏感信息泄露、危险命令执行和多步攻击链风险。
+本项目解决的问题是：当 AI Agent 能够调用文件、邮件、数据库、Shell 命令等外部工具时，如何在工具真正执行前加入一个统一、可解释、可审计的安全授权层，避免越权访问、提示注入、敏感信息泄露、危险命令执行和多步攻击链风险。
 
 核心原则：
 
@@ -82,18 +82,6 @@ Audit Log / Evidence / Frontend Display
 | `db.query` | 数据库查询 |
 | `http.post` | HTTP 外发场景建模 |
 
-每次调用会被转为结构化请求：
-
-```json
-{
-  "user": "user",
-  "tool": "file.read",
-  "params": {
-    "path": "public/notice.txt"
-  }
-}
-```
-
 Gateway 会结合用户身份、工具类型、资源路径、参数内容、策略配置、任务合约和运行时上下文输出最终决策。
 
 ### 3.2 OAuth-style 外部 Agent 授权
@@ -138,31 +126,7 @@ Phase 2: execute=true + capability_token
 | Docker Sandbox | 需要 Docker Desktop | 较强，容器级隔离 | 有 Docker 环境时使用 |
 | Native Subprocess Sandbox | 不需要额外软件 | 中等，项目内置受限子进程 | 默认本地演示 fallback |
 
-#### Docker Sandbox
-
-如果本机有 Docker，系统会使用短生命周期容器执行工具调用，并启用：
-
-- `--network none`
-- `--read-only`
-- `--cap-drop ALL`
-- `--security-opt no-new-privileges`
-- `--pids-limit`
-- `--memory`
-- `--cpus`
-- 只读或受限 bind mount
-
-#### Native Subprocess Sandbox
-
-如果没有 Docker Desktop，系统自动 fallback 到 Native Subprocess Sandbox。它不依赖任何额外软件，通过当前 Python 解释器启动受限子进程，并实现：
-
-- 工具白名单：只暴露 `file.read`、`file.write`、`email.send`、安全解释型 `shell.run`；
-- 路径白名单：所有路径必须在 `runtime_workspace` 内；
-- profile 控制：`local_readonly`、`local_safe_write`、`strict`、`no_shell`；
-- 无真实网络外发；
-- 写操作只允许进入 `outbox/`；
-- 每次运行生成 `evidence.json`。
-
-Native Subprocess Sandbox 不是 OS/VM 级隔离，不能等同于 Docker、gVisor 或 Firecracker，但它能保证项目在无 Docker 环境下也可以完整展示工具调用受控执行、路径限制和证据生成。
+Native Subprocess Sandbox 不等同于 Docker、gVisor 或 Firecracker；它是基础版、无需安装额外软件的本地可运行沙箱。它通过工具白名单、路径白名单、写入目录限制、超时控制和 evidence 文件实现受控执行。
 
 ### 3.5 独立测试模块
 
@@ -193,7 +157,7 @@ test/results/latest_report.md
 test/results/latest_dashboard.html
 ```
 
-前端“评测对比”页面可一键触发测试并刷新结果。
+前端“测试报告”页面可一键触发测试并刷新结果。
 
 ---
 
@@ -208,15 +172,6 @@ test/results/latest_dashboard.html
 | Node.js | 20 LTS | React + Vite 前端 |
 | npm | 随 Node.js 安装 | 安装前端依赖 |
 | Docker Desktop | 可选 | Docker Sandbox，非必需 |
-
-检查：
-
-```powershell
-python --version
-node -v
-npm -v
-git --version
-```
 
 ### 4.2 安装依赖
 
@@ -246,7 +201,7 @@ API 文档：http://127.0.0.1:8000/docs
 
 ---
 
-## 5. 常用验证命令
+## 5. 提交前验证命令
 
 ### 5.1 后端状态
 
@@ -272,21 +227,13 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8000/sandbox-native/execute `
   -Body '{"tool":"file.read","params":{"path":"secret/password.txt"},"sandbox_profile":"strict"}'
 ```
 
-### 5.3 Docker Sandbox，可选
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/sandbox-docker/health
-```
-
-如果没有 Docker Desktop，系统不会失败，Tool Proxy 真执行会自动使用 Native Subprocess Sandbox。
-
-### 5.4 独立评测
+### 5.3 独立评测
 
 ```powershell
 python -m test.run
 ```
 
-### 5.5 pytest 回归测试
+### 5.4 pytest 回归测试
 
 ```powershell
 python -m pytest tests/test_native_sandbox_executor.py
@@ -294,7 +241,7 @@ python -m pytest tests/test_docker_sandbox_executor.py
 python -m pytest tests -q
 ```
 
-### 5.6 前端构建
+### 5.5 前端构建
 
 ```powershell
 npm --prefix ".\frontend" run build
@@ -302,31 +249,35 @@ npm --prefix ".\frontend" run build
 
 ---
 
-## 6. 前端功能说明
+## 6. 前端提交版导航
 
-新版前端基于 React + Vite，主要页面包括：
+提交版前端已按展示逻辑整理成四组：
 
-| 页面 | 作用 |
-|---|---|
-| 授权工作台 | 输入自然语言命令，展示 Agent 规划、Gateway 判定、Capability Token、Hybrid Sandbox 证据 |
-| 总览仪表盘 | 展示请求量、阻断数、风险指标、最近请求和审计时间线 |
-| 授权请求 | 展示待确认或已处理的授权请求 |
-| 策略管理 | 展示策略规则和风险控制说明 |
-| 审计日志 | 展示操作审计与安全事件 |
-| 评测对比 | 一键运行 `test.run`，展示独立评测结果 |
-| 科研对比 | 展示 OAuth、传统权限、Agent 授权等对比 |
-| 两阶段授权 | 展示 Capability Token 的签发、绑定、消费流程 |
-| 系统设置 | 展示系统配置入口 |
+| 分组 | 页面 | 说明 |
+|---|---|---|
+| 一、核心演示 | 授权工作台、两阶段授权 | 先展示 Agent → Gateway → Token → Sandbox → Evidence 主链路 |
+| 二、运行数据 | 总览仪表盘、授权请求、审计日志 | 展示请求、风险、人工确认和审计证据 |
+| 三、规则与评测 | 策略管理、测试报告、项目说明 | 展示策略、自动测试和 OAuth 对比逻辑 |
+| 四、系统配置 | 系统设置 | 展示当前演示配置 |
 
-授权工作台推荐演示样例：
+推荐展示顺序：
 
 ```text
-真沙箱读取 public
-真沙箱写入 outbox
-敏感读取阻断
-OAuth 合法读取
-OAuth 外发拒绝
-Adapter Shell 沙箱阻断
+1. 授权工作台
+   选择“真沙箱执行（自动选择）”
+   运行：真沙箱读取 public / 真沙箱写入 outbox / 敏感读取阻断
+
+2. 两阶段授权
+   说明 execute=false 签发 token，execute=true 消费 token
+
+3. 总览仪表盘
+   说明项目整体架构和审计闭环
+
+4. 测试报告
+   点击一键运行测试，展示 Gateway 自动评测结果
+
+5. 项目说明
+   说明 NoGuard、OAuth-only、AgentGuard 的差异
 ```
 
 没有 Docker 时，前端仍然会展示：
