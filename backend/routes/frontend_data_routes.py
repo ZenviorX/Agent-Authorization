@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List
 
 from fastapi import APIRouter
 
@@ -39,7 +39,10 @@ def _parse_dt(value: Any) -> datetime:
 
     raw = str(value).replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(raw)
+        parsed = datetime.fromisoformat(raw)
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
     except Exception:
         pass
 
@@ -100,6 +103,13 @@ def _iter_evidence_files() -> Iterable[Path]:
         yield from base.glob("*/evidence.json")
 
 
+def _relative_to_runtime(path: Path) -> str:
+    try:
+        return str(path.relative_to(RUNTIME_WORKSPACE))
+    except Exception:
+        return str(path)
+
+
 def _load_evidence_records() -> List[Dict[str, Any]]:
     records: List[Dict[str, Any]] = []
 
@@ -125,7 +135,7 @@ def _load_evidence_records() -> List[Dict[str, Any]]:
             "sandbox_type": evidence.get("sandbox_type"),
             "sandbox_profile": evidence.get("sandbox_profile"),
             "evidence_hash": evidence.get("evidence_hash"),
-            "evidence_path": str(evidence_path.relative_to(RUNTIME_WORKSPACE)) if evidence_path.is_relative_to(RUNTIME_WORKSPACE) else str(evidence_path),
+            "evidence_path": _relative_to_runtime(evidence_path),
         })
 
     return records
