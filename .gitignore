@@ -30,6 +30,7 @@ frontend/dist/
 frontend/.vite/
 frontend/.env
 frontend/.env.*
+frontend/package-lock.json
 !frontend/.env.example
 
 # Environment and secrets
