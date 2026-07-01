@@ -21,14 +21,15 @@ export function Dashboard({ overview, requests, auditLogs, onApprove, onReject }
     <div className="page-grid">
       <section className="hero-panel">
         <div className="hero-copy">
-          <span className="eyebrow">AI Agent Security Gateway</span>
-          <h1>把智能体工具调用，管成可审计、可解释、可阻断的安全流程。</h1>
+          <span className="eyebrow">Project Overview</span>
+          <h1>AI Agent 工具调用授权网关</h1>
           <p>
-            面向信安赛/课程展示场景：请求准入、策略命中、人工确认、审计日志与评测指标集中展示。
+            本页用于提交展示时先讲清楚项目定位：Agent 不直接执行工具，而是先进入 Tool Proxy、Gateway、Capability Token、Runtime Monitor、Sandbox Policy 与 Hybrid Sandbox，最终形成 allow / confirm / deny 和审计证据。
           </p>
           <div className="hero-actions">
-            <a className="primary-btn" href="#requests">查看待确认请求</a>
-            <a className="secondary-btn" href="#policies">检查策略覆盖</a>
+            <button className="secondary-btn small" type="button">主线：授权判定</button>
+            <button className="secondary-btn small" type="button">执行：Hybrid Sandbox</button>
+            <button className="secondary-btn small" type="button">证据：Audit / Evidence</button>
           </div>
         </div>
         <div className="hero-visual" aria-hidden="true">
@@ -36,7 +37,7 @@ export function Dashboard({ overview, requests, auditLogs, onApprove, onReject }
           <div className="orb orb-b" />
           <div className="gateway-card floating-card">
             <span>Gateway Decision</span>
-            <strong>{highRisk.length > 0 ? 'High Risk Blocked' : 'Normal'}</strong>
+            <strong>{highRisk.length > 0 ? 'Risk Controlled' : 'Normal'}</strong>
             <small>Policy hit rate {overview?.policyHitRate ?? 0}%</small>
           </div>
           <div className="gateway-card floating-card secondary">
@@ -48,23 +49,23 @@ export function Dashboard({ overview, requests, auditLogs, onApprove, onReject }
       </section>
 
       <div className="metric-grid">
-        <MetricCard title="总请求量" value={compactNumber(overview?.totalRequests ?? 0)} hint="今日网关处理请求" icon="dashboard" />
-        <MetricCard title="阻断请求" value={compactNumber(overview?.blockedRequests ?? 0)} hint="越权、危险命令、敏感资源" icon="shield" />
-        <MetricCard title="平均耗时" value={overview?.averageLatencyMs ?? 0} suffix="ms" hint="策略判定平均延迟" icon="spark" />
-        <MetricCard title="安全评分" value={overview?.securityScore ?? 0} suffix="/100" hint="按命中率与误拦率综合估算" icon="check" />
+        <MetricCard title="总请求量" value={compactNumber(overview?.totalRequests ?? 0)} hint="前端演示数据：网关处理请求数" icon="dashboard" />
+        <MetricCard title="阻断请求" value={compactNumber(overview?.blockedRequests ?? 0)} hint="越权、危险命令、敏感资源等风险请求" icon="shield" />
+        <MetricCard title="平均耗时" value={overview?.averageLatencyMs ?? 0} suffix="ms" hint="授权判定的平均延迟" icon="spark" />
+        <MetricCard title="安全评分" value={overview?.securityScore ?? 0} suffix="/100" hint="按策略命中、阻断与误拦指标估算" icon="check" />
       </div>
 
       <Section
         eyebrow="Requests"
-        title="最近网关请求"
-        description="展示智能体、用户、工具目标、策略解释与最终决策。"
+        title="最近授权请求"
+        description="这里展示 Agent 工具调用进入 Gateway 后的决策记录。提交演示时不需要从这里开始，推荐先进入“授权工作台”。"
         actions={<Badge tone="yellow">{pending.length} 个待确认</Badge>}
       >
         <RequestTable rows={requests.slice(0, 5)} onApprove={onApprove} onReject={onReject} compact />
       </Section>
 
       <section className="two-column">
-        <Section eyebrow="Audit" title="审计时间线" description="适合答辩时说明系统为什么可信、可追责。">
+        <Section eyebrow="Audit" title="审计时间线" description="用于说明系统为什么可追责：每次授权、拦截和人工确认都会留下审计信息。">
           <div className="timeline">
             {auditLogs.map((log) => (
               <article className="timeline-item" key={log.id}>
@@ -82,19 +83,19 @@ export function Dashboard({ overview, requests, auditLogs, onApprove, onReject }
           </div>
         </Section>
 
-        <Section eyebrow="Architecture" title="推荐展示结构" description="可以直接照着这张逻辑讲项目。">
+        <Section eyebrow="Architecture" title="提交展示主线" description="按这个顺序讲，老师能更快理解项目不是普通聊天页面。">
           <div className="architecture-card">
-            <div>Agent 请求</div>
+            <div>Agent</div>
             <span>→</span>
-            <div>安全网关</div>
+            <div>Tool Proxy</div>
             <span>→</span>
-            <div>策略引擎</div>
+            <div>Gateway / Token</div>
             <span>→</span>
-            <div>工具执行器</div>
+            <div>Sandbox / Evidence</div>
           </div>
           <div className="explain-box">
             <strong>核心卖点：</strong>
-            <p>不是简单做一个聊天界面，而是在智能体调用工具之前加入统一准入层，输出 allow / deny / confirm / review，并保留审计证据。</p>
+            <p>系统把 AI Agent 的工具调用从“直接执行”改造成“先授权、再校验、后沙箱执行、全程留证”的安全流程。</p>
           </div>
         </Section>
       </section>
