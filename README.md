@@ -70,7 +70,7 @@ Audit Log / Evidence / Frontend Display
 
 ### 3.1 Gateway 授权网关
 
-支持标准工具调用：
+Gateway 负责对工具调用进行 `allow / confirm / deny` 判断。支持的工具类型包括：
 
 | 工具 | 用途 |
 |---|---|
@@ -82,9 +82,7 @@ Audit Log / Evidence / Frontend Display
 | `db.query` | 数据库查询 |
 | `http.post` | HTTP 外发场景建模 |
 
-Gateway 会结合用户身份、工具类型、资源路径、参数内容、策略配置、任务合约和运行时上下文输出最终决策。
-
-### 3.2 OAuth-style 外部 Agent 授权
+### 3.2 Tool Proxy 与外部 Agent 接入
 
 项目支持模拟 OpenClaw、WorkBuddy、Custom Agent 等外部 Agent 平台。外部 Agent 不直接访问本地工具，而是必须经过：
 
@@ -127,37 +125,6 @@ Phase 2: execute=true + capability_token
 | Native Subprocess Sandbox | 不需要额外软件 | 中等，项目内置受限子进程 | 默认本地演示 fallback |
 
 Native Subprocess Sandbox 不等同于 Docker、gVisor 或 Firecracker；它是基础版、无需安装额外软件的本地可运行沙箱。它通过工具白名单、路径白名单、写入目录限制、超时控制和 evidence 文件实现受控执行。
-
-### 3.5 独立测试模块
-
-项目将评测系统独立到 `test/` 目录：
-
-```text
-test/
-  cases/                 # Gateway 测试样例
-  results/               # 运行结果，默认 git ignore
-  run.py                 # 独立测试运行器
-  api.py                 # 测试结果 API 预留
-  README.md
-```
-
-运行：
-
-```powershell
-python -m test.run
-```
-
-输出：
-
-```text
-test/results/latest_summary.json
-test/results/latest_cases.json
-test/results/latest_detail.csv
-test/results/latest_report.md
-test/results/latest_dashboard.html
-```
-
-前端“测试报告”页面可一键触发测试并刷新结果。
 
 ---
 
@@ -249,34 +216,30 @@ npm --prefix ".\frontend" run build
 
 ---
 
-## 6. 前端提交版导航
+## 6. 前端页面逻辑
 
-提交版前端已按展示逻辑整理成四组：
+提交版前端已经收敛为 4 个主菜单：
 
-| 分组 | 页面 | 说明 |
+| 菜单 | 作用 | 什么时候用 |
 |---|---|---|
-| 一、核心演示 | 授权工作台、两阶段授权 | 先展示 Agent → Gateway → Token → Sandbox → Evidence 主链路 |
-| 二、运行数据 | 总览仪表盘、授权请求、审计日志 | 展示请求、风险、人工确认和审计证据 |
-| 三、规则与评测 | 策略管理、测试报告、项目说明 | 展示策略、自动测试和 OAuth 对比逻辑 |
-| 四、系统配置 | 系统设置 | 展示当前演示配置 |
+| 授权演示 | 输入任务，查看 Agent → Gateway → Token → Sandbox 主链路 | 第一个展示 |
+| 运行证据 | 查看请求、审计、整体链路说明 | 说明系统能追责 |
+| 测试报告 | 一键运行独立测试模块 | 展示准确率、风险阻断率 |
+| 项目说明 | 解释 NoGuard、OAuth-only、AgentGuard 的差异 | 回答“为什么不是普通 OAuth” |
 
 推荐展示顺序：
 
 ```text
-1. 授权工作台
-   选择“真沙箱执行（自动选择）”
-   运行：真沙箱读取 public / 真沙箱写入 outbox / 敏感读取阻断
+1. 授权演示
+   先点“真沙箱读取”，再点“敏感文件拦截”，最后点“OAuth 外发拒绝”
 
-2. 两阶段授权
-   说明 execute=false 签发 token，execute=true 消费 token
+2. 运行证据
+   说明 Agent → Gateway → Token → Sandbox → Evidence 审计链路
 
-3. 总览仪表盘
-   说明项目整体架构和审计闭环
+3. 测试报告
+   点击“一键运行测试”，展示 Gateway 自动评测结果
 
-4. 测试报告
-   点击一键运行测试，展示 Gateway 自动评测结果
-
-5. 项目说明
+4. 项目说明
    说明 NoGuard、OAuth-only、AgentGuard 的差异
 ```
 
@@ -322,10 +285,8 @@ Agent-Authorization/
     tools/                  # 受控工具执行器
   config/                   # policy.yaml / semantic_guard.yaml
   docs/                     # 架构、OAuth 对比、沙箱说明
-  examples/                 # 演示脚本
   frontend/                 # React + Vite 前端
   runtime_workspace/        # 本地沙箱工作区，运行产物默认忽略
-  scripts/                  # 辅助脚本
   test/                     # 独立评测模块
   tests/                    # pytest 回归测试
   start_project.py          # 一键启动脚本
@@ -333,54 +294,9 @@ Agent-Authorization/
   README.md
 ```
 
-说明：
-
-- `test/` 是产品化评测模块，面向展示、报告和前端结果读取；
-- `tests/` 是 pytest 自动化测试，面向开发回归；
-- `runtime_workspace/` 是本地沙箱目录，不应存放真实敏感文件；
-- Docker 不是必需依赖，Native Subprocess Sandbox 可直接运行。
-
 ---
 
-## 9. 与 OAuth 的关系
-
-OAuth 解决的是：
-
-```text
-某个应用 / Agent 是否被授权访问某类资源。
-```
-
-Agent-Authorization 进一步解决的是：
-
-```text
-这个 Agent 在当前任务、当前上下文、当前工具参数下，能不能安全执行这一次具体动作。
-```
-
-例如，Agent 拥有 `tool:file:read` scope，并不代表它可以在任意任务中读取任意文件。系统仍会检查：
-
-- 读取路径是否在任务边界内；
-- 是否访问 `secret/`、`private/`、`.env` 等敏感资源；
-- 是否来自提示注入链路；
-- 结果是否可能被外发；
-- 是否需要人工确认；
-- 是否必须进入沙箱执行。
-
----
-
-## 10. 展示话术
-
-可以这样介绍项目：
-
-```text
-我们做的不是一个新的 OAuth，也不是普通聊天机器人。
-我们做的是 AI Agent 工具调用前的授权网关。
-当 OpenClaw、WorkBuddy 或企业自研 Agent 想调用文件、邮件、数据库或命令行工具时，它们不能直接执行，而是必须通过 Adapter 和 Tool Proxy 转成标准授权请求。
-系统再进行 OAuth-style scope 检查、任务边界检查、Capability Token 校验、Runtime Monitor、Sandbox Policy 和 Hybrid Sandbox 执行，最后输出 allow / confirm / deny，并生成可审计证据。
-```
-
----
-
-## 11. 当前边界
+## 9. 当前边界
 
 - Native Subprocess Sandbox 不等同于 Docker、gVisor 或 Firecracker；它是无需安装额外软件的本地可运行 fallback。
 - Docker Sandbox 是可选增强，适合有 Docker Desktop 的环境。
@@ -389,6 +305,17 @@ Agent-Authorization 进一步解决的是：
 
 ---
 
-## 12. License
+## 10. 展示话术
+
+```text
+我们做的不是新的 OAuth，也不是普通聊天机器人。
+我们做的是 AI Agent 工具调用前的授权网关。
+当 OpenClaw、WorkBuddy 或企业自研 Agent 想调用文件、邮件、数据库或命令行工具时，它们不能直接执行，而是必须通过 Adapter 和 Tool Proxy 转成标准授权请求。
+系统再进行 OAuth-style scope 检查、任务边界检查、Capability Token 校验、Runtime Monitor、Sandbox Policy 和 Hybrid Sandbox 执行，最后输出 allow / confirm / deny，并生成可审计证据。
+```
+
+---
+
+## 11. License
 
 This project is for research, teaching, and security demonstration purposes.
