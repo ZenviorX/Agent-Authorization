@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import argparse
 import os
@@ -39,35 +39,46 @@ def run_shell(command: str, cwd: Path | None = None) -> None:
 
 def kill_existing_processes() -> None:
     """
-    Stop common local backend/frontend dev processes.
+    Stop old local backend/frontend dev processes without killing this launcher.
 
-    This is intentionally conservative:
-    - backend: uvicorn / backend.main / start_project.py
-    - frontend: node processes containing vite / frontend / npm
+    Windows notes:
+    - The previous implementation matched every python process containing
+      start_project.py, which also matched the current launcher.
+    - We now skip the current PID and parent PID before stopping anything.
     """
 
+    current_pid = os.getpid()
+    parent_pid = os.getppid()
+
     if is_windows():
-        ps = r'''
+        ps = rf'''
+$currentPid = {current_pid}
+$parentPid = {parent_pid}
+
 Get-CimInstance Win32_Process |
-  Where-Object {
+  Where-Object {{
+    $_.ProcessId -ne $currentPid -and
+    $_.ProcessId -ne $parentPid -and
     (
-      $_.Name -match "node.exe" -and (
-        $_.CommandLine -match "vite" -or
-        $_.CommandLine -match "frontend" -or
-        $_.CommandLine -match "npm"
-      )
-    ) -or (
-      ($_.Name -match "python.exe" -or $_.Name -match "pythonw.exe") -and (
-        $_.CommandLine -match "uvicorn" -or
-        $_.CommandLine -match "backend.main" -or
-        $_.CommandLine -match "start_project.py"
+      (
+        $_.Name -match "node.exe" -and (
+          $_.CommandLine -match "vite" -or
+          $_.CommandLine -match "frontend" -or
+          $_.CommandLine -match "npm"
+        )
+      ) -or (
+        ($_.Name -match "python.exe" -or $_.Name -match "pythonw.exe") -and (
+          $_.CommandLine -match "uvicorn" -or
+          $_.CommandLine -match "backend.main" -or
+          $_.CommandLine -match "start_project.py"
+        )
       )
     )
-  } |
-  ForEach-Object {
+  }} |
+  ForEach-Object {{
     Write-Host "Stop process PID=$($_.ProcessId) $($_.CommandLine)"
     Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
-  }
+  }}
 '''
         subprocess.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
@@ -75,12 +86,12 @@ Get-CimInstance Win32_Process |
         )
         return
 
-    # macOS / Linux fallback
+    # macOS / Linux fallback. Avoid matching this process by using narrower patterns.
     patterns = [
         "uvicorn backend.main:app",
         "python -m uvicorn backend.main:app",
         "npm --prefix ./frontend run dev",
-        "vite",
+        "vite --host",
     ]
 
     for pattern in patterns:
@@ -91,7 +102,7 @@ def ensure_frontend_env() -> None:
     """
     Keep frontend API routing stable.
 
-    vite.config.ts already proxies /test-results to 127.0.0.1:8000.
+    vite.config.ts proxies backend routes to 127.0.0.1:8000.
     This .env file makes direct API_BASE explicit as a fallback.
     """
 
@@ -144,8 +155,11 @@ def wait_message() -> None:
     print(f"API Docs: http://{BACKEND_HOST}:{BACKEND_PORT}/docs")
     print()
     print("Useful checks:")
+    print(f"  http://{BACKEND_HOST}:{BACKEND_PORT}/api/status")
+    print(f"  http://{BACKEND_HOST}:{BACKEND_PORT}/sandbox-native/health")
     print(f"  http://{BACKEND_HOST}:{BACKEND_PORT}/test-results/latest/summary")
-    print("  Frontend -> 评测对比 -> 一键运行测试")
+    print("  Frontend -> 授权工作台 -> 真沙箱执行（自动选择）")
+    print("  Frontend -> 测试报告 -> 一键运行测试")
     print()
     print("Press Ctrl+C to stop both backend and frontend.")
     print("=" * 72)
