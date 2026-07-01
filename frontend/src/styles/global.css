@@ -150,6 +150,50 @@ button:disabled {
   word-break: break-word;
 }
 
+/* Submission UI overrides: mode guide */
+.mode-guide-panel {
+  margin-top: 10px;
+  padding: 18px;
+  border-radius: 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  display: grid;
+  gap: 14px;
+}
+.mode-guide-panel h3 {
+  margin: -4px 0 0;
+  font-size: 18px;
+  line-height: 1.35;
+}
+.mode-guide-panel p {
+  margin: 0;
+  color: #374151;
+  line-height: 1.72;
+  font-size: 14px;
+}
+.mode-guide-block {
+  padding: 12px 13px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+}
+.mode-guide-block strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #1e3a8a;
+  font-size: 14px;
+}
+.mode-guide-block ol {
+  margin: 0;
+  padding-left: 20px;
+  color: #374151;
+  line-height: 1.75;
+  font-size: 13px;
+}
+.mode-guide-block li + li {
+  margin-top: 4px;
+}
+
 @media (max-width: 1180px) {
   .clean-sample-grid {
     grid-template-columns: 1fr;
