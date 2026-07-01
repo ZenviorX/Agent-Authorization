@@ -119,3 +119,39 @@ button:disabled {
   animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Submission UI overrides: sample cards */
+.clean-sample-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.clean-sample-card {
+  min-height: 150px;
+  align-content: start;
+  padding: 14px 16px;
+}
+.clean-sample-card strong {
+  font-size: 15px;
+  line-height: 1.35;
+}
+.clean-sample-card small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.clean-sample-card code {
+  display: block;
+  max-width: 100%;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 1180px) {
+  .clean-sample-grid {
+    grid-template-columns: 1fr;
+  }
+}
