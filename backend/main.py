@@ -25,6 +25,7 @@ from backend.routes.research_strategy_routes import router as research_strategy_
 from backend.routes.test_results_routes import router as test_results_router
 from backend.routes.docker_sandbox_routes import router as docker_sandbox_router
 from backend.routes.native_sandbox_routes import router as native_sandbox_router
+from backend.routes.frontend_data_routes import router as frontend_data_router
 from backend.routes.two_phase_tool_proxy_routes import router as two_phase_tool_proxy_router
 from backend.routes.capability_token_routes import router as capability_token_router
 
@@ -98,6 +99,12 @@ app.include_router(research_eval_router)
 app.include_router(research_strategy_router)
 app.include_router(two_phase_tool_proxy_router)
 app.include_router(capability_token_router)
+
+# -----------------------------
+# Frontend local runtime data APIs
+# -----------------------------
+
+app.include_router(frontend_data_router)
 
 # -----------------------------
 # Real execution sandbox APIs
@@ -219,6 +226,7 @@ def api_status():
             "tool_proxy",
             "external_agent_adapter",
             "independent_test_runner",
+            "frontend_local_runtime_data",
         ],
         "note": (
             "FakeAgent is demo-only. Real Agent runtime APIs are exposed under "
@@ -263,7 +271,7 @@ def _install_legacy_frontend_route_notice():
                 "frontend": "http://127.0.0.1:5173",
                 "backend": "http://127.0.0.1:8000",
                 "docs": "http://127.0.0.1:8000/docs",
-                "recommended_demo_mode": "FakeAgent 规划 + Gateway 只判定",
+                "recommended_demo_mode": "授权演示 -> 真沙箱执行（自动选择）",
             }
         )
 
