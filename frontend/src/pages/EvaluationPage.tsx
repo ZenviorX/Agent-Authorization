@@ -41,9 +41,9 @@ const strategyNames: Record<string, string> = {
 };
 
 const strategyDescriptions: Record<string, string> = {
-  allow_all: '不做任何防护，所有工具调用直接放行',
-  keyword_only: '只基于关键词进行简单拦截',
-  gateway: '使用 AgentGuard 授权网关进行风险评分、策略判断和人工确认'
+  allow_all: '无授权边界，全部放行，仅作为风险对照',
+  keyword_only: '只按关键词拦截，容易漏掉上下文和任务边界风险',
+  gateway: '使用 AgentGuard 授权网关，结合策略、任务边界、运行时监控和沙箱证据'
 };
 
 export function EvaluationPage({
@@ -69,10 +69,29 @@ export function EvaluationPage({
 
   return (
     <div className="page-grid">
+      <section className="workbench-hero">
+        <div>
+          <span className="eyebrow">Test Report</span>
+          <h1>Gateway 独立测试报告</h1>
+          <p>
+            本页只负责提交前验证：运行 `test.run`，读取 `test/cases/gateway_cases*.json`，将样例输入 Gateway，并把通过率、风险阻断率、误放行率等指标同步到前端。
+          </p>
+        </div>
+        <div className="flow-strip">
+          <span>test/cases</span>
+          <b>→</b>
+          <span>Gateway</span>
+          <b>→</b>
+          <span>latest_summary.json</span>
+          <b>→</b>
+          <span>前端报告</span>
+        </div>
+      </section>
+
       <Section
         eyebrow="Independent Test Module"
         title="自动测试结果"
-        description="读取 test/cases/gateway_cases*.json，输入 Gateway，自动生成 test/results/latest_* 结果。"
+        description="这是当前最可信的评测入口；旧策略横向对比只作为辅助说明。"
         actions={(
           <div className="row-actions">
             <button className="secondary-btn small" onClick={onRefreshTestSummary} disabled={testRunning}>刷新结果</button>
@@ -83,65 +102,17 @@ export function EvaluationPage({
         )}
       >
         <div className="metric-grid compact">
-          <MetricCard
-            title="测试样例"
-            value={testSummary?.total_cases ?? 0}
-            suffix=" cases"
-            hint="本轮被读取并输入 Gateway 的样例数量"
-            icon="lab"
-          />
-          <MetricCard
-            title="通过样例"
-            value={testSummary?.passed_cases ?? 0}
-            suffix=" cases"
-            hint="实际 decision 与 expected_decision 匹配的样例"
-            icon="check"
-          />
-          <MetricCard
-            title="失败样例"
-            value={testSummary?.failed_cases ?? 0}
-            suffix=" cases"
-            hint="实际 decision 与预期不一致的样例"
-            icon="shield"
-          />
-          <MetricCard
-            title="准确率"
-            value={formatPercentNumber(testSummary?.accuracy)}
-            suffix="%"
-            hint="passed_cases / total_cases"
-            icon="spark"
-          />
+          <MetricCard title="测试样例" value={testSummary?.total_cases ?? 0} suffix=" cases" hint="本轮输入 Gateway 的样例数量" icon="lab" />
+          <MetricCard title="通过样例" value={testSummary?.passed_cases ?? 0} suffix=" cases" hint="实际 decision 与预期匹配的样例" icon="check" />
+          <MetricCard title="失败样例" value={testSummary?.failed_cases ?? 0} suffix=" cases" hint="实际 decision 与预期不一致的样例" icon="shield" />
+          <MetricCard title="准确率" value={formatPercentNumber(testSummary?.accuracy)} suffix="%" hint="passed_cases / total_cases" icon="spark" />
         </div>
 
         <div className="metric-grid compact">
-          <MetricCard
-            title="风险阻断/确认率"
-            value={formatPercentNumber(testSummary?.risk_block_or_confirm_rate)}
-            suffix="%"
-            hint="风险样例被 confirm 或 deny 的比例"
-            icon="shield"
-          />
-          <MetricCard
-            title="风险误放行率"
-            value={formatPercentNumber(testSummary?.risk_unsafe_allow_rate)}
-            suffix="%"
-            hint="风险样例被错误 allow 的比例"
-            icon="arrow"
-          />
-          <MetricCard
-            title="正常误拒率"
-            value={formatPercentNumber(testSummary?.normal_false_deny_rate)}
-            suffix="%"
-            hint="正常样例被 deny 的比例"
-            icon="dashboard"
-          />
-          <MetricCard
-            title="平均延迟"
-            value={testSummary?.avg_latency_ms ?? 0}
-            suffix=" ms"
-            hint="Gateway 判定平均耗时"
-            icon="spark"
-          />
+          <MetricCard title="风险阻断/确认率" value={formatPercentNumber(testSummary?.risk_block_or_confirm_rate)} suffix="%" hint="风险样例被 confirm 或 deny 的比例" icon="shield" />
+          <MetricCard title="风险误放行率" value={formatPercentNumber(testSummary?.risk_unsafe_allow_rate)} suffix="%" hint="风险样例被错误 allow 的比例" icon="arrow" />
+          <MetricCard title="正常误拒率" value={formatPercentNumber(testSummary?.normal_false_deny_rate)} suffix="%" hint="正常样例被 deny 的比例" icon="dashboard" />
+          <MetricCard title="平均延迟" value={testSummary?.avg_latency_ms ?? 0} suffix=" ms" hint="Gateway 判定平均耗时" icon="spark" />
         </div>
 
         <div className="matrix-grid">
@@ -151,17 +122,31 @@ export function EvaluationPage({
         </div>
 
         <div className="code-panel">
-          <strong>{latestTestAvailable ? '最新结果已生成' : '暂无最新结果'}</strong>
+          <strong>{latestTestAvailable ? '最新测试结果已生成' : '暂无最新测试结果'}</strong>
           <code>{testSummary?.generated_at ?? testSummary?.hint ?? '点击“一键运行测试”生成结果'}</code>
           <small>{testRunMessage ?? testSummary?.message ?? '按钮会调用后端 /test-results/run，并刷新 test/results/latest_summary.json。'}</small>
         </div>
       </Section>
 
       <Section
-        eyebrow="Evaluation Lab"
-        title="评测实验室"
-        description="用于展示前端内置指标和后端评测指标。当前主数据源应以独立测试模块为准。"
-        actions={<span className="status-pill">{latestTestAvailable ? '测试结果已同步' : '等待运行'}</span>}
+        eyebrow="Result Files"
+        title="测试产物位置"
+        description={`独立测试运行后会生成 JSON、CSV、Markdown 和 HTML 看板；运行产物默认被 git ignore。耗时 ${formatMs(testSummary?.elapsed_ms)}。`}
+      >
+        <div className="matrix-grid">
+          <div><strong>摘要 JSON</strong><span>{testSummary?.outputs?.latest_summary ?? 'test/results/latest_summary.json'}</span></div>
+          <div><strong>样例明细</strong><span>{testSummary?.outputs?.latest_cases ?? 'test/results/latest_cases.json'}</span></div>
+          <div><strong>CSV 明细</strong><span>{testSummary?.outputs?.latest_detail_csv ?? 'test/results/latest_detail.csv'}</span></div>
+          <div><strong>Markdown 报告</strong><span>{testSummary?.outputs?.latest_report_md ?? 'test/results/latest_report.md'}</span></div>
+          <div><strong>HTML 看板</strong><span>{testSummary?.outputs?.latest_dashboard_html ?? 'test/results/latest_dashboard.html'}</span></div>
+          <div><strong>运行目录</strong><span>{testSummary?.outputs?.run_summary ?? 'test/results/run_YYYYMMDD_HHMMSS/'}</span></div>
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="Auxiliary Metrics"
+        title="前端辅助指标"
+        description="这些是界面展示用辅助指标；提交时以独立测试模块结果为准。"
       >
         <div className="metric-grid compact">
           {metrics.map((metric) => (
@@ -178,34 +163,16 @@ export function EvaluationPage({
       </Section>
 
       <Section
-        eyebrow="Strategy Comparison"
-        title="旧策略横向对比"
-        description="保留旧版 allow_all、keyword_only 与 gateway 对比展示。新评测入口已经迁移到上方独立测试模块。"
+        eyebrow="Baseline Comparison"
+        title="历史策略对照"
+        description="保留 allow_all、keyword_only 与 gateway 对比，用于说明为什么需要 AgentGuard；不作为当前主评测入口。"
       >
         {strategyComparison?.available ? (
           <>
             <div className="metric-grid compact">
-              <MetricCard
-                title="测试样例"
-                value={strategyComparison.total_cases}
-                suffix=" cases"
-                hint="参与评测的用例数量"
-                icon="lab"
-              />
-              <MetricCard
-                title="评测记录"
-                value={strategyComparison.total_records}
-                suffix=" rows"
-                hint="策略与样例组合后的总记录数"
-                icon="dashboard"
-              />
-              <MetricCard
-                title="耗时"
-                value={Number(strategyComparison.elapsed_ms.toFixed(2))}
-                suffix=" ms"
-                hint="本轮评测执行时间"
-                icon="spark"
-              />
+              <MetricCard title="测试样例" value={strategyComparison.total_cases} suffix=" cases" hint="参与横向对照的用例数量" icon="lab" />
+              <MetricCard title="评测记录" value={strategyComparison.total_records} suffix=" rows" hint="策略与样例组合后的总记录数" icon="dashboard" />
+              <MetricCard title="耗时" value={Number(strategyComparison.elapsed_ms.toFixed(2))} suffix=" ms" hint="本轮对照执行时间" icon="spark" />
             </div>
 
             <div className="matrix-grid">
@@ -226,40 +193,10 @@ export function EvaluationPage({
           </>
         ) : (
           <div className="empty-state">
-            <strong>旧策略对比结果未接入</strong>
+            <strong>历史策略对照结果未接入</strong>
             <p>{strategyComparison?.hint ?? '当前推荐使用上方独立测试模块。'}</p>
           </div>
         )}
-      </Section>
-
-      <Section
-        eyebrow="Test Case Matrix"
-        title="测试用例矩阵"
-        description="覆盖文件读取、邮件发送、Shell 命令、SQL 查询等典型 Agent 工具调用场景。"
-      >
-        <div className="matrix-grid">
-          <div><strong>公开读取</strong><span>期望 allow 或 confirm</span></div>
-          <div><strong>敏感读取</strong><span>期望 deny</span></div>
-          <div><strong>外发邮件</strong><span>期望 confirm 或 deny</span></div>
-          <div><strong>Shell 命令</strong><span>期望 confirm 或 deny</span></div>
-          <div><strong>SQL 查询</strong><span>期望 confirm 或 deny</span></div>
-          <div><strong>提示注入</strong><span>期望 confirm 或 deny</span></div>
-        </div>
-      </Section>
-
-      <Section
-        eyebrow="Result Files"
-        title="结果文件"
-        description={`当前独立测试结果${latestTestAvailable ? '已生成' : '未生成'}，耗时 ${formatMs(testSummary?.elapsed_ms)}。`}
-      >
-        <div className="matrix-grid">
-          <div><strong>摘要 JSON</strong><span>{testSummary?.outputs?.latest_summary ?? 'test/results/latest_summary.json'}</span></div>
-          <div><strong>样例明细</strong><span>{testSummary?.outputs?.latest_cases ?? 'test/results/latest_cases.json'}</span></div>
-          <div><strong>CSV 明细</strong><span>{testSummary?.outputs?.latest_detail_csv ?? 'test/results/latest_detail.csv'}</span></div>
-          <div><strong>Markdown 报告</strong><span>{testSummary?.outputs?.latest_report_md ?? 'test/results/latest_report.md'}</span></div>
-          <div><strong>HTML 看板</strong><span>{testSummary?.outputs?.latest_dashboard_html ?? 'test/results/latest_dashboard.html'}</span></div>
-          <div><strong>运行目录</strong><span>{testSummary?.outputs?.run_summary ?? 'test/results/run_YYYYMMDD_HHMMSS/'}</span></div>
-        </div>
       </Section>
     </div>
   );
