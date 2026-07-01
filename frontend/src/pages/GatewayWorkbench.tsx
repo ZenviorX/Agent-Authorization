@@ -33,6 +33,70 @@ const modes: Array<{
   }
 ];
 
+const modeGuide: Record<AgentRunMode, {
+  focus: string;
+  steps: string[];
+  result: string;
+}> = {
+  fake_check: {
+    focus: '用于演示 Gateway 的基础授权能力。系统只做判定，不触发真实工具执行，适合先展示 allow、confirm、deny 三类结果。',
+    steps: [
+      '选择一个自然语言任务，例如读取 public 文件或访问 secret 文件。',
+      '点击运行演示，FakeAgent 会把任务转换成结构化工具调用。',
+      'Gateway 根据工具、路径、用户身份和策略输出最终授权结论。'
+    ],
+    result: '重点看授权结论、风险分数和判定原因。公开文件通常 allow，敏感文件 deny，删除等副作用操作通常 confirm。'
+  },
+  docker_sandbox_execute: {
+    focus: '用于演示项目最完整的执行闭环。系统会先签发 Capability Token，再带 token 进入真沙箱执行。没有 Docker 时会自动使用 Native Subprocess Sandbox。',
+    steps: [
+      '第一阶段 execute=false：Tool Proxy 只做授权检查，并签发一次性 Capability Token。',
+      '第二阶段 execute=true：系统重新校验 token，确认工具和参数没有被修改。',
+      '通过后进入 Docker / Native 沙箱，生成 evidence.json、stdout、stderr 等执行证据。'
+    ],
+    result: '重点看是否进入沙箱、sandbox_type、sandbox_profile、evidence 路径和 evidence_hash。这个模式最适合展示 Agent → Gateway → Token → Sandbox → Evidence 主线。'
+  },
+  tool_proxy_oauth: {
+    focus: '用于解释外部 Agent 场景。OpenClaw、WorkBuddy 或企业 Agent 不能直接调用本地工具，必须通过 Tool Proxy 做 OAuth-style scope 检查。',
+    steps: [
+      '前端构造外部 Agent 工具调用请求，包含声明的 OAuth-style scopes。',
+      'Tool Proxy 判断当前工具需要哪些 scope，并和 Agent 声明的 scope 对比。',
+      'scope 不足、外发风险或任务边界不匹配时，系统会 deny 或要求 confirm。'
+    ],
+    result: '重点看 agent_auth_profile、missing_scopes 和最终 decision。这个模式用于回答“为什么只靠 OAuth 不够”。'
+  },
+  fake_plan: {
+    focus: '开发调试用模式，提交版前端默认不展示。',
+    steps: ['仅生成工具计划。'],
+    result: '只看 Agent 规划结果。'
+  },
+  fake_run: {
+    focus: '开发调试用模式，提交版前端默认不展示。',
+    steps: ['规划并运行演示工具。'],
+    result: '只用于开发调试。'
+  },
+  llm_plan: {
+    focus: '开发调试用模式，提交版前端默认不展示。',
+    steps: ['调用 LLM 生成多步计划。'],
+    result: '只看规划结果。'
+  },
+  llm_run: {
+    focus: '开发调试用模式，提交版前端默认不展示。',
+    steps: ['调用 LLM 并执行多步任务。'],
+    result: '用于开发调试。'
+  },
+  stepwise_llm: {
+    focus: '开发调试用模式，提交版前端默认不展示。',
+    steps: ['逐步规划并运行。'],
+    result: '用于多步攻击链调试。'
+  },
+  external_agent_adapter: {
+    focus: '开发调试用模式，提交版前端默认不展示。',
+    steps: ['模拟外部 Agent Adapter 接入。'],
+    result: '用于查看标准化请求。'
+  }
+};
+
 const samples: Array<{
   title: string;
   description: string;
@@ -262,6 +326,7 @@ export function GatewayWorkbench() {
   const [result, setResult] = useState<AgentCommandResponse | null>(null);
 
   const selectedMode = modes.find((mode) => mode.value === input.mode) ?? modes[0];
+  const selectedGuide = modeGuide[input.mode];
 
   function applySample(sample: typeof samples[number]) {
     setInput({
@@ -307,7 +372,7 @@ export function GatewayWorkbench() {
         <Section
           eyebrow="Input"
           title="演示输入"
-          description="只保留三个核心模式，避免把调试入口暴露给老师。"
+          description="选择模式和样例后点击运行，右侧样例会自动填入任务。"
         >
           <div className="command-form compact-form">
             <label>
@@ -316,11 +381,6 @@ export function GatewayWorkbench() {
                 {modes.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
               </select>
             </label>
-
-            <div className="mode-description clean-mode-description">
-              <strong>{selectedMode.label}</strong>
-              <p>{selectedMode.short}。{selectedMode.description}</p>
-            </div>
 
             <label>
               <span>用户身份</span>
@@ -344,6 +404,22 @@ export function GatewayWorkbench() {
                 {running ? '运行中...' : '运行演示'}
               </button>
               <button className="secondary-btn" onClick={() => setResult(null)}>清空结果</button>
+            </div>
+
+            <div className="mode-guide-panel">
+              <span className="eyebrow">Mode Guide</span>
+              <h3>{selectedMode.label}</h3>
+              <p>{selectedMode.short}。{selectedGuide.focus}</p>
+              <div className="mode-guide-block">
+                <strong>操作步骤</strong>
+                <ol>
+                  {selectedGuide.steps.map((step) => <li key={step}>{step}</li>)}
+                </ol>
+              </div>
+              <div className="mode-guide-block">
+                <strong>结果怎么看</strong>
+                <p>{selectedGuide.result}</p>
+              </div>
             </div>
           </div>
         </Section>
