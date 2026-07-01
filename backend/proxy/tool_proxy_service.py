@@ -145,6 +145,26 @@ def _write_proxy_audit_log(
         return
 
 
+def _sandbox_entered(real_sandbox_result: Dict[str, Any]) -> bool:
+    """
+    Execution phase means the authorized call entered the sandbox runner.
+
+    Token replay protection must not depend only on tool_result.success. A tool may
+    execute and return success=false, but the capability token has still been spent.
+    Existing regression tests also expect execute=true + allow to mark executed when
+    the sandbox creates evidence.
+    """
+
+    evidence = real_sandbox_result.get("sandbox_evidence")
+    if isinstance(evidence, dict):
+        if evidence.get("executed") is True:
+            return True
+        if evidence.get("run_id") or evidence.get("started_at"):
+            return True
+
+    return bool(real_sandbox_result.get("success") is True)
+
+
 def authorize_tool_call(
     request: ToolProxyAuthorizeRequest,
 ) -> ToolProxyAuthorizeResponse:
@@ -268,17 +288,19 @@ def authorize_tool_call(
             "success": bool(real_sandbox_result.get("success")),
             "result": real_sandbox_result.get("result"),
         }
-        executed = bool(tool_result.get("success") is True)
+        executed = _sandbox_entered(real_sandbox_result)
 
     security_graph = build_runtime_security_graph(runtime_state)
 
-    if executed and capability_token_validation.get("decision") == "allow":
+    if request.execute and result_dict.get("decision") == "allow" and capability_token_validation.get("decision") == "allow":
         capability_token_validation = dict(capability_token_validation)
-        capability_token_validation["consumption"] = mark_capability_token_consumed(
-            getattr(request, "capability_token", "")
-        )
+        consumption = mark_capability_token_consumed(getattr(request, "capability_token", ""))
+        capability_token_validation["consumption"] = consumption
         reasons = _as_reason_list(capability_token_validation.get("reason"))
-        reasons.append("Capability token was consumed after successful real sandbox execution.")
+        if consumption.get("consumed"):
+            reasons.append("Capability token was consumed after execution phase entered sandbox.")
+        else:
+            reasons.append("Capability token consumption was attempted after execution phase.")
         capability_token_validation["reason"] = reasons
 
     if str(result_dict.get("decision", "deny")) == "allow" and not bool(request.execute):
