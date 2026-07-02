@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +28,7 @@ from backend.routes.native_sandbox_routes import router as native_sandbox_router
 from backend.routes.frontend_data_routes import router as frontend_data_router
 from backend.routes.two_phase_tool_proxy_routes import router as two_phase_tool_proxy_router
 from backend.routes.capability_token_routes import router as capability_token_router
+from backend.routes.llm_tool_call_routes import router as llm_tool_call_router
 
 
 app = FastAPI(
@@ -99,6 +100,7 @@ app.include_router(research_eval_router)
 app.include_router(research_strategy_router)
 app.include_router(two_phase_tool_proxy_router)
 app.include_router(capability_token_router)
+app.include_router(llm_tool_call_router)
 
 # -----------------------------
 # Frontend local runtime data APIs
@@ -281,3 +283,4 @@ def _install_legacy_frontend_route_notice():
 
 _install_legacy_frontend_route_notice()
 # === End teacher review cleanup ===
+
