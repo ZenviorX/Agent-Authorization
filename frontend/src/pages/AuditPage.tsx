@@ -8,7 +8,7 @@ export function AuditPage({ logs }: { logs: AuditLog[] }) {
     <Section
       eyebrow="Audit Logs"
       title="审计日志"
-      description="每次策略判定、工具阻断、人工确认都应留下可追溯证据。"
+      description="每次策略判定、工具阻断、人工确认都留下可追溯证据。"
       actions={<button className="secondary-btn small">导出报告</button>}
     >
       <div className="audit-list">

@@ -2,7 +2,7 @@
 
 ## 目标
 
-`test/` 是一个独立评测模块，职责只有一个：
+`test/` 是一个独立评测模块：
 
 > 读取 `test/cases/gateway_cases*.json`，将样例输入 Gateway，自动生成结构化测试结果。
 

@@ -58,7 +58,7 @@ export function Dashboard({ overview, requests, auditLogs, onApprove, onReject }
       <Section
         eyebrow="Requests"
         title="最近本地授权 / 沙箱记录"
-        description="这里展示本机真实记录。运行授权演示后，再刷新本页即可看到新记录。"
+        description="展示本机真实记录。运行授权演示后，再刷新本页即可看到新记录。"
         actions={<Badge tone="yellow">{pending.length} 个待确认</Badge>}
       >
         <RequestTable rows={requests.slice(0, 5)} onApprove={onApprove} onReject={onReject} compact />
@@ -94,7 +94,6 @@ export function Dashboard({ overview, requests, auditLogs, onApprove, onReject }
             <div>Sandbox / Evidence</div>
           </div>
           <div className="explain-box">
-            <strong>核心卖点：</strong>
             <p>系统把 AI Agent 的工具调用从“直接执行”改造成“先授权、再校验、后沙箱执行、全程留证”的安全流程。</p>
           </div>
         </Section>

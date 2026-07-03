@@ -74,7 +74,7 @@ export function EvaluationPage({
           <span className="eyebrow">Test Report</span>
           <h1>Gateway 独立测试报告</h1>
           <p>
-            本页只负责提交前验证：运行 `test.run`，读取 `test/cases/gateway_cases*.json`，将样例输入 Gateway，并把通过率、风险阻断率、误放行率等指标同步到前端。
+            本页负责提交前验证：运行 `test.run`，读取 `test/cases/gateway_cases*.json`，将样例输入 Gateway，并把通过率、风险阻断率、误放行率等指标同步到前端。
           </p>
         </div>
         <div className="flow-strip">
@@ -146,7 +146,7 @@ export function EvaluationPage({
       <Section
         eyebrow="Auxiliary Metrics"
         title="前端辅助指标"
-        description="这些是界面展示用辅助指标；提交时以独立测试模块结果为准。"
+        description="界面展示用辅助指标；提交时以独立测试模块结果为准。"
       >
         <div className="metric-grid compact">
           {metrics.map((metric) => (
@@ -165,7 +165,7 @@ export function EvaluationPage({
       <Section
         eyebrow="Baseline Comparison"
         title="历史策略对照"
-        description="保留 allow_all、keyword_only 与 gateway 对比，用于说明为什么需要 AgentGuard；不作为当前主评测入口。"
+        description="保留 allow_all、keyword_only 与 gateway 对比。"
       >
         {strategyComparison?.available ? (
           <>
