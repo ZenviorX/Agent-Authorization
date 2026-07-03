@@ -75,8 +75,6 @@ def _matches_secret_value(text: str) -> bool:
 def _contains_sensitive_data_keyword(text: str) -> bool:
     """
     判断文本是否包含真正的数据型敏感关键词。
-
-    不再把单独的 secret、password 路径词当作 sensitive。
     """
 
     lower_text = text.lower()
@@ -91,7 +89,6 @@ def _contains_sensitive_data_keyword(text: str) -> bool:
 def _contains_prompt_injection_path(text: str) -> bool:
     """
     判断文本是否包含诱导访问敏感路径的内容。
-    这类内容更适合标记为 tainted，而不是 sensitive。
     """
 
     lower_text = text.lower()
@@ -113,11 +110,6 @@ def analyze_text_security(text: str) -> Dict[str, object]:
         "tainted": True/False,
         "reasons": [...]
     }
-
-    设计原则：
-    1. 真的出现 password=xxx / token=xxx / api_key=xxx，才标记 sensitive；
-    2. 只是出现 secret/password.txt 这种路径诱导，标记 tainted；
-    3. 出现忽略规则、绕过授权、发送给攻击者等内容，标记 tainted。
     """
 
     result = {

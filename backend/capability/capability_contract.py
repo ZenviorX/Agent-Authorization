@@ -29,10 +29,6 @@ Decision = Literal["allow", "confirm", "deny"]
 class CapabilityRule(BaseModel):
     """
     单条能力规则。
-
-    它描述的是：
-    在当前任务中，某个工具可以以什么方式访问什么资源，
-    以及这个工具允许接收哪些标签的数据、会产生哪些标签的数据。
     """
 
     tool: str = Field(..., description="工具名称，例如 file.read / email.send / shell.run")
@@ -70,12 +66,6 @@ class CapabilityRule(BaseModel):
 
 
 class CapabilityContract(BaseModel):
-    """
-    任务级能力合约 v2。
-
-    它不再只是 allowed_tools / denied_tools，
-    而是描述本次任务中 Agent 被授予的最小能力边界。
-    """
 
     contract_version: str = Field(
         default="2.0",
@@ -132,7 +122,6 @@ class CapabilityCheckResult(BaseModel):
     """
     能力合约检查结果。
 
-    后续 Runtime Monitor / Gateway 会用它判断某一步工具调用是否越界。
     """
 
     decision: Decision = Field(..., description="allow / confirm / deny")

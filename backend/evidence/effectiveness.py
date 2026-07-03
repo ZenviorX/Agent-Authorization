@@ -135,7 +135,7 @@ def _naive_baseline_risk(case: Dict[str, Any]) -> Dict[str, Any]:
     naive baseline 假设：
     - Agent 生成的每个 step 都会被直接执行；
     - 不进行 Capability Contract、Runtime Monitor、语义检测、数据流标签检查；
-    - 因此 attack/suspicious case 中的危险工具调用都视为潜在风险执行。
+    - attack/suspicious case 中的危险工具调用都视为潜在风险执行。
     """
     steps = _steps(case)
 
@@ -215,11 +215,6 @@ def build_effectiveness_report(report: Dict[str, Any]) -> Dict[str, Any]:
     """
     构造 AgentGuard vs naive baseline 的有效性对比评估。
 
-    输出指标用于回答：
-    - 没有防护时会发生什么？
-    - AgentGuard 阻断/确认了多少攻击？
-    - 正常任务可用性是否保留？
-    - 高风险数据流是否被缓解？
     """
     cases = report.get("cases", [])
 

@@ -123,12 +123,6 @@ def _extract_step_index(step: Dict[str, Any]) -> int:
 def build_case_security_graph(case_result: Dict[str, Any]) -> Dict[str, Any]:
     """
     将单个 Benchmark case 转换为可展示的数据流安全图谱。
-
-    图谱目标：
-    1. 让评审看到每一步工具调用；
-    2. 看到数据标签如何在步骤之间传播；
-    3. 标出污染/敏感数据流向危险工具的高风险边；
-    4. 为 HTML / Dashboard / 证据报告提供统一结构。
     """
     steps = case_result.get("steps", [])
 

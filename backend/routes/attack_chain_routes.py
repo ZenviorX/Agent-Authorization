@@ -65,11 +65,6 @@ def merge_decision(gateway_decision: str, chain_decision: str) -> str:
 def attack_chain_check(request: AttackChainGatewayRequest):
     """
     运行时攻击链增强检查接口。
-
-    流程：
-    1. 先调用原 Gateway，对单次工具调用做风险判断；
-    2. 再将本次工具调用写入对应 session 的 AttackChainDetector；
-    3. 根据单次风险与会话级链式风险合并得到最终决策。
     """
     gateway_result = check_tool_call(request)
 

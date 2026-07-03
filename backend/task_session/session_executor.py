@@ -82,10 +82,6 @@ def extract_tool_result_text(tool_result: Dict[str, Any]) -> str:
 def build_output_excerpt(text: str, limit: int = 240) -> str:
     """
     构造前端展示用的输出摘要。
-
-    注意：
-    这里不是完整脱敏逻辑，只是避免页面上展示过长内容。
-    真正敏感数据是否能外发，仍然由 Runtime Monitor / Gateway 判断。
     """
 
     text = text or ""
@@ -126,10 +122,6 @@ def find_step_by_id(session: TaskSession, step_id: int) -> Optional[TaskStep]:
 def build_step_params(session: TaskSession, step: TaskStep) -> Dict[str, Any]:
     """
     构造当前步骤真正要传给 Runtime Monitor / ToolExecutor 的参数。
-
-    重点处理 content_from_step：
-    如果当前步骤写了 "content_from_step": 1，
-    说明它要使用第 1 步的执行结果作为 content。
     """
 
     params = dict(step.params)
@@ -153,7 +145,6 @@ def collect_input_labels(session: TaskSession, step: TaskStep) -> List[str]:
     """
     汇总当前步骤的输入标签。
 
-    来源包括：
     1. step.input_labels 手动指定的标签；
     2. input_from_steps 指向的历史步骤输出标签；
     3. content_from_step 隐含引用的历史步骤输出标签。
@@ -196,14 +187,6 @@ def infer_labels_from_executed_output(
     step: TaskStep,
     output_text: str,
 ) -> List[str]:
-    """
-    工具真正执行后，根据真实输出内容重新推断 output_labels。
-
-    run_runtime_step() 在执行前只能根据资源路径推断基础标签；
-    但提示注入内容、secret/token/password 等需要读到真实输出后才能识别。
-
-    所以 allow 并执行之后，要在这里回填更准确的标签。
-    """
 
     resource = extract_resource_from_params(step.real_params or step.params)
 
@@ -244,9 +227,6 @@ def update_context_from_labels(
 def update_context_from_tool_output(session: TaskSession, step: TaskStep) -> None:
     """
     兼容旧逻辑的上下文更新函数。
-
-    旧版本通过 analyze_text_security() 得到 sensitive / tainted。
-    新版本主要依赖 output_labels，但保留这个函数，避免其他地方调用时报错。
     """
 
     if not step.tool_result:
@@ -286,11 +266,6 @@ def apply_context_security_rules(
 ) -> Dict[str, Any]:
     """
     兼容旧版本的上下文安全规则函数。
-
-    新主线已经切到：
-    Capability Contract + Runtime Monitor + input_labels/output_labels。
-
-    这个函数保留给旧代码调用，不再作为主执行链核心。
     """
 
     decision = gateway_result.get("decision")

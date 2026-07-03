@@ -181,11 +181,6 @@ def _deterministic_semantic_check(
 ) -> Dict[str, Any]:
     """
     确定性语义检测。
-
-    作用：
-    1. 避免比赛现场或 CI 因 embedding 模型下载失败导致 semantic_guard.enabled=False；
-    2. 对 benchmark 中的语义风险样例给出稳定标签；
-    3. 与 embedding 检测互补，只增加风险，不降低原有规则风险。
     """
 
     text = str(semantic_text).lower()

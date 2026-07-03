@@ -79,38 +79,3 @@ NoGuard不做任何检查，所有工具调用直接放行
 OAuth-only只检查工具调用声明的 scope 是否满足要求
 Keyword-only只检查参数中是否包含危险关键词
 AgentGuard使用完整网关策略进行综合判断
-
-建议写入报告的位置：
-
-“系统测试与实验分析”
-“与现有方案对比”
-“安全性验证”
-4. 报告中的创新点建议
-
-建议将创新点写成：
-
-面向 AI Agent 工具调用的两阶段授权机制；
-与用户、任务、工具、参数和沙箱绑定的 Capability Token；
-Gateway + Runtime Monitor + Sandbox 的组合式安全执行链；
-面向数据外发、路径穿越、危险命令和提示注入的统一风险评估；
-可解释、可审计的运行证据链。
-5. 提交前推荐演示顺序
-正常读取公开文件：展示 allow；
-读取 secret 文件：展示 deny；
-外部邮箱发送敏感内容：展示 confirm / deny；
-真实 LLM tool_call 进入 /real-agent/tool-call/run；
-展示 Capability Token 签发与执行阶段消耗；
-展示 Sandbox evidence；
-展示四组对比实验报告。
-6. 评委追问时的回答
-问：为什么 OAuth 不够？
-
-OAuth 只能说明 Agent 声明了某些权限，但不能判断当前任务是否允许这个调用、参数是否被篡改、输出是否外发、调用链是否形成攻击链。AgentGuard 在 OAuth scope 之外增加了任务边界、Capability Token、运行时监控、沙箱和审计证据。
-
-问：为什么不直接相信 LLM？
-
-LLM 只负责生成工具调用计划，不能自己决定是否执行。所有工具调用都必须经过 AgentGuard 授权层，这样可以避免提示注入、越权调用和敏感数据外发。
-
-问：Native Sandbox 是不是不如 Docker？
-
-是。项目明确区分 Docker Sandbox 和 Native Subprocess Sandbox。Docker 提供更强隔离；Native 是为了比赛现场和无 Docker 环境下的稳定 fallback，不把它夸大成容器级隔离。

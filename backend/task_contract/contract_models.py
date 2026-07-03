@@ -5,9 +5,6 @@ from pydantic import BaseModel, Field
 class TaskAuthContract(BaseModel):
     """
     任务授权合约。
-
-    它不是判断某一次工具调用是否安全，
-    而是描述“本次任务整体上允许做什么、不允许做什么”。
     """
 
     task_id: str = Field(..., description="任务编号")

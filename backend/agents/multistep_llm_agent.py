@@ -25,18 +25,6 @@ class MultiStepLLMAgent:
     """
     真实大模型多步任务规划 Agent。
 
-    它只负责：
-    1. 理解用户自然语言输入；
-    2. 生成工具调用计划；
-    3. 在 stepwise 模式下，根据上一步工具输出继续规划下一步。
-
-    它不负责：
-    1. 判断工具调用是否安全；
-    2. 执行工具；
-    3. 绕过 Gateway；
-    4. 决定 allow / confirm / deny。
-
-    所有工具调用必须继续交给 Gateway / Runtime Monitor 检查。
     """
 
     def __init__(self):
@@ -71,15 +59,6 @@ class MultiStepLLMAgent:
     def plan(self, user: str, user_input: str) -> TaskSession:
         """
         一次性多步规划模式。
-
-        这个方法保留原来的调用方式：
-        - 输入用户自然语言任务；
-        - 调用真实大模型；
-        - 返回 TaskSession；
-        - 后续仍然由 Gateway / Runtime Monitor 执行安全检查。
-
-        注意：
-        该模式适合稳定复现实验，但真实攻击链演示更推荐使用 plan_next()。
         """
 
         session = TaskSession(
@@ -121,9 +100,6 @@ class MultiStepLLMAgent:
 
         return session
 
-    # ------------------------------------------------------------------
-    # 新增逻辑：根据上一步工具输出继续规划下一步
-    # ------------------------------------------------------------------
 
     def plan_next(
         self,
@@ -155,8 +131,6 @@ class MultiStepLLMAgent:
           "raw_output": "..."
         }
 
-        这个方法只规划下一步，不做安全判断。
-        下一步仍然必须经过 Gateway / Runtime Monitor。
         """
 
         executed_steps = executed_steps or []
@@ -177,10 +151,6 @@ class MultiStepLLMAgent:
     def _call_llm_plan_all(self, user: str, user_input: str) -> str:
         """
         调用大模型，把自然语言任务转换成多步工具调用计划。
-
-        这里不再把固定攻击链写死在 prompt 中。
-        大模型只负责根据用户任务生成候选工具调用。
-        是否允许执行由 Gateway / Runtime Monitor 决定。
         """
 
         system_prompt = """
@@ -283,12 +253,6 @@ class MultiStepLLMAgent:
     ) -> str:
         """
         调用大模型，根据历史步骤和上一步工具输出规划下一步。
-
-        这个接口用于真实 Agent 演示：
-        - 第一步读取公开文件；
-        - 工具输出中可能包含外部提示注入内容；
-        - Agent 根据工具输出继续生成下一步候选调用；
-        - Gateway / Runtime Monitor 再判断是否放行。
         """
 
         executed_steps_json = json.dumps(

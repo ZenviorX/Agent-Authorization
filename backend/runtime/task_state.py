@@ -13,10 +13,6 @@ Decision = Literal["allow", "confirm", "deny"]
 class RuntimeStepRecord(BaseModel):
     """
     任务运行时的单步记录。
-
-    它记录的是：
-    某一步调用了什么工具、传入了什么参数、输入标签是什么、
-    最终决策是什么、产生了多少风险、输出标签是什么。
     """
 
     step_index: int = Field(..., description="当前步骤编号")
@@ -61,8 +57,7 @@ class RuntimeStepRecord(BaseModel):
 class RuntimeTaskState(BaseModel):
     """
     任务级运行时状态。
-
-    它不是判断一次工具调用，而是记录整个任务执行过程。
+    记录整个任务执行过程。
     后续 Taint Graph、Audit Graph、风险预算、步骤限制都会基于它实现。
     """
 

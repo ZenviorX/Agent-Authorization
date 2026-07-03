@@ -251,11 +251,6 @@ def simulate_external_agent_call(
 ) -> ExternalAgentSimulateResponse:
     """
     外部 Agent Adapter 模拟入口。
-
-    它体现三个关键设计：
-    1. OpenClaw / WorkBuddy 等外部 Agent 不直接接触本地工具；
-    2. Adapter 负责把平台请求转换成标准 Tool Proxy 请求；
-    3. Tool Proxy 继续执行 OAuth-style scope、Capability Contract、Runtime Monitor 检查。
     """
 
     tool_proxy_request = build_tool_proxy_request_from_external_agent(request)

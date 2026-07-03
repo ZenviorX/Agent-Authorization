@@ -13,14 +13,9 @@ class ToolCallRequest(BaseModel):
     current_step: int = 1
     used_risk: int = 0
 
-    # Task14：Agent 计划质量信息
     agent_confidence: Optional[float] = None
     plan_status: Optional[str] = None
     plan_warnings: List[str] = Field(default_factory=list)
-
-    # 原始自然语言输入：用于语义风险、提示注入和审计说明。
-    # 注意：网关最终授权仍以结构化 tool + params 为准，original_input 只作为风险上下文。
-    original_input: Optional[str] = None
 
 
 class ToolCallPlan(BaseModel):
@@ -38,6 +33,7 @@ class AgentPlanResult(BaseModel):
     """
     Unified Agent output for FakeAgent and LLMAgent.
     """
+
     agent: str
     status: str
     original_input: str
@@ -56,13 +52,16 @@ class GatewayResponse(BaseModel):
     """
     授权网关判断结果。
     decision:
-        allow   允许执行
-        confirm 需要人工确认
-        deny    拒绝执行
+    - allow：允许执行
+    - confirm：需要人工确认
+    - deny：拒绝执行
     """
+
     decision: str
     risk_score: int
+    risk_level: str = "low"
     reason: List[str]
+    explanations: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class AgentTextRequest(BaseModel):
@@ -71,7 +70,8 @@ class AgentTextRequest(BaseModel):
     user：当前用户
     user_input：自然语言任务
     """
-    user: str = "user"
+
+    user: str = "test_user"
     user_input: str
 
 
@@ -79,4 +79,5 @@ class ApprovalRejectRequest(BaseModel):
     """
     人工拒绝确认请求。
     """
+
     reason: Optional[str] = "人工拒绝执行"

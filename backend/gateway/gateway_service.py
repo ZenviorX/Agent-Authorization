@@ -17,8 +17,7 @@ def handle_tool_request(
     统一处理所有工具调用请求。
 
     注意：
-    这个函数不关心请求来自 FakeAgent、真实大模型，还是外部系统。
-    它只接收结构化 ToolCallRequest，然后执行：
+    只接收结构化 ToolCallRequest，然后执行：
 
     1. 工具名和参数规范化
     2. 授权网关风险检查

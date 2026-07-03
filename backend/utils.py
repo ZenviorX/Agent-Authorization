@@ -33,12 +33,6 @@ def normalize_tool_name(tool: str) -> str:
 def clean_text_value(value: Any) -> str:
     """
     清洗 FakeAgent 从自然语言里提取出来的参数。
-    主要解决：
-    读取文件：README.md
-    被提取成：
-    : README.md
-    或 ：README.md
-    的问题。
     """
     if value is None:
         return ""
@@ -89,9 +83,6 @@ def get_command(params: Dict[str, Any]) -> str:
 
 
 def normalize_params(tool: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    将参数字段也统一一下，方便 gateway.py 和 tool_executor.py 使用。
-    """
     if params is None:
         params = {}
 

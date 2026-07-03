@@ -1,6 +1,6 @@
 ﻿# AgentGuard 后端授权主线阶段性改进清单
 
-本阶段围绕外部 Agent 工具调用授权主线进行后端增强，没有修改前端页面。
+围绕外部 Agent 工具调用授权主线进行后端增强。
 
 ## 1. OAuth-only vs AgentGuard 对比
 

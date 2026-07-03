@@ -64,7 +64,6 @@ def file_status(path: Path) -> Dict[str, Any]:
 def security_overview():
     """
     返回当前系统安全能力概览。
-    用于前端安全总览页展示，也方便答辩时快速说明项目完成度。
     """
     gateway_cases_file = SECURITY_CASES_DIR / "gateway_cases.json"
     attack_chain_cases_file = SECURITY_CASES_DIR / "attack_chain_cases.json"

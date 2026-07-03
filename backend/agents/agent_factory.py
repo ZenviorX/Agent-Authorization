@@ -35,7 +35,6 @@ def get_agent(agent_type: str = "fake") -> AgentInstance:
        - 用于后续真实 Agent 攻击链演示。
 
     注意：
-    Agent 只负责生成工具调用计划，不负责执行工具，也不负责安全判断。
     所有工具调用仍然必须经过 Gateway / Runtime Monitor。
     """
 

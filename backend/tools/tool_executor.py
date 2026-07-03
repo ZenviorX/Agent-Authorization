@@ -50,11 +50,6 @@ DANGEROUS_SHELL_CHARS = [
 def execute_tool(tool: str, params: dict[str, Any]):
     """
     工具执行入口。
-
-    注意：
-    1. 这里只负责执行已经被 Gateway 放行或人工确认后的工具调用。
-    2. 真正的权限判断仍然在 Gateway 中完成。
-    3. 所有真实执行都被限制在 runtime_workspace 沙箱目录内。
     """
 
     ensure_sandbox_ready()
@@ -89,9 +84,6 @@ def execute_tool(tool: str, params: dict[str, Any]):
 def ensure_sandbox_ready() -> None:
     """
     初始化安全沙箱目录和演示数据。
-
-    这些文件只用于比赛演示和本地测试。
-    即使 Agent 调用了真实工具，也只会影响 runtime_workspace 目录。
     """
 
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
@@ -334,9 +326,6 @@ def delete_file(params: dict[str, Any]):
 def send_email(params: dict[str, Any]):
     """
     沙箱邮件发送。
-
-    不真正连接邮箱服务器，而是把邮件写入 runtime_workspace/outbox。
-    这样既是真实落盘执行，又不会产生真实外发风险。
     """
 
     to = params.get("to", "")

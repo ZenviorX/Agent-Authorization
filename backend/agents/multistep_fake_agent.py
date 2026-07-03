@@ -4,14 +4,6 @@ from backend.task_session.session_models import TaskSession, TaskStep
 class MultiStepFakeAgent:
     """
     多步任务规划 Agent。
-
-    这个 Agent 暂时不调用真实大模型，而是根据用户输入中的关键词，
-    生成固定的多步工具调用计划。
-
-    这样做的好处是：
-    1. 演示稳定，不依赖大模型 API Key
-    2. 方便测试多步任务链
-    3. 后面可以平滑替换成真正的 LLM Agent
     """
 
     def plan(self, user: str, user_input: str) -> TaskSession:

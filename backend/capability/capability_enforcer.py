@@ -75,10 +75,6 @@ def _resource_matches_rule(
 ) -> bool:
     """
     检查资源型工具是否匹配能力规则。
-
-    修复点：
-    - db.query 的 SQL 参数通常没有 path/resource 字段，不能因为 resource=None 就匹配失败。
-    - shell.run / execute 类工具也不依赖文件 resource。
     """
 
     if rule.tool != tool:

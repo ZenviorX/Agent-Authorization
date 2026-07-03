@@ -150,12 +150,6 @@ def run_step(task_id: str, request: RuntimeStepRequest):
 def read_runtime_security_graph(task_id: str):
     """
     读取指定 Runtime 任务的数据流安全图谱。
-
-    该接口用于展示：
-    1. 每一步工具调用节点；
-    2. direct_input / step_output 到后续步骤的边；
-    3. tainted / prompt_injection / sensitive / secret 数据流；
-    4. 高风险数据流向外发或高危工具的证据。
     """
     state = get_runtime_state(task_id)
 
@@ -177,8 +171,7 @@ def read_runtime_security_graph(task_id: str):
 def read_runtime_evidence_package(task_id: str):
     """
     读取指定 Runtime 任务的证据包。
-
-    证据包包含：
+    包含：
     1. Capability Contract；
     2. 每一步工具调用记录；
     3. data_lineage_edges 数据流边；
@@ -205,8 +198,6 @@ def read_runtime_evidence_package(task_id: str):
 def export_runtime_evidence_package(task_id: str):
     """
     导出指定 Runtime 任务的证据包到 runtime_workspace/evidence。
-
-    该接口用于审计取证和比赛展示。
     """
     state = get_runtime_state(task_id)
 
@@ -232,7 +223,6 @@ def read_sandbox_status():
     """
     查看安全沙箱整体状态。
 
-    这个接口用于展示：
     1. 沙箱目录是否存在；
     2. public/private/secret/outbox 是否初始化；
     3. outbox 中是否有沙箱邮件；
@@ -273,9 +263,6 @@ def read_sandbox_status():
 def list_sandbox_files():
     """
     查看沙箱中的文件列表。
-
-    注意：
-    这里不会直接返回 secret 文件内容，只返回文件名和大小。
     """
 
     ensure_sandbox_ready()
@@ -330,9 +317,7 @@ def list_sandbox_outbox():
 def read_sandbox_database():
     """
     查看沙箱数据库中的演示数据。
-
-    这个接口只读取 notices 表，不执行用户输入 SQL。
-    真正的 SQL 查询仍然走 db.query 工具。
+    只读取 notices 表，不执行用户输入 SQL。
     """
 
     ensure_sandbox_ready()
@@ -367,14 +352,6 @@ def read_sandbox_database():
 def run_sandbox_demo():
     """
     一键生成沙箱运行痕迹。
-
-    用于比赛演示：
-    1. 写入一个 public 文件；
-    2. 再读取这个 public 文件；
-    3. 发送一封沙箱邮件到 outbox；
-    4. 查询 SQLite 数据库；
-    5. 执行一个安全命令；
-    6. 尝试路径穿越，证明沙箱会拦截越界访问。
     """
 
     ensure_sandbox_ready()

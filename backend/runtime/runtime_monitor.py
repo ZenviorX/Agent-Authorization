@@ -33,11 +33,6 @@ def _infer_output_labels(
 ) -> List[str]:
     """
     根据合约能力规则和实际输出内容推断输出标签。
-
-    注意：
-    - 只有 allow 的步骤才认为真正产生输出；
-    - confirm 表示等待人工确认，暂时不产生输出；
-    - deny 表示被阻断，也不产生输出。
     """
 
     if decision != "allow":
@@ -136,14 +131,6 @@ def _should_apply_chain_risk(
 ) -> bool:
     """
     判断攻击链检测器产生的风险是否应该真正叠加到本步骤最终风险分。
-
-    这里不能把所有 external_output 都直接叠加。
-    原因是 email.send 本身已经由 Capability Enforcer 计算过基础外发风险，
-    如果再把普通 external_output 重复加一次，就会导致风险预算被重复扣除。
-
-    只有以下情况才叠加攻击链风险：
-    1. 当前阶段已经进入敏感访问、注入到敏感访问、数据外发链等明确攻击链；
-    2. 当前危险工具正在处理 tainted / sensitive / secret 等风险标签数据。
     """
 
     if chain_risk_delta <= 0:
@@ -201,9 +188,6 @@ def _merge_input_labels_from_steps(
 ) -> List[str]:
     """
     将显式输入标签与历史步骤输出标签合并。
-
-    这使 Runtime Monitor 本身具备数据流追踪能力，
-    而不是完全依赖路由层提前合并标签。
     """
     merged = list(input_labels or [])
 
@@ -259,9 +243,6 @@ def _record_data_lineage_edges(
 ) -> None:
     """
     记录跨步骤数据流边。
-
-    这一步是 AgentGuard 从“单步授权网关”升级为
-    “数据流感知安全运行时”的核心。
     """
     inherited_labels = set()
 
@@ -312,8 +293,6 @@ def run_runtime_step(
 ) -> CapabilityCheckResult:
     """
     在运行时状态中执行一次工具调用检查，并记录结果。
-
-    它做三件事：
     1. 根据当前状态调用 Capability Enforcer；
     2. 根据 allow / confirm / deny 更新任务状态；
     3. 记录 RuntimeStepRecord，形成任务执行链。
@@ -494,7 +473,7 @@ def build_runtime_security_graph(state: RuntimeTaskState) -> Dict[str, Any]:
     """
     构建 Runtime Security Graph。
 
-    该图把运行时状态转换成可展示、可审计的数据流安全图：
+    把运行时状态转换成可展示、可审计的数据流安全图：
     - nodes：任务、步骤、直接输入；
     - edges：跨步骤数据流边；
     - high_risk_flows：污染/敏感数据流向危险工具的证据；

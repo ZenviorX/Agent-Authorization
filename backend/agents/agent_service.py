@@ -30,10 +30,7 @@ def build_tool_request_from_plan(
     request: AgentTextRequest,
     plan_result: AgentPlanResult,
 ) -> ToolCallRequest | None:
-    """
-    兼容旧调用方式。
-    新逻辑建议使用 inspect_and_build_tool_request。
-    """
+
     if plan_result.status != "planned" or plan_result.tool_call is None:
         return None
 
@@ -50,9 +47,7 @@ def inspect_and_build_tool_request(
     request: AgentTextRequest,
     plan_result: AgentPlanResult,
 ) -> tuple[ToolCallRequest | None, dict]:
-    """
-    Task14 新增：Agent 输出先经过 PlanGuard，再决定是否进入 Gateway。
-    """
+
     guard_result = inspect_agent_plan(plan_result)
 
     tool_request = build_tool_request_after_guard(

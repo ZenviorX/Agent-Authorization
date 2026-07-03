@@ -26,9 +26,6 @@ def check_call_against_contract(
 ) -> ContractCheckResult:
     """
     检查某一次工具调用是否符合任务授权合约。
-
-    这个函数只负责“任务目标约束检查”，不替代原来的 gateway.py。
-    后面我们会把它接到 gateway.py 里。
     """
 
     risk_score = 0

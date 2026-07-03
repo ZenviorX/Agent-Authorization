@@ -14,7 +14,9 @@ def gateway_check(request: ToolCallRequest):
     return {
         "decision": result["decision"],
         "risk_score": result["risk_score"],
+        "risk_level": result.get("risk_level", "low"),
         "reason": result["reason"],
+        "explanations": result.get("explanations", []),
     }
 
 

@@ -32,7 +32,6 @@ class SecureAgentRuntime:
     """
     Agent 工具调用安全运行时。
 
-    它不是单纯调用工具，而是在工具执行前强制经过 Gateway。
     Gateway 返回 allow 时才进入受控工具执行器；
     返回 confirm 时进入人工确认等待；
     返回 deny 时直接拒绝执行。

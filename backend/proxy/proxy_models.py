@@ -8,10 +8,6 @@ from pydantic import BaseModel, Field
 class ToolProxyAuthorizeRequest(BaseModel):
     """
     外部 Agent / 前端调试台发来的工具调用授权请求。
-
-    该请求不会让外部 Agent 直接接触真实工具，而是先进入 Tool Proxy，
-    再经过 OAuth-style scope、Capability Contract、Runtime Monitor 和
-    Sandbox Policy 检查。
     """
 
     user: str = Field(default="user", description="Current user identity.")

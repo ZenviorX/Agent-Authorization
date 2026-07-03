@@ -212,12 +212,7 @@ def _is_db_query_intent(text: str) -> bool:
 
 
 def _is_safe_db_select_intent(text: str) -> bool:
-    """
-    只给明显的只读数据库查询授予 db.query 能力。
-
-    破坏性 SQL 即使由 admin 发起，也不应该进入自动授权能力。
-    """
-
+    
     text_lower = text.lower()
 
     if not _is_db_query_intent(text_lower):
@@ -261,14 +256,6 @@ def _is_shell_intent(text: str) -> bool:
 
 
 def _is_safe_admin_shell_intent(user: str, text: str) -> bool:
-    """
-    只允许管理员在任务合约中申请极少数低风险 shell 能力。
-
-    注意：
-    - 普通 user 不授予 shell.run。
-    - 出现 curl/wget/rm 等危险关键词时不授予 shell.run。
-    - 即使是安全命令，也设置 require_approval=True，让 Runtime 进入人工确认。
-    """
 
     text_lower = text.lower()
 
@@ -315,17 +302,7 @@ def compile_capability_contract(
     max_steps: int = 5,
     risk_budget: int = 80,
 ) -> CapabilityContract:
-    """
-    将用户任务编译为 CapabilityContract v2。
 
-    本版本增强点：
-    1. 继续保持 secret/private/path traversal 默认禁止；
-    2. 对明确的公开文件读取授予最小 file.read 能力；
-    3. 对明确邮箱发送任务授予限定收件人的 email.send 能力；
-    4. 对明显安全的只读 SELECT 查询授予 db.query 能力；
-    5. 对管理员低风险 shell 命令授予 shell.run 能力，但必须人工确认；
-    6. 对 DROP/curl/rm 等高危数据库或 shell 行为继续禁止。
-    """
 
     task_id = task_id or _new_task_id()
 

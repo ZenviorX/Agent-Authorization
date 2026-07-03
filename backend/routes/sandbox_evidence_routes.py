@@ -136,13 +136,6 @@ def run_evidence_demo():
 def run_authorized_evidence_demo():
     """
     生成一份“网关授权后执行”证据包。
-
-    这个接口用于比赛展示核心闭环：
-    1. 每一步工具调用先进入 Gateway；
-    2. Gateway 给出 allow / confirm / deny；
-    3. 只有 allow 的调用才会进入 ToolExecutor；
-    4. confirm / deny 的调用不会执行；
-    5. 全部过程写入证据包并计算 SHA256。
     """
 
     if check_tool_call is None or ToolCallRequest is None:

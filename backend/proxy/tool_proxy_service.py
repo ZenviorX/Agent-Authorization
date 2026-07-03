@@ -182,8 +182,7 @@ def authorize_tool_call(
         -> Hybrid Real Sandbox Executor
         -> allow / confirm / deny
 
-    该函数的目标不是替代 Agent Runtime，而是提供外部 Agent 工具调用的
-    统一安全入口。
+    该函数提供外部 Agent 工具调用的统一安全入口。
     """
 
     contract = compile_capability_contract(

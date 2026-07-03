@@ -9,8 +9,7 @@ from backend.utils import clean_text_value
 class FakeAgent(BaseAgent):
     """
     模拟智能体模块。
-    它的作用不是直接执行工具，而是根据用户输入的自然语言任务，
-    生成一个结构化的工具调用请求。
+    根据用户输入的自然语言任务生成一个结构化的工具调用请求。
     """
 
     def plan(self, user_input: str) -> AgentPlanResult:

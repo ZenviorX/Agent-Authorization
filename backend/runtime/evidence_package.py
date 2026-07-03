@@ -34,7 +34,7 @@ def build_runtime_evidence_package(state: RuntimeTaskState) -> Dict[str, Any]:
     """
     构建 Runtime Evidence Package。
 
-    证据包用于把一次 Agent 多步工具调用过程固化为可审计材料：
+    用于把一次 Agent 多步工具调用过程固化为可审计材料：
     - Capability Contract；
     - 每一步工具调用记录；
     - 跨步骤数据流边；

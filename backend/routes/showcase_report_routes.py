@@ -24,7 +24,7 @@ REPORT_DIR = SANDBOX_DIR / "reports"
 @router.get("/generate")
 def generate_showcase_report():
     """
-    生成国赛展示报告。
+    生成展示报告。
 
     报告会统计：
     1. 已生成的证据包数量；
@@ -252,7 +252,7 @@ def _build_markdown_report(
     latest = summary.get("latest_evidence") or {}
 
     lines = [
-        "# AgentGuard 国赛展示报告",
+        "# AgentGuard 展示报告",
         "",
         f"生成时间：{created_at}",
         "",

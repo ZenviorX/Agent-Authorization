@@ -172,14 +172,6 @@ def _step_from_tool(
 class OfflineRuntimeAgent:
     """
     离线真实 Agent Runtime 评测规划器。
-
-    它不调用真实大模型，而是根据 security_cases/llm_runtime_cases.json
-    中的 user_input / expected 字段生成可复现的候选工具调用。
-
-    价值：
-    1. 比赛现场不依赖 API Key；
-    2. 评测结果稳定可复查；
-    3. 仍然复用真实 Runtime Monitor 和沙箱执行链。
     """
 
     def plan_case(self, case: Dict[str, Any]) -> TaskSession:
