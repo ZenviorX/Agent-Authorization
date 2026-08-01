@@ -1,567 +1,338 @@
-# AgentGuard：面向 AI Agent 工具调用的授权网关与沙箱审计系统
+# AgentGuard：面向 MCP 与 AI Agent 工具调用的动态授权安全网关
 
-> 仓库目录名为 `Agent-Authorization`，作品正式名称建议使用 **AgentGuard**。  
-> 本项目面向 AI Agent 工具调用场景，在 Agent 与真实工具之间加入授权网关、Tool Proxy、Capability Token、运行时监控、沙箱执行与审计证据链，防止智能体越权读取、敏感数据外发、危险命令执行和不可追溯操作。
-
----
+> AgentGuard 位于 AI Agent 与真实工具执行之间。项目现已提供 OAuth 保护的 MCP Streamable HTTP 入口，并复用原有 Task Boundary、Capability Contract、Capability Token、Runtime Monitor、Attack Chain Detector、Hybrid Sandbox 和 Audit Evidence 安全链。
 
 ## 1. 项目定位
 
-随着 AI Agent 从“回答问题”发展到“调用工具”，模型输出可能直接影响文件、邮件、数据库、命令行和网络接口。传统权限控制通常只判断“用户有没有权限”，但在 Agent 场景下，还必须进一步判断：
+AI Agent 从“生成文本”发展到“调用文件、邮件、数据库、命令行和网络工具”之后，传统权限判断还不够。系统不仅要回答：
 
 ```text
-这一次工具调用是否符合当前任务？
+用户和客户端是否拥有某类工具权限？
+```
+
+还要继续回答：
+
+```text
+当前工具调用是否符合用户原始任务？
 工具参数是否越权？
-数据是否从低可信来源传播到了危险工具？
-是否存在提示注入、路径绕过、凭证访问或数据外发？
+数据是否从低可信来源流向危险工具？
+是否形成提示注入、敏感访问和外发组合攻击链？
 是否需要人工确认？
 是否能够留下可复盘证据？
 ```
 
-AgentGuard 的核心思想是：
+AgentGuard 的原则是：
 
 ```text
-Agent 只负责提出工具调用计划；
-真正能否执行，由独立 Gateway、Capability Token、Runtime Monitor 和 Sandbox 共同决定。
+Agent 负责提出工具调用计划；
+OAuth 负责外层身份与 scope；
+AgentGuard 负责当前任务下的动态授权；
+Capability Token 绑定单次执行；
+Sandbox 负责受控执行；
+Audit Evidence 负责复盘。
 ```
 
-本项目不是普通聊天机器人，也不是单纯 OAuth 实现，而是一套 **AI Agent 工具调用前置授权与运行时安全控制系统**。
-
----
-
-## 2. 系统主链路
+## 2. 当前主链路
 
 ```text
-User Task
-   ↓
-AI Agent / External Agent
-   ↓
-Tool Proxy / Adapter
-   ↓
-OAuth-style Scope Check
-   ↓
-Gateway + Task Boundary Guard
-   ↓
-Capability Token 两阶段授权
-   ↓
-Runtime Monitor / Attack Chain Detector
-   ↓
-Hybrid Sandbox 执行允许的工具
-   ↓
-Audit Evidence / Hash Chain 留证
+MCP Client / External Agent
+        ↓
+OAuth Authorization Code + PKCE
+        ↓ Bearer Access Token
+AgentGuard /mcp
+        ↓
+OAuth Resource Server 校验
+  ├─ signature
+  ├─ issuer
+  ├─ audience/resource
+  ├─ expiry
+  └─ scopes
+        ↓
+MCP Adapter
+  ├─ initialize
+  ├─ tools/list
+  └─ tools/call
+        ↓
+Tool Proxy Prepare
+        ↓
+Task Boundary / Capability Contract / Runtime Monitor
+        ↓
+allow / confirm / deny
+        ↓ allow
+Task-scoped Capability Token
+        ↓
+Tool Proxy Execute
+        ↓
+Hybrid Sandbox
+        ↓
+Tool Result + Sandbox Evidence + Audit Hash Chain
+        ↓
+MCP Tool Result
 ```
 
-系统最终对每一次工具调用输出三态决策：
+## 3. OAuth 与 AgentGuard 的分工
 
-| 决策 | 含义 |
-|---|---|
-| `allow` | 低风险，允许进入受控执行流程 |
-| `confirm` | 中风险或存在副作用，需要人工确认 |
-| `deny` | 高风险、越权或策略违规，拒绝执行 |
+| 层 | 判断问题 | 示例 |
+|---|---|---|
+| OAuth Access Token | 调用方能否使用某类工具 | 是否拥有 `tool:file:read` |
+| Task Boundary | 当前动作是否符合原始任务 | “只总结”任务是否允许发邮件 |
+| Capability Contract | 工具、资源、步骤和风险是否在任务授权范围 | 是否只能读取 `public/*` |
+| Capability Token | 授权后的具体任务、工具、参数是否被篡改或重放 | `file.read(A)` 不能换成 `file.read(B)` |
+| Runtime / Attack Chain | 多步数据流是否形成组合风险 | 提示注入 → 敏感读取 → 外发 |
+| Sandbox | 允许的调用能否在受控环境中执行 | 路径、命令、网络和副作用限制 |
 
----
+一句话：
 
-## 3. 当前核心能力
-
-| 能力 | 说明 |
-|---|---|
-| Gateway 前置授权 | 对单次工具调用进行工具、参数、角色、路径、内容、命令、SQL、风险分和任务边界检查 |
-| Tool Proxy | 统一接入外部 Agent 工具调用，并执行 OAuth-style scope 初筛与两阶段授权 |
-| OAuth-style Scope Check | 检查外部 Agent 声明权限是否覆盖本次工具调用需求，但不作为最终执行授权 |
-| Capability Token | 将授权绑定到用户、Agent 平台、原始任务、工具、参数和 sandbox profile，防止授权后篡改或重放 |
-| Task Boundary Guard | 判断当前工具调用是否偏离用户原始任务和临时授权边界 |
-| Runtime Monitor | 维护多步任务状态，记录步骤、风险、标签传播和数据流关系 |
-| Attack Chain Detector | 识别“提示注入 → 敏感访问 → 外部发送 / 高危命令”等组合攻击链 |
-| Hybrid Sandbox | 有 Docker 时使用 Docker Sandbox；无 Docker 时自动 fallback 到 Native Subprocess Sandbox |
-| Audit Evidence | 记录每次授权、拒绝、执行、证据 hash 和可复盘原因 |
-| React/Vite 前端 | 提供授权演示、运行证据、测试报告和项目说明四个提交版页面 |
-| 独立测试模块 | `python -m test.run` 自动读取 `test/cases/gateway_cases*.json` 并生成结构化评测结果 |
-| GitHub Actions CI | 自动执行后端回归测试、Gateway 样例评测和前端构建 |
-
----
-
-## 4. 快速启动
-
-以下命令建议在 Windows PowerShell 中执行。
-
-### 4.1 进入项目目录
-
-```powershell
-cd Agent-Authorization
+```text
+OAuth 决定“能否使用某类 MCP 工具”；
+AgentGuard 决定“这一次具体调用能否安全执行”。
 ```
 
-### 4.2 创建并激活虚拟环境
+## 4. 核心能力
+
+| 能力 | 当前实现 |
+|---|---|
+| MCP Streamable HTTP | `POST /mcp`，支持 `initialize`、`notifications/initialized`、`ping`、`tools/list`、`tools/call` |
+| OAuth Protected Resource | `/.well-known/oauth-protected-resource`，Bearer Token 校验和 scope challenge |
+| Demo OAuth Server | 独立 localhost Authorization Code + PKCE 进程，提供 Authorization Server Metadata |
+| Scope-aware Tool Discovery | `tools/list` 根据 Access Token scopes 动态过滤工具 |
+| Dynamic Scope Check | 根据收件人和路径等参数补充 `sink:external-email`、`source:sensitive-file` |
+| Tool Proxy | 外部 Agent 与 MCP 调用的统一授权入口 |
+| Task Boundary Guard | 判断工具调用是否偏离用户原始任务 |
+| Capability Contract | 将任务编译为工具、资源、步骤和风险预算约束 |
+| Capability Token | 两阶段授权，绑定用户、Agent、任务、工具、参数和 sandbox profile |
+| Runtime Monitor | 多步状态、数据标签、风险预算和数据流图 |
+| Attack Chain Detector | 检测提示注入、敏感访问、外发和命令执行组合链 |
+| Hybrid Sandbox | Docker 优先，无 Docker 时 fallback 到 Native Subprocess Sandbox |
+| Audit Evidence | 日志脱敏、`prev_hash`、`record_hash` 和哈希链校验 |
+| React/Vite 前端 | 授权演示、运行证据、测试报告和项目说明 |
+| CI / Tests | 后端授权回归、独立 Gateway 样例测试和前端构建 |
+
+## 5. 快速启动
+
+### 5.1 安装依赖
 
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-```
-
-如 PowerShell 阻止脚本执行，可先运行：
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-```
-
-### 4.3 安装后端依赖
-
-```powershell
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-```
-
-### 4.4 安装前端依赖
-
-```powershell
 npm install --prefix ".\frontend"
 ```
 
-也可以进入前端目录安装：
-
-```powershell
-cd ".\frontend"
-npm install
-cd ..
-```
-
-### 4.5 一键启动项目
+### 5.2 启动原项目
 
 ```powershell
 python .\start_project.py --clean
 ```
 
-启动后访问：
-
-```text
-前端页面：http://localhost:5173
-后端接口：http://127.0.0.1:8000
-接口文档：http://127.0.0.1:8000/docs
-```
-
-> 本机浏览器优先打开 `http://localhost:5173` 或 `http://127.0.0.1:5173`，不要使用 Vite 输出的虚拟网卡 Network 地址。
-
----
-
-## 5. 推荐演示路线
-
-前端提交版已经收敛为四个主页面：
-
-```text
-1. 授权演示
-2. 运行证据
-3. 测试报告
-4. 项目说明
-```
-
-### 5.1 授权演示
-
-进入 **授权演示** 页面，建议依次点击：
-
-```text
-真沙箱读取
-敏感文件拦截
-OAuth 外发拒绝
-```
-
-讲解重点：
-
-```text
-Agent 提出工具调用
-→ Tool Proxy 统一入口
-→ Gateway 判断 allow / confirm / deny
-→ Capability Token 绑定授权
-→ Hybrid Sandbox 受控执行
-→ Audit Evidence 留证
-```
-
-### 5.2 运行证据
-
-进入 **运行证据** 页面，点击“刷新数据”。该页面读取本机真实运行数据，包括：
-
-```text
-logs/audit.log
-runtime_workspace/native_sandbox_runs/
-runtime_workspace/sandbox_runs/
-test/results/latest_summary.json
-```
-
-讲解重点：系统不是只显示固定 mock 数据，而是会根据本地审计日志、沙箱 evidence 和测试结果动态聚合指标。
-
-### 5.3 测试报告
-
-进入 **测试报告** 页面，点击“一键运行测试”。当前独立测试模块读取：
-
-```text
-test/cases/gateway_cases*.json
-```
-
-并输出：
-
-```text
-test/results/latest_summary.json
-test/results/latest_cases.json
-test/results/latest_detail.csv
-test/results/latest_report.md
-test/results/latest_dashboard.html
-```
-
-当前提交版评测目标：
-
-```text
-131 cases
-131 passed
-0 failed
-100.00% 样例通过率
-100.00% 风险阻断/确认率
-0.00% 风险误放行率
-0.00% 正常误拒率
-```
-
-### 5.4 项目说明
-
-进入 **项目说明** 页面，重点讲清楚：
-
-```text
-NoGuard：Agent 生成工具调用后直接执行，风险最高。
-OAuth-only：只能说明权限声明，不足以判断当前任务、参数和数据流是否安全。
-AgentGuard：在 scope 之后继续检查 Gateway、任务边界、Token、Runtime、Sandbox 和 Audit Evidence。
-```
-
----
-
-## 6. 提交前验证命令
-
-### 6.1 独立 Gateway 样例测试
+### 5.3 启动 MCP + OAuth 决赛演示
 
 ```powershell
-python -m test.run
+python .\start_project.py --clean --with-oauth
 ```
 
-预期输出示例：
+服务地址：
 
 ```text
-=== Agent-Authorization Test Finished ===
-cases: 131
-passed: 131
-failed: 0
-accuracy: 100.00%
-risk_block_or_confirm: 100.00%
-risk_unsafe_allow: 0.00%
-normal_false_deny: 0.00%
+Frontend:                http://127.0.0.1:5173
+AgentGuard API:          http://127.0.0.1:8000
+MCP endpoint:            http://127.0.0.1:8000/mcp
+Protected metadata:      http://127.0.0.1:8000/.well-known/oauth-protected-resource
+OAuth demo server:       http://127.0.0.1:9000
+OAuth server metadata:   http://127.0.0.1:9000/.well-known/oauth-authorization-server
+API docs:                http://127.0.0.1:8000/docs
 ```
 
-### 6.2 后端授权回归测试
+第三个终端运行独立 Demo Client：
 
 ```powershell
-python scripts/run_backend_authorization_tests.py
+python .\examples\mcp_oauth_demo_client.py
 ```
 
-预期结果：
+详细命令和演示案例见：[MCP_OAUTH_QUICKSTART.md](MCP_OAUTH_QUICKSTART.md)。
+
+## 6. MCP 工具与 scopes
+
+| MCP Tool | 工具发现所需 scope |
+|---|---|
+| `file.read` | `mcp:tools:list tool:file:read` |
+| `file.write` | `mcp:tools:list tool:file:write sink:side-effect` |
+| `file.delete` | `mcp:tools:list tool:file:delete sink:side-effect` |
+| `email.send` | `mcp:tools:list tool:email:send sink:side-effect` |
+| `shell.run` | `mcp:tools:list tool:shell:run sink:side-effect` |
+| `db.query` | `mcp:tools:list tool:db:query` |
+
+调用阶段还会根据参数动态增加 scope：
 
 ```text
-44 passed
+外部邮箱 → sink:external-email
+敏感文件 → source:sensitive-file
 ```
 
-### 6.3 前端构建检查
+拥有 scope 不表示一定执行。调用仍要经过任务边界、Capability Token、Runtime、Sandbox 和 Audit。
 
-```powershell
-npm --prefix ".\frontend" run build
+## 7. MCP 任务上下文扩展
+
+AgentGuard 需要原始用户任务来判断当前工具调用是否越界。MCP Client 可通过 `_meta` 传递：
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "file.read",
+    "arguments": {
+      "path": "public/notice.txt"
+    },
+    "_meta": {
+      "agentguard/originalTask": "读取 public/notice.txt 并总结，不要修改或外发。",
+      "agentguard/sandboxProfile": "default"
+    }
+  }
+}
 ```
 
-如果 `--prefix` 在本地环境中不稳定，可使用：
-
-```powershell
-cd ".\frontend"
-npm run build
-cd ..
-```
-
----
-
-## 7. GitHub Actions CI
-
-项目已配置 GitHub Actions 自动检查流程，位于：
+也可以使用 HTTP Header：
 
 ```text
-.github/workflows/ci.yml
+X-AgentGuard-Task: 读取 public/notice.txt 并总结，不要修改或外发。
 ```
 
-触发条件：
-
-```text
-push 到 main
-pull_request 到 main
-手动 workflow_dispatch
-```
-
-CI 会依次执行：
-
-```text
-1. Checkout repository
-2. Set up Python 3.11
-3. Install requirements.txt
-4. python scripts/run_backend_authorization_tests.py
-5. python -m test.run --case-dir test/cases --output-dir test/results
-6. Set up Node.js 20
-7. npm install --no-audit --no-fund
-8. npm run build
-9. Upload test/results/** as artifact
-```
-
-该流程用于保证每次提交后：
-
-```text
-后端授权逻辑没有回归
-Capability Token 和两阶段授权仍然有效
-Gateway 样例测试可通过
-React/Vite 前端可以正常构建
-测试结果可以作为 artifact 下载复盘
-```
-
----
-
-## 8. 主要目录结构
+## 8. 项目结构
 
 ```text
 Agent-Authorization/
-├── backend/                    # FastAPI 后端
-│   ├── gateway/                # Gateway 授权网关核心逻辑
-│   ├── proxy/                  # Tool Proxy 与外部 Agent 授权入口
-│   ├── real_agent/             # 真实 LLM tool-calling 适配
-│   ├── capability/             # Capability Contract v2
-│   ├── guardrails/             # Task Boundary 与 Capability Token
-│   ├── runtime/                # Runtime Monitor 与安全图谱
-│   ├── attack_chain/           # 多步攻击链检测
-│   ├── audit/                  # 审计日志与哈希链校验
-│   ├── approval/               # 人工确认模块
-│   ├── sandbox/                # Docker / Native / Hybrid Sandbox
-│   ├── tools/                  # 受控工具执行逻辑
-│   └── routes/                 # API 路由
+├── backend/
+│   ├── main.py                     # FastAPI 主应用
+│   ├── mcp/                        # MCP 协议适配层
+│   │   ├── service.py              # JSON-RPC 生命周期和 tools 方法
+│   │   └── tool_registry.py        # Tool Schema、注解和 scope 可见性
+│   ├── oauth/                      # OAuth 资源服务器公共逻辑和 Demo AS
+│   │   ├── token_service.py        # Demo JWT Access Token 签发/校验
+│   │   └── demo_authorization_server.py
+│   ├── gateway/                    # 单次工具调用风险评分
+│   ├── proxy/                      # Tool Proxy 统一授权入口
+│   ├── capability/                 # Capability Contract
+│   ├── guardrails/                 # Task Boundary / Capability Token
+│   ├── runtime/                    # Runtime Monitor / Security Graph
+│   ├── attack_chain/               # 多步攻击链检测
+│   ├── sandbox/                    # Docker / Native / Hybrid Sandbox
+│   ├── tools/                      # 受控工具执行
+│   ├── audit/                      # 审计日志和哈希链
+│   ├── approval/                   # 人工确认
+│   └── routes/                     # HTTP API 路由
 │
-├── config/
-│   ├── policy.yaml             # 核心策略配置
-│   └── semantic_guard.yaml     # 语义风险配置
+├── examples/
+│   └── mcp_oauth_demo_client.py    # 独立 OAuth Client + MCP Client
 │
-├── frontend/                   # React + Vite 前端
-│   └── src/
-│       ├── pages/              # 授权演示 / 运行证据 / 测试报告 / 项目说明
-│       ├── components/         # 页面组件
-│       └── services/           # API 调用封装
-│
-├── test/                       # 独立 Gateway 样例评测模块
-│   ├── cases/                  # gateway_cases*.json
-│   ├── results/                # latest_summary / cases / detail / report / dashboard
-│   └── run.py                  # python -m test.run
-│
-├── tests/                      # pytest 后端回归测试
-├── runtime_workspace/          # 本地沙箱工作区
-├── docs/                       # 项目文档与阶段性材料
-├── .github/workflows/          # GitHub Actions CI
-├── start_project.py            # 一键启动脚本
+├── config/                         # Gateway 和 Semantic Guard 策略
+├── frontend/                       # React + Vite
+├── test/                           # 独立 Gateway 样例评测
+├── tests/                          # pytest 回归测试
+├── runtime_workspace/              # 本地沙箱工作区
+├── docs/architecture/              # 架构与边界文档
+├── start_project.py                # 一键启动，可选 --with-oauth
+├── MCP_OAUTH_QUICKSTART.md
 └── README.md
 ```
 
----
+更详细的职责划分见：[docs/architecture/MCP_OAUTH_GATEWAY.md](docs/architecture/MCP_OAUTH_GATEWAY.md)。
 
-## 9. 关键 API 概览
+## 9. 关键 API
 
 | 模块 | 接口 | 说明 |
 |---|---|---|
-| 状态检查 | `GET /api/status` | 查看后端状态和已注册能力 |
-| Gateway | `POST /gateway/check` | 对单次工具调用进行 allow / confirm / deny 判断 |
-| Gateway | `POST /gateway/call` | 授权后执行、确认或拒绝工具调用 |
+| MCP | `POST /mcp` | OAuth 保护的 MCP JSON-RPC 入口 |
+| MCP | `GET /mcp` | 返回当前实现不启用 GET/SSE 的说明 |
+| OAuth Resource | `GET /.well-known/oauth-protected-resource` | MCP Resource Metadata |
+| OAuth Demo AS | `GET /.well-known/oauth-authorization-server` | Authorization Server Metadata，端口 9000 |
+| OAuth Demo AS | `GET /authorize` | Authorization Code + PKCE 授权端点 |
+| OAuth Demo AS | `POST /token` | Access Token 端点 |
+| Gateway | `POST /gateway/check` | 单次 allow / confirm / deny 判断 |
+| Gateway | `POST /gateway/call` | 判断并执行、确认或拒绝 |
 | Tool Proxy | `POST /tool-proxy/authorize` | 外部 Agent 统一授权入口 |
-| 两阶段授权 | `POST /tool-proxy/two-phase/prepare` | 第一阶段授权检查并签发 Capability Token |
-| 两阶段授权 | `POST /tool-proxy/two-phase/execute` | 第二阶段校验 Token 并进入沙箱执行 |
-| Capability Token | `POST /tool-proxy/capability-token/status` | 查看 token 状态 |
-| Capability Token | `POST /tool-proxy/capability-token/events` | 查看 token issue / consume 事件 |
-| 真实 LLM 接入 | `POST /real-agent/tool-call/run` | 接收 OpenAI-compatible tool_calls / function_call |
-| Native Sandbox | `POST /sandbox-native/execute` | 在 Native Subprocess Sandbox 中执行工具 |
-| Native Sandbox | `GET /sandbox-native/runs` | 查看本地沙箱运行记录 |
-| Docker Sandbox | `POST /sandbox-docker/execute` | 在 Docker Sandbox 中执行工具 |
-| 测试结果 | `GET /test-results/latest/summary` | 读取最新独立测试摘要 |
-| 前端聚合数据 | `GET /api/overview` | 聚合本地 audit、sandbox evidence 和测试摘要 |
-| 前端聚合数据 | `GET /api/requests` | 读取最近本地授权 / 沙箱记录 |
-| 前端聚合数据 | `GET /api/audit-logs` | 读取本地审计时间线 |
+| Two Phase | `POST /tool-proxy/two-phase/prepare` | 授权并签发 Capability Token |
+| Two Phase | `POST /tool-proxy/two-phase/execute` | 校验 Token 并执行 |
+| Native Sandbox | `POST /sandbox-native/execute` | Native Subprocess Sandbox |
+| Docker Sandbox | `POST /sandbox-docker/execute` | Docker Sandbox |
+| Audit / Frontend | `GET /api/overview` | 聚合 Audit、Sandbox Evidence 和测试摘要 |
 
----
+## 10. 测试
 
-## 10. 测试样例说明
-
-当前独立测试入口为：
+后端授权回归：
 
 ```powershell
-python -m test.run
-```
-
-测试脚本会自动读取：
-
-```text
-test/cases/gateway_cases*.json
-```
-
-当前样例覆盖方向包括：
-
-```text
-正常公开文件读取
-公开目录写入
-只读数据库查询
-提示注入
-路径穿越
-URL 编码绕过
-Windows / Linux 绝对路径
-secret / private / .env 敏感资源访问
-外部邮件敏感内容外发
-HTTP webhook / 外部 API 外发
-高危 shell / PowerShell / curl / wget
-危险 SQL / SQL 注入
-未知工具 fail closed
-低置信度计划
-Capability Contract 边界
-外部 Agent / OAuth-style 场景
-Hybrid Sandbox 边界
-多步攻击链
-```
-
-测试输出用于前端“测试报告”页面和作品报告实验数据。
-
----
-
-## 11. 沙箱说明
-
-项目实现 Hybrid Sandbox：
-
-```text
-有 Docker：优先使用 Docker Sandbox
-无 Docker：自动 fallback 到 Native Subprocess Sandbox
-```
-
-### Docker Sandbox
-
-Docker Sandbox 提供更强的执行隔离能力，典型限制包括：
-
-```text
---network none
---read-only
---cap-drop ALL
---security-opt no-new-privileges
-内存 / CPU / PID 限制
-临时目录 tmpfs
-```
-
-### Native Subprocess Sandbox
-
-Native Subprocess Sandbox 不依赖 Docker，适合本地演示和比赛复现。它通过以下方式限制执行：
-
-```text
-受限子进程
-工具白名单
-路径白名单
-写入目录限制
-命令白名单
-超时控制
-evidence.json 证据文件
-```
-
-需要说明：
-
-```text
-Native Subprocess Sandbox 是轻量级本地执行沙箱，不声称等同于 Docker、gVisor 或 Firecracker 级别的系统强隔离。
-```
-
----
-
-## 12. 运行证据数据来源
-
-前端“运行证据”页面读取本地真实运行数据，不再以固定 mock 数据作为主来源。
-
-主要数据源：
-
-```text
-logs/audit.log
-runtime_workspace/native_sandbox_runs/
-runtime_workspace/sandbox_runs/
-test/results/latest_summary.json
-config/policy.yaml
-```
-
-当用户运行授权演示、真沙箱执行或一键测试后，刷新运行证据页面即可看到本地数据变化。
-
----
-
-## 13. 当前系统边界
-
-本项目当前是信安赛参赛原型，边界如下：
-
-```text
-1. 不训练或微调大模型本身。
-2. 不声称识别所有自然语言攻击变体。
-3. 当前实验结论仅对已构建的样例集和原型实现成立。
-4. Native Subprocess Sandbox 是本地 fallback，不是系统级强隔离。
-5. WorkBuddy、OpenClaw 等外部 Agent 主要作为接入场景和协议模拟，不代表已完成官方平台深度集成。
-6. 真实 LLM tool-calling 接入提供 OpenAI-compatible 格式适配入口，生产级多模型长期稳定性评测属于后续工作。
-7. 100% 测试通过率表示当前 131 条样例范围内的结果，不代表真实世界全场景绝对安全。
-```
-
----
-
-## 14. 答辩讲解建议
-
-可以用下面这段话快速介绍项目：
-
-```text
-AgentGuard 解决的是 AI Agent 调用真实工具时的授权和安全边界问题。
-普通 Agent 生成工具调用后可能直接执行，容易造成越权读取、敏感数据外发或危险命令执行。
-我们的系统把 Agent 的规划权和工具执行权分离：Agent 只能提出计划，所有工具调用必须经过 Tool Proxy、Gateway、Capability Token、Runtime Monitor 和 Hybrid Sandbox，最终输出 allow、confirm 或 deny，并留下可审计证据。
-```
-
-对比 OAuth 时可以说：
-
-```text
-OAuth 主要解决“外部应用是否被授权访问某类资源”；
-AgentGuard 进一步解决“当前任务、当前参数、当前数据流和当前执行环境下，这一次工具调用是否安全”。
-```
-
----
-
-## 15. 常用命令汇总
-
-```powershell
-# 启动项目
-python .\start_project.py --clean
-
-# 独立样例测试
-python -m test.run
-
-# 后端授权回归测试
 python scripts/run_backend_authorization_tests.py
-
-# 前端构建
-npm --prefix ".\frontend" run build
-
-# 后端健康检查
-Invoke-RestMethod http://127.0.0.1:8000/api/status
-
-# Native Sandbox 健康检查
-Invoke-RestMethod http://127.0.0.1:8000/sandbox-native/health
-
-# 最新测试摘要
-Invoke-RestMethod http://127.0.0.1:8000/test-results/latest/summary
 ```
 
----
+独立 Gateway 样例评测：
 
-## 16. 项目总结
+```powershell
+python -m test.run
+```
 
-AgentGuard 的核心价值不在于声称“完全解决 Agent 安全”，而在于提供了一条清晰可运行、可解释、可复现的工程路径：
+MCP/OAuth 单元测试：
+
+```powershell
+pytest tests/unit/test_oauth_access_token.py -q
+pytest tests/unit/test_mcp_tool_registry.py -q
+pytest tests/unit/test_mcp_service.py -q
+```
+
+前端构建：
+
+```powershell
+npm --prefix ".\frontend" run build
+```
+
+## 11. 决赛演示建议
+
+建议只讲一条完整故事线：
 
 ```text
-让模型负责规划；
-让独立网关负责授权；
-让 Capability Token 绑定单次执行；
-让运行时监控负责上下文风险；
-让沙箱限制真实执行；
-让审计系统负责证据复盘。
+1. Client 通过 OAuth Authorization Code + PKCE 获得只读 Token
+2. tools/list 只展示 file.read
+3. 正常读取 public/notice.txt，AgentGuard allow 并在 Sandbox 执行
+4. Token 缺少写入/邮件 scope 时返回 403 insufficient_scope
+5. Token scope 足够，但用户任务明确禁止外发时，Task Boundary deny
+6. 展示 Capability Token 绑定、Sandbox Evidence 和 Audit Hash Chain
 ```
 
-该系统为 AI Agent 工具调用安全落地提供了一个可展示、可测试、可持续扩展的实践样板。
+评委能够清楚看到：
+
+```text
+MCP 是标准工具调用入口；
+OAuth 是身份和粗粒度 scope；
+AgentGuard 是任务级动态安全网关。
+```
+
+## 12. 系统边界
+
+必须实事求是：
+
+```text
+1. backend.oauth.demo_authorization_server 是 localhost 竞赛演示组件，不是生产级 IdP。
+2. Demo Access Token 使用共享 HMAC Secret；生产环境应使用成熟 Provider、HTTPS、JWKS 或 introspection。
+3. 当前 MCP 层是“受保护 MCP Tool Server + AgentGuard Gateway”，不是通用多下游 MCP 反向代理。
+4. 当前实现采用非流式 Streamable HTTP POST；GET/SSE 返回 405 说明。
+5. Native Subprocess Sandbox 是轻量 fallback，不等同于 Docker、gVisor 或 Firecracker 强隔离。
+6. 样例测试通过率只说明当前测试集，不代表真实世界绝对安全。
+```
+
+## 13. 项目总结
+
+AgentGuard 的工程路径是：
+
+```text
+使用 MCP 标准化 Agent 与工具之间的调用；
+使用 OAuth 标准化客户端身份与 scope；
+使用 Task Boundary 和 Capability Contract 约束当前任务；
+使用一次性 Capability Token 绑定具体执行；
+使用 Runtime Monitor 和 Attack Chain 检测多步风险；
+使用 Hybrid Sandbox 限制真实执行；
+使用 Audit Evidence 形成可验证复盘材料。
+```
+
+这使项目从“自定义规则判断后端”升级为一个能够由独立 MCP Client 和 OAuth Authorization Server真实调用的 Agent 工具安全网关原型。
