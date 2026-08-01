@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import os
 import secrets
 import time
@@ -9,7 +10,7 @@ from typing import Any, Dict
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from backend.oauth.token_service import issue_access_token, mcp_resource, normalize_scopes, oauth_issuer
 
@@ -86,6 +87,56 @@ def _redirect_with_params(redirect_uri: str, params: Dict[str, str]) -> Redirect
 def _pkce_s256(verifier: str) -> str:
     digest = hashlib.sha256(verifier.encode("ascii")).digest()
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+@app.get("/", response_class=HTMLResponse)
+def browser_console() -> HTMLResponse:
+    issuer = html.escape(oauth_issuer())
+    resource = html.escape(mcp_resource())
+    metadata = f"{issuer}/.well-known/oauth-authorization-server"
+    health_url = f"{issuer}/health"
+
+    content = f"""<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentGuard Demo OAuth Server</title>
+  <style>
+    body {{ font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }}
+    main {{ max-width: 860px; margin: 48px auto; padding: 0 24px; }}
+    .card {{ background: #111827; border: 1px solid #334155; border-radius: 16px; padding: 28px; box-shadow: 0 18px 45px rgba(0,0,0,.25); }}
+    h1 {{ margin-top: 0; color: #f8fafc; }}
+    .ok {{ display: inline-block; padding: 5px 10px; border-radius: 999px; background: #064e3b; color: #a7f3d0; font-weight: 700; }}
+    code {{ background: #020617; padding: 3px 7px; border-radius: 6px; color: #93c5fd; }}
+    a {{ color: #7dd3fc; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 22px; }}
+    td {{ border-top: 1px solid #334155; padding: 12px 8px; vertical-align: top; }}
+    td:first-child {{ width: 220px; color: #94a3b8; }}
+    .warning {{ margin-top: 22px; padding: 14px 16px; border-left: 4px solid #f59e0b; background: #78350f55; }}
+  </style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <span class="ok">RUNNING</span>
+    <h1>AgentGuard Demo OAuth Authorization Server</h1>
+    <p>本页面用于确认本地 OAuth 演示进程已经启动。</p>
+    <table>
+      <tr><td>Issuer</td><td><code>{issuer}</code></td></tr>
+      <tr><td>受保护资源</td><td><code>{resource}</code></td></tr>
+      <tr><td>演示 Client ID</td><td><code>{html.escape(DEMO_CLIENT_ID)}</code></td></tr>
+      <tr><td>Authorization Server Metadata</td><td><a href="{metadata}">{metadata}</a></td></tr>
+      <tr><td>Health</td><td><a href="{health_url}">{health_url}</a></td></tr>
+    </table>
+    <div class="warning">
+      这是 localhost 决赛演示组件，不是生产级身份提供方。完整授权流程请运行 <code>python examples/mcp_oauth_demo_client.py</code>。
+    </div>
+  </section>
+</main>
+</body>
+</html>"""
+    return HTMLResponse(content, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/.well-known/oauth-authorization-server")

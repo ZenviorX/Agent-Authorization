@@ -35,6 +35,7 @@ TESTS = [
     "tests/unit/test_oauth_access_token.py",
     "tests/unit/test_mcp_tool_registry.py",
     "tests/unit/test_mcp_service.py",
+    "tests/unit/test_mcp_browser_routes.py",
 ]
 
 
