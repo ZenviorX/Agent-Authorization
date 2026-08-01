@@ -1,0 +1,226 @@
+from __future__ import annotations
+
+import base64
+import hashlib
+import os
+import secrets
+import time
+from typing import Any, Dict
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import JSONResponse, RedirectResponse
+
+from backend.oauth.token_service import issue_access_token, mcp_resource, normalize_scopes, oauth_issuer
+
+
+app = FastAPI(
+    title="AgentGuard Demo OAuth Authorization Server",
+    description=(
+        "Local competition/demo OAuth 2.1 Authorization Code + PKCE server. "
+        "It is intentionally minimal and must not be used as a production identity provider."
+    ),
+    version="0.1.0",
+)
+
+_AUTHORIZATION_CODES: Dict[str, Dict[str, Any]] = {}
+DEMO_CLIENT_ID = os.getenv("AGENTGUARD_OAUTH_DEMO_CLIENT_ID", "agentguard-demo-client")
+DEMO_USER = os.getenv("AGENTGUARD_OAUTH_DEMO_USER", "demo-user")
+CODE_TTL_SECONDS = 120
+SUPPORTED_SCOPES = [
+    "mcp:tools:list",
+    "tool:file:read",
+    "tool:file:write",
+    "tool:file:delete",
+    "tool:email:send",
+    "tool:shell:run",
+    "tool:db:query",
+    "sink:side-effect",
+    "sink:external-email",
+    "source:sensitive-file",
+]
+
+
+def _oauth_error(error: str, description: str, status_code: int = 400) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "error": error,
+            "error_description": description,
+        },
+        headers={
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+        },
+    )
+
+
+def _is_local_redirect_uri(value: str) -> bool:
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return False
+
+    return (
+        parsed.scheme == "http"
+        and parsed.hostname in {"127.0.0.1", "localhost"}
+        and parsed.port is not None
+        and bool(parsed.path)
+    )
+
+
+def _redirect_with_params(redirect_uri: str, params: Dict[str, str]) -> RedirectResponse:
+    parsed = urlparse(redirect_uri)
+    existing = parse_qs(parsed.query, keep_blank_values=True)
+
+    for key, value in params.items():
+        existing[key] = [value]
+
+    query = urlencode(
+        [(key, item) for key, values in existing.items() for item in values]
+    )
+    target = urlunparse(parsed._replace(query=query))
+    return RedirectResponse(target, status_code=302)
+
+
+def _pkce_s256(verifier: str) -> str:
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+@app.get("/.well-known/oauth-authorization-server")
+def authorization_server_metadata() -> Dict[str, Any]:
+    issuer = oauth_issuer()
+    return {
+        "issuer": issuer,
+        "authorization_endpoint": f"{issuer}/authorize",
+        "token_endpoint": f"{issuer}/token",
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code"],
+        "code_challenge_methods_supported": ["S256"],
+        "token_endpoint_auth_methods_supported": ["none"],
+        "scopes_supported": SUPPORTED_SCOPES,
+    }
+
+
+@app.get("/authorize")
+def authorize(
+    response_type: str = Query(...),
+    client_id: str = Query(...),
+    redirect_uri: str = Query(...),
+    scope: str = Query(default=""),
+    state: str = Query(default=""),
+    code_challenge: str = Query(...),
+    code_challenge_method: str = Query(default="S256"),
+    resource: str = Query(...),
+    approve: bool = Query(default=True),
+    user: str = Query(default=DEMO_USER),
+):
+    if response_type != "code":
+        return _oauth_error("unsupported_response_type", "The demo server only supports response_type=code.")
+
+    if client_id != DEMO_CLIENT_ID:
+        return _oauth_error("unauthorized_client", "Unknown demo OAuth client_id.")
+
+    if not _is_local_redirect_uri(redirect_uri):
+        return _oauth_error("invalid_request", "Only explicit localhost HTTP redirect URIs are accepted by the demo server.")
+
+    if resource.rstrip("/") != mcp_resource().rstrip("/"):
+        return _oauth_error("invalid_target", "The requested resource is not the configured AgentGuard MCP endpoint.")
+
+    if code_challenge_method != "S256" or not code_challenge:
+        return _oauth_error("invalid_request", "PKCE with code_challenge_method=S256 is required.")
+
+    requested_scopes = normalize_scopes(scope)
+    unsupported = [item for item in requested_scopes if item not in SUPPORTED_SCOPES]
+    if unsupported:
+        return _oauth_error("invalid_scope", "Unsupported scope(s): " + ", ".join(unsupported))
+
+    if not approve:
+        return _redirect_with_params(
+            redirect_uri,
+            {
+                "error": "access_denied",
+                "error_description": "The local demo user denied authorization.",
+                "state": state,
+            },
+        )
+
+    code = secrets.token_urlsafe(32)
+    _AUTHORIZATION_CODES[code] = {
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": requested_scopes,
+        "resource": resource.rstrip("/"),
+        "subject": user,
+        "code_challenge": code_challenge,
+        "expires_at": time.time() + CODE_TTL_SECONDS,
+    }
+
+    return _redirect_with_params(
+        redirect_uri,
+        {
+            "code": code,
+            "state": state,
+        },
+    )
+
+
+@app.post("/token")
+async def token(request: Request):
+    raw_body = (await request.body()).decode("utf-8", errors="replace")
+    form = {key: values[-1] for key, values in parse_qs(raw_body).items() if values}
+
+    grant_type = form.get("grant_type", "")
+    code = form.get("code", "")
+    redirect_uri = form.get("redirect_uri", "")
+    client_id = form.get("client_id", "")
+    code_verifier = form.get("code_verifier", "")
+    resource = form.get("resource", "").rstrip("/")
+
+    if grant_type != "authorization_code":
+        return _oauth_error("unsupported_grant_type", "The demo server only supports authorization_code.")
+
+    record = _AUTHORIZATION_CODES.pop(code, None)
+    if record is None:
+        return _oauth_error("invalid_grant", "Authorization code is invalid or has already been used.")
+
+    if float(record.get("expires_at", 0)) < time.time():
+        return _oauth_error("invalid_grant", "Authorization code has expired.")
+
+    if client_id != record.get("client_id") or redirect_uri != record.get("redirect_uri"):
+        return _oauth_error("invalid_grant", "Authorization code is not bound to this client or redirect URI.")
+
+    if resource != str(record.get("resource", "")):
+        return _oauth_error("invalid_target", "Token request resource does not match the authorization request.")
+
+    if not code_verifier or _pkce_s256(code_verifier) != record.get("code_challenge"):
+        return _oauth_error("invalid_grant", "PKCE code_verifier validation failed.")
+
+    token_response = issue_access_token(
+        subject=str(record.get("subject", DEMO_USER)),
+        scopes=record.get("scope", []),
+        audience=resource,
+        client_id=client_id,
+    )
+    token_response.pop("payload", None)
+
+    return JSONResponse(
+        content=token_response,
+        headers={
+            "Cache-Control": "no-store",
+            "Pragma": "no-cache",
+        },
+    )
+
+
+@app.get("/health")
+def health() -> Dict[str, Any]:
+    return {
+        "status": "ok",
+        "mode": "local_demo_only",
+        "issuer": oauth_issuer(),
+        "resource": mcp_resource(),
+        "client_id": DEMO_CLIENT_ID,
+        "warning": "This minimal OAuth server is for local competition demonstration, not production deployment.",
+    }
