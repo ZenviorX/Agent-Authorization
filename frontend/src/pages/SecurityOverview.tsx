@@ -63,10 +63,6 @@ export function SecurityOverview({
           <p>
             将 OAuth 身份、任务边界、Capability Token、运行时监控、隔离沙箱与审计证据整合为一条可观测安全链路。
           </p>
-          <div className="overview-actions">
-            <button className="primary-btn" onClick={() => onNavigate('workbench')}>开始实时演示</button>
-            <button className="secondary-btn" onClick={() => onNavigate('evidence')}>查看审计证据</button>
-          </div>
         </div>
         <div className="overview-health-panel">
           <div className="overview-health-title">
