@@ -14,7 +14,7 @@ def test_local_readonly_docker_command_has_isolation_flags(tmp_path: Path):
     assert "--pids-limit" in command
     assert "--memory" in command
     assert "--cpus" in command
-    assert "agentguard-tool-sandbox:latest" in command
+    assert "agentguard-tool-sandbox:v2" in command
 
 
 def test_strict_profile_does_not_mount_secret_or_private(tmp_path: Path):
@@ -39,3 +39,131 @@ def test_local_safe_write_mounts_outbox_as_writable(tmp_path: Path):
     outbox_mounts = [item for item in mount_values if "/workspace/outbox" in item.replace("\\", "/")]
     assert len(outbox_mounts) == 1
     assert "readonly" not in outbox_mounts[0]
+
+
+
+def test_docker_available_returns_false_without_cli(
+    monkeypatch,
+):
+    from backend.sandbox import (
+        docker_sandbox_executor,
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.shutil,
+        "which",
+        lambda name: None,
+    )
+
+    assert (
+        docker_sandbox_executor
+        .docker_available()
+        is False
+    )
+
+
+def test_docker_available_rejects_cli_without_daemon(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+
+    from backend.sandbox import (
+        docker_sandbox_executor,
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.shutil,
+        "which",
+        lambda name: "docker",
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.subprocess,
+        "run",
+        lambda *args, **kwargs: (
+            SimpleNamespace(
+                returncode=1,
+                stdout="",
+                stderr=(
+                    "Docker daemon is unavailable"
+                ),
+            )
+        ),
+    )
+
+    assert (
+        docker_sandbox_executor
+        .docker_available()
+        is False
+    )
+
+
+def test_docker_available_accepts_ready_daemon(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+
+    from backend.sandbox import (
+        docker_sandbox_executor,
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.shutil,
+        "which",
+        lambda name: "docker",
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.subprocess,
+        "run",
+        lambda *args, **kwargs: (
+            SimpleNamespace(
+                returncode=0,
+                stdout="linux|28.0.0\n",
+                stderr="",
+            )
+        ),
+    )
+
+    assert (
+        docker_sandbox_executor
+        .docker_available()
+        is True
+    )
+
+
+
+def test_docker_available_rejects_windows_daemon(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+
+    from backend.sandbox import (
+        docker_sandbox_executor,
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.shutil,
+        "which",
+        lambda name: "docker",
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.subprocess,
+        "run",
+        lambda *args, **kwargs: (
+            SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "windows|28.0.0\n"
+                ),
+                stderr="",
+            )
+        ),
+    )
+
+    assert (
+        docker_sandbox_executor
+        .docker_available()
+        is False
+    )

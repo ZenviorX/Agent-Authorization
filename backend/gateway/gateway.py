@@ -89,6 +89,34 @@ def check_tool_call(request: ToolCallRequest):
             params=params,
         )
 
+    # 决赛严格策略：Agent 计划失败或失效后，
+    # 禁止继续调用任何具有副作用的工具。
+    plan_status = str(
+        getattr(request, "plan_status", "") or ""
+    ).strip().lower()
+
+    if plan_status in {
+        "failed",
+        "error",
+        "invalid",
+        "cancelled",
+    }:
+        return build_gateway_result(
+            decision="deny",
+            risk_score=get_risk_score(
+                "invalid_plan_state",
+                100,
+            ),
+            reason=[
+                f"Agent 计划状态异常：{plan_status}",
+                "计划未成功完成时禁止继续调用工具。",
+            ],
+            user=user,
+            role=role,
+            tool=tool,
+            params=params,
+        )
+
     low_confidence_force_confirm = False
     capability_force_confirm = False
     semantic_force_confirm = False
@@ -133,11 +161,11 @@ def check_tool_call(request: ToolCallRequest):
         reason.append(f"工具调用缺少必要参数：{', '.join(missing_params)}")
 
         return build_gateway_result(
-            decision="confirm",
+            decision="deny",
             risk_score=risk_score,
             reason=reason
             + [
-                "参数不完整，不能自动执行，需要用户补充信息或人工确认。"
+                "参数不完整或无法验证，已按失败关闭原则拒绝。"
             ],
             user=user,
             role=role,
@@ -172,6 +200,29 @@ def check_tool_call(request: ToolCallRequest):
         if labels:
             reason.append(
                 f"语义检测命中风险标签：{', '.join(labels)}，风险分 +{semantic_risk_score}"
+            )
+
+        critical_semantic_labels = {
+            "prompt_injection",
+            "policy_bypass",
+            "data_exfiltration",
+            "credential_access",
+            "destructive_action",
+            "privilege_escalation",
+            "network_abuse",
+        }
+
+        matched_critical_labels = sorted(
+            critical_semantic_labels.intersection(
+                {str(item) for item in labels}
+            )
+        )
+
+        if matched_critical_labels:
+            hard_deny = True
+            reason.append(
+                "命中不可通过人工确认放行的关键语义风险："
+                + ", ".join(matched_critical_labels)
             )
 
         for item in semantic_result.get("reasons", []):
@@ -372,12 +423,78 @@ def check_tool_call(request: ToolCallRequest):
         risk_score += get_risk_score("prompt_injection_keyword", 30)
         reason.append(f"内容命中提示注入关键词：{word}")
 
+    if matched_prompt_keywords:
+        hard_deny = True
+        reason.append(
+            "检测到明确提示注入或授权绕过指令，禁止通过人工确认放行。"
+        )
+
     sensitive_content_keywords = get_dangerous_keywords("sensitive_content")
     matched_sensitive_keywords = match_keywords(detection_content, sensitive_content_keywords)
 
     for word in matched_sensitive_keywords:
         risk_score += get_risk_score("sensitive_content_keyword", 20)
         reason.append(f"内容包含敏感信息关键词：{word}")
+
+    # 6.5 工具调用走私检测：
+    # 防止在普通文件内容中夹带 tool:shell.run、command= 等指令，
+    # 诱导后续 Agent 绕过当前授权流程直接调用其他工具。
+    smuggling_syntax_markers = {
+        "tool:",
+        "tool=",
+        "function:",
+        "function=",
+        "<tool_call",
+        "\"tool\":",
+        "'tool':",
+    }
+
+    smuggling_action_markers = {
+        "command=",
+        "params=",
+        "arguments=",
+        "下一步必须调用",
+        "下一步调用",
+        "直接调用",
+        "必须调用",
+        "call tool",
+        "invoke tool",
+    }
+
+    embedded_tools = sorted(
+        tool_name
+        for tool_name in supported_tools
+        if tool_name in content_lower
+    )
+
+    has_smuggling_syntax = any(
+        marker in content_lower
+        for marker in smuggling_syntax_markers
+    )
+
+    has_smuggling_action = any(
+        marker in content_lower
+        for marker in smuggling_action_markers
+    )
+
+    if (
+        embedded_tools
+        and has_smuggling_syntax
+        and has_smuggling_action
+    ):
+        risk_score += get_risk_score(
+            "tool_call_smuggling",
+            100,
+        )
+        hard_deny = True
+        reason.append(
+            "内容中检测到工具调用走私指令："
+            + ", ".join(embedded_tools)
+        )
+        reason.append(
+            "普通数据内容不得直接指定后续工具及其执行参数，"
+            "本次调用进入拒绝路径。"
+        )
 
     # 7. 命令风险判断：
     # 从 config/policy.yaml 的 dangerous_keywords.command 中读取
@@ -388,21 +505,136 @@ def check_tool_call(request: ToolCallRequest):
         risk_score += get_risk_score("command_keyword", 30)
         reason.append(f"命令中包含高危操作：{cmd}")
 
+    hard_deny_command_keywords = {
+        "rm -rf",
+        "rm -r",
+        "rm -f",
+        "del /s",
+        "rd /s",
+        "rmdir /s",
+        "erase",
+        "remove-item",
+        "format",
+        "shutdown",
+        "reboot",
+        "mkfs",
+        "dd if=",
+        "> /dev/sda",
+        "powershell",
+        "invoke-webrequest",
+        "invoke-expression",
+        "certutil",
+        "bitsadmin",
+        "reg add",
+        "taskkill",
+        "wevtutil",
+        "net user",
+        "net localgroup",
+        "curl",
+        "curl.exe",
+        "wget",
+        "wget.exe",
+        "| sh",
+        "| bash",
+        "bash <(",
+        "netcat",
+        "chmod 777",
+        "sudo",
+        "python -c",
+        "python3 -c",
+        "perl -e",
+        "bash -c",
+        "sh -c",
+        "os.system",
+        "subprocess",
+        "eval(",
+        "exec(",
+        "base64 -d",
+        "base64 --decode",
+        "nmap",
+        "masscan",
+    }
+
+    matched_hard_deny_commands = sorted(
+        {
+            str(cmd).strip().lower()
+            for cmd in matched_commands
+            if str(cmd).strip().lower()
+            in hard_deny_command_keywords
+        }
+    )
+
+    if matched_hard_deny_commands:
+        hard_deny = True
+        reason.append(
+            "命令包含不可通过人工确认放行的危险操作："
+            + ", ".join(matched_hard_deny_commands)
+        )
+
     # 8. SQL 风险判断：
     # 从 config/policy.yaml 的 dangerous_keywords.sql 中读取
     dangerous_sql = get_dangerous_keywords("sql")
 
     if tool == "db.query":
         for keyword in dangerous_sql:
-            if keyword in sql_lower:
-                risk_score += get_risk_score("sql_keyword", 50)
-                reason.append(f"SQL 语句包含高危操作：{keyword}")
+            if keyword not in sql_lower:
+                continue
 
-                if _is_destructive_sql_keyword(keyword):
-                    hard_deny = True
-                    reason.append(
-                        f"SQL 关键词 {keyword} 属于破坏性数据库操作，本次查询进入拒绝路径。"
-                    )
+            normalized_keyword = str(
+                keyword
+            ).strip().lower()
+
+            # accounts 表名本身不能直接等同于攻击。
+            # 只读取 name 等普通字段时允许正常执行；
+            # 读取全部字段或凭证字段时仍然拒绝。
+            if normalized_keyword == "from accounts":
+                select_part = sql_lower.split(
+                    "from",
+                    1,
+                )[0]
+
+                sensitive_account_fields = {
+                    "*",
+                    "password",
+                    "passwd",
+                    "token",
+                    "secret",
+                    "credential",
+                    "api_key",
+                    "private_key",
+                }
+
+                if not any(
+                    field in select_part
+                    for field in sensitive_account_fields
+                ):
+                    continue
+
+            risk_score += get_risk_score(
+                "sql_keyword",
+                50,
+            )
+
+            reason.append(
+                f"SQL 语句包含高危操作：{keyword}"
+            )
+
+            hard_deny = True
+
+            if _is_destructive_sql_keyword(
+                keyword
+            ):
+                reason.append(
+                    f"SQL 关键词 {keyword} "
+                    "属于破坏性数据库操作，"
+                    "本次查询进入拒绝路径。"
+                )
+            else:
+                reason.append(
+                    "检测到 SQL 注入、敏感字段访问"
+                    "或数据库修改行为，"
+                    "本次查询进入拒绝路径。"
+                )
 
         if sql_lower and not sql_lower.strip().startswith("select"):
             risk_score += get_risk_score("non_select_sql", 30)

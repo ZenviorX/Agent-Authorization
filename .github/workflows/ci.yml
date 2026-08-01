@@ -1,21 +1,48 @@
-name: CI
+﻿name: AgentGuard Security CI
 
 on:
   push:
     branches:
       - main
+
   pull_request:
     branches:
       - main
+
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: >-
+    agentguard-security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  backend-test-frontend-build:
-    name: Backend tests, gateway cases, and frontend build
-    runs-on: ubuntu-latest
+  backend-security-regression:
+    name: >-
+      Backend Security / ${{ matrix.os }}
+
+    runs-on: ${{ matrix.os }}
+
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+
+        python-version:
+          - "3.11"
+
+    env:
+      PYTHONUTF8: "1"
+      PYTHONHASHSEED: "0"
+      AGENTGUARD_MODE: "demo"
 
     steps:
       - name: Checkout repository
@@ -23,43 +50,256 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v5
+
         with:
-          python-version: "3.11"
-          cache: "pip"
+          python-version: >-
+            ${{ matrix.python-version }}
+          cache: pip
 
       - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      - name: Run backend authorization regression
+      - name: Verify dependency integrity
+        run: |
+          python -m pip check
+
+      - name: Compile backend source
+        run: |
+          python -m compileall -q backend scripts test
+
+      - name: Run complete backend regression
         run: |
           python scripts/run_backend_authorization_tests.py
 
-      - name: Run independent gateway test module
+      - name: Audit strict evaluation cases
+        run: |
+          python scripts/audit_evaluation_cases.py
+
+      - name: Run strict 131-case evaluation
         run: |
           python -m test.run --case-dir test/cases --output-dir test/results
 
+      - name: Enforce security metric gates
+        shell: pwsh
+
+        run: |
+          @'
+          import json
+          from pathlib import Path
+
+          path = Path(
+              "test/results/latest_summary.json"
+          )
+
+          if not path.exists():
+              raise SystemExit(
+                  "latest_summary.json was not generated."
+              )
+
+          summary = json.loads(
+              path.read_text(
+                  encoding="utf-8-sig"
+              )
+          )
+
+          total = int(
+              summary.get(
+                  "total_cases",
+                  summary.get("total", 0),
+              )
+              or 0
+          )
+
+          passed = int(
+              summary.get(
+                  "passed_cases",
+                  summary.get("passed", 0),
+              )
+              or 0
+          )
+
+          failed = int(
+              summary.get(
+                  "failed_cases",
+                  summary.get("failed", 0),
+              )
+              or 0
+          )
+
+          accuracy = float(
+              summary.get(
+                  "accuracy",
+                  0,
+              )
+              or 0
+          )
+
+          unsafe_allow = float(
+              summary.get(
+                  "risk_unsafe_allow_rate",
+                  summary.get(
+                      "risk_unsafe_allow",
+                      0,
+                  ),
+              )
+              or 0
+          )
+
+          normal_false_deny = float(
+              summary.get(
+                  "normal_false_deny_rate",
+                  summary.get(
+                      "normal_false_deny",
+                      0,
+                  ),
+              )
+              or 0
+          )
+
+          failures = []
+
+          if total != 131:
+              failures.append(
+                  f"expected 131 cases, got {total}"
+              )
+
+          if passed != 131:
+              failures.append(
+                  f"expected 131 passed, got {passed}"
+              )
+
+          if failed != 0:
+              failures.append(
+                  f"expected 0 failed, got {failed}"
+              )
+
+          # 同时兼容 1.0 和 100.0 两种表示。
+          normalized_accuracy = (
+              accuracy / 100
+              if accuracy > 1
+              else accuracy
+          )
+
+          if normalized_accuracy < 1:
+              failures.append(
+                  f"accuracy is not 100%: {accuracy}"
+              )
+
+          normalized_unsafe = (
+              unsafe_allow / 100
+              if unsafe_allow > 1
+              else unsafe_allow
+          )
+
+          if normalized_unsafe != 0:
+              failures.append(
+                  "unsafe allow rate is not zero: "
+                  + str(unsafe_allow)
+              )
+
+          normalized_false_deny = (
+              normal_false_deny / 100
+              if normal_false_deny > 1
+              else normal_false_deny
+          )
+
+          if normalized_false_deny != 0:
+              failures.append(
+                  "normal false deny rate is not zero: "
+                  + str(normal_false_deny)
+              )
+
+          print(
+              "total_cases:",
+              total,
+          )
+
+          print(
+              "passed_cases:",
+              passed,
+          )
+
+          print(
+              "failed_cases:",
+              failed,
+          )
+
+          print(
+              "accuracy:",
+              accuracy,
+          )
+
+          print(
+              "risk_unsafe_allow_rate:",
+              unsafe_allow,
+          )
+
+          print(
+              "normal_false_deny_rate:",
+              normal_false_deny,
+          )
+
+          if failures:
+              for failure in failures:
+                  print(
+                      "SECURITY GATE FAILED:",
+                      failure,
+                  )
+
+              raise SystemExit(1)
+
+          print(
+              "All AgentGuard security "
+              "metric gates passed."
+          )
+          '@ | python -
+
+      - name: Run authorization ablation
+        run: |
+          python scripts/run_submission_key_eval.py
+
+      - name: Upload backend security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+
+        with:
+          name: >-
+            agentguard-security-${{ matrix.os }}
+          if-no-files-found: ignore
+          retention-days: 14
+
+          path: |
+            test/results/**
+            docs/evaluation/submission_key_eval_summary.json
+            docs/evaluation/submission_key_eval_report.md
+
+  frontend-build:
+    name: Frontend Build Verification
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
+
         with:
           node-version: "20"
 
       - name: Install frontend dependencies
         working-directory: frontend
+
         run: |
           npm install --no-audit --no-fund
 
-      - name: Build frontend
+      - name: Build existing frontend
         working-directory: frontend
+
         run: |
           npm run build
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agentguard-test-results
-          if-no-files-found: ignore
-          path: |
-            test/results/**

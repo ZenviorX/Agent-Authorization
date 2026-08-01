@@ -33,7 +33,7 @@ def test_gateway_returns_default_semantic_guard_when_disabled(monkeypatch):
     assert result["semantic_guard"]["labels"] == []
 
 
-def test_gateway_returns_structured_semantic_guard_result(monkeypatch):
+def test_gateway_returns_structured_critical_semantic_result(monkeypatch):
     def fake_semantic_guard(**kwargs):
         return {
             "enabled": True,
@@ -64,7 +64,7 @@ def test_gateway_returns_structured_semantic_guard_result(monkeypatch):
         },
     )
 
-    assert result["decision"] == "confirm"
+    assert result["decision"] == "deny"
     assert result["semantic_guard"]["enabled"] is True
     assert result["semantic_guard"]["risk_score"] == 25
     assert result["semantic_guard"]["labels"] == ["data_exfiltration"]

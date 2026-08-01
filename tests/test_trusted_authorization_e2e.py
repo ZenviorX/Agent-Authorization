@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+
+from cryptography.hazmat.primitives import (
+    serialization,
+)
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+)
 
 from starlette.requests import Request
 
@@ -53,6 +64,73 @@ class TrustedAuthorizationEndToEndTest(
 
         temporary_path = Path(
             self.temporary_directory.name
+        )
+
+        evidence_environment_names = [
+            (
+                "AGENTGUARD_"
+                "AUDIT_SIGNING_PRIVATE_KEY_PEM"
+            ),
+            (
+                "AGENTGUARD_"
+                "AUDIT_SIGNING_PUBLIC_KEY_PEM"
+            ),
+            (
+                "AGENTGUARD_"
+                "AUDIT_SIGNING_KEY_ID"
+            ),
+        ]
+
+        self.original_evidence_environment = {
+            name: os.environ.get(name)
+            for name in evidence_environment_names
+        }
+
+        evidence_private_key = (
+            Ed25519PrivateKey.generate()
+        )
+
+        evidence_public_key = (
+            evidence_private_key.public_key()
+        )
+
+        os.environ[
+            "AGENTGUARD_"
+            "AUDIT_SIGNING_PRIVATE_KEY_PEM"
+        ] = evidence_private_key.private_bytes(
+            encoding=(
+                serialization.Encoding.PEM
+            ),
+            format=(
+                serialization
+                .PrivateFormat
+                .PKCS8
+            ),
+            encryption_algorithm=(
+                serialization
+                .NoEncryption()
+            ),
+        ).decode("utf-8")
+
+        os.environ[
+            "AGENTGUARD_"
+            "AUDIT_SIGNING_PUBLIC_KEY_PEM"
+        ] = evidence_public_key.public_bytes(
+            encoding=(
+                serialization.Encoding.PEM
+            ),
+            format=(
+                serialization
+                .PublicFormat
+                .SubjectPublicKeyInfo
+            ),
+        ).decode("utf-8")
+
+        os.environ[
+            "AGENTGUARD_"
+            "AUDIT_SIGNING_KEY_ID"
+        ] = (
+            "trusted-e2e-evidence-key"
         )
 
         self.original_audit_db_path = (
@@ -358,6 +436,20 @@ class TrustedAuthorizationEndToEndTest(
         trusted_routes.verify_access_token = (
             self.original_verify_token
         )
+
+        for (
+            name,
+            original_value,
+        ) in self.original_evidence_environment.items():
+            if original_value is None:
+                os.environ.pop(
+                    name,
+                    None,
+                )
+            else:
+                os.environ[name] = (
+                    original_value
+                )
 
         if self.task_handle:
             connection = connect()
@@ -1208,6 +1300,121 @@ class TrustedAuthorizationEndToEndTest(
 
         self.assertTrue(
             evidence_result["valid"]
+        )
+
+        self.assertTrue(
+            evidence_result[
+                "bundle_signature_valid"
+            ]
+        )
+
+        self.assertTrue(
+            evidence_result[
+                "bundle_signature_present"
+            ]
+        )
+
+        self.assertIn(
+            "bundle_signature",
+            evidence_bundle,
+        )
+
+        # 模拟攻击者修改证据内容后，
+        # 主动重新计算 bundle_hash。
+        # 普通哈希检查会通过，但旧签名无法伪造。
+        tampered_bundle = copy.deepcopy(
+            evidence_bundle
+        )
+
+        tampered_bundle["task"][
+            "task_version"
+        ] = (
+            int(
+                tampered_bundle[
+                    "task"
+                ]["task_version"]
+            )
+            + 1
+        )
+
+        unsigned_body = dict(
+            tampered_bundle
+        )
+
+        unsigned_body.pop(
+            "bundle_signature",
+            None,
+        )
+
+        unsigned_body.pop(
+            "bundle_hash",
+            None,
+        )
+
+        tampered_bundle[
+            "bundle_hash"
+        ] = hashlib.sha256(
+            json.dumps(
+                unsigned_body,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+
+        tampered_result = (
+            verify_task_evidence_bundle(
+                tampered_bundle,
+                require_signature=True,
+            )
+        )
+
+        self.assertTrue(
+            tampered_result[
+                "bundle_hash_valid"
+            ]
+        )
+
+        self.assertFalse(
+            tampered_result[
+                "bundle_signature_valid"
+            ]
+        )
+
+        self.assertFalse(
+            tampered_result["valid"]
+        )
+
+        unsigned_bundle = copy.deepcopy(
+            evidence_bundle
+        )
+
+        unsigned_bundle.pop(
+            "bundle_signature",
+            None,
+        )
+
+        unsigned_result = (
+            verify_task_evidence_bundle(
+                unsigned_bundle,
+                require_signature=True,
+            )
+        )
+
+        self.assertTrue(
+            unsigned_result[
+                "bundle_hash_valid"
+            ]
+        )
+
+        self.assertFalse(
+            unsigned_result[
+                "bundle_signature_present"
+            ]
+        )
+
+        self.assertFalse(
+            unsigned_result["valid"]
         )
 
         self.assertNotIn(

@@ -1,4 +1,6 @@
 from __future__ import annotations
+import hashlib
+import time
 
 import json
 import secrets
@@ -1279,3 +1281,421 @@ def consume_approval_ticket(
         expected_task_handle=task_handle,
         expected_user=user,
     )
+
+
+def _mcp_canonical_json(
+    value,
+) -> str:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+
+
+def _mcp_sha256_text(
+    value: str,
+) -> str:
+    return hashlib.sha256(
+        str(value).encode("utf-8")
+    ).hexdigest()
+
+
+def _ensure_mcp_idempotency_schema(
+    connection: sqlite3.Connection,
+) -> None:
+    connection.execute(
+        """
+        CREATE TABLE IF NOT EXISTS
+        trusted_mcp_idempotency (
+            key_hash TEXT PRIMARY KEY,
+            principal_hash TEXT NOT NULL,
+            request_hash TEXT NOT NULL,
+            status TEXT NOT NULL,
+            claim_token TEXT NOT NULL,
+            http_status INTEGER,
+            response_json TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            expires_at_epoch INTEGER NOT NULL
+        )
+        """
+    )
+
+    connection.execute(
+        """
+        CREATE INDEX IF NOT EXISTS
+        idx_mcp_idempotency_expiry
+        ON trusted_mcp_idempotency(
+            expires_at_epoch
+        )
+        """
+    )
+
+
+def claim_mcp_idempotency_key(
+    *,
+    subject: str,
+    client_id: str,
+    idempotency_key: str,
+    request_payload: dict,
+    ttl_seconds: int,
+) -> dict:
+    normalized_subject = str(
+        subject or ""
+    ).strip()
+
+    normalized_client = str(
+        client_id or ""
+    ).strip()
+
+    normalized_key = str(
+        idempotency_key or ""
+    ).strip()
+
+    if not normalized_subject:
+        raise ValueError(
+            "OAuth subject is required."
+        )
+
+    if not normalized_key:
+        raise ValueError(
+            "Idempotency key is required."
+        )
+
+    ttl = max(
+        60,
+        min(
+            int(ttl_seconds),
+            7 * 24 * 60 * 60,
+        ),
+    )
+
+    principal_hash = (
+        _mcp_sha256_text(
+            normalized_subject
+            + "\n"
+            + normalized_client
+        )
+    )
+
+    key_hash = _mcp_sha256_text(
+        principal_hash
+        + "\n"
+        + normalized_key
+    )
+
+    request_hash = (
+        _mcp_sha256_text(
+            _mcp_canonical_json(
+                request_payload
+            )
+        )
+    )
+
+    claim_token = (
+        "agc_"
+        + secrets.token_urlsafe(32)
+    )
+
+    current_epoch = int(
+        time.time()
+    )
+
+    expires_at = (
+        current_epoch + ttl
+    )
+
+    timestamp = now_iso()
+
+    connection = connect()
+
+    try:
+        connection.execute(
+            "BEGIN IMMEDIATE"
+        )
+
+        _ensure_mcp_idempotency_schema(
+            connection
+        )
+
+        connection.execute(
+            """
+            DELETE FROM
+                trusted_mcp_idempotency
+            WHERE expires_at_epoch <= ?
+            """,
+            (current_epoch,),
+        )
+
+        row = connection.execute(
+            """
+            SELECT
+                key_hash,
+                request_hash,
+                status,
+                claim_token,
+                http_status,
+                response_json,
+                expires_at_epoch
+            FROM trusted_mcp_idempotency
+            WHERE key_hash = ?
+            """,
+            (key_hash,),
+        ).fetchone()
+
+        if row is not None:
+            if (
+                str(row["request_hash"])
+                != request_hash
+            ):
+                connection.commit()
+
+                return {
+                    "state": "conflict",
+                    "key_hash": key_hash,
+                    "request_hash": (
+                        request_hash
+                    ),
+                    "reason": (
+                        "The idempotency key "
+                        "is already bound to "
+                        "a different request."
+                    ),
+                }
+
+            status = str(
+                row["status"]
+            )
+
+            if status == "completed":
+                try:
+                    response_body = (
+                        json.loads(
+                            str(
+                                row[
+                                    "response_json"
+                                ]
+                                or "null"
+                            )
+                        )
+                    )
+
+                except json.JSONDecodeError:
+                    connection.commit()
+
+                    return {
+                        "state": "corrupted",
+                        "key_hash": key_hash,
+                        "request_hash": (
+                            request_hash
+                        ),
+                        "reason": (
+                            "Stored idempotency "
+                            "response is corrupted."
+                        ),
+                    }
+
+                connection.commit()
+
+                return {
+                    "state": "completed",
+                    "key_hash": key_hash,
+                    "request_hash": (
+                        request_hash
+                    ),
+                    "http_status": int(
+                        row["http_status"]
+                        or 200
+                    ),
+                    "response_body": (
+                        response_body
+                    ),
+                }
+
+            connection.commit()
+
+            return {
+                "state": "in_progress",
+                "key_hash": key_hash,
+                "request_hash": (
+                    request_hash
+                ),
+                "expires_at_epoch": int(
+                    row[
+                        "expires_at_epoch"
+                    ]
+                ),
+                "reason": (
+                    "An identical MCP request "
+                    "is already being processed."
+                ),
+            }
+
+        connection.execute(
+            """
+            INSERT INTO
+                trusted_mcp_idempotency (
+                    key_hash,
+                    principal_hash,
+                    request_hash,
+                    status,
+                    claim_token,
+                    http_status,
+                    response_json,
+                    created_at,
+                    updated_at,
+                    expires_at_epoch
+                )
+            VALUES (
+                ?, ?, ?, 'processing',
+                ?, NULL, NULL, ?, ?, ?
+            )
+            """,
+            (
+                key_hash,
+                principal_hash,
+                request_hash,
+                claim_token,
+                timestamp,
+                timestamp,
+                expires_at,
+            ),
+        )
+
+        connection.commit()
+
+        return {
+            "state": "acquired",
+            "key_hash": key_hash,
+            "request_hash": request_hash,
+            "claim_token": claim_token,
+            "expires_at_epoch": (
+                expires_at
+            ),
+        }
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def complete_mcp_idempotency_key(
+    *,
+    key_hash: str,
+    request_hash: str,
+    claim_token: str,
+    http_status: int,
+    response_body,
+) -> dict:
+    response_json = (
+        _mcp_canonical_json(
+            response_body
+        )
+    )
+
+    connection = connect()
+
+    try:
+        connection.execute(
+            "BEGIN IMMEDIATE"
+        )
+
+        _ensure_mcp_idempotency_schema(
+            connection
+        )
+
+        cursor = connection.execute(
+            """
+            UPDATE trusted_mcp_idempotency
+            SET
+                status = 'completed',
+                http_status = ?,
+                response_json = ?,
+                updated_at = ?
+            WHERE key_hash = ?
+              AND request_hash = ?
+              AND claim_token = ?
+              AND status = 'processing'
+            """,
+            (
+                int(http_status),
+                response_json,
+                now_iso(),
+                str(key_hash),
+                str(request_hash),
+                str(claim_token),
+            ),
+        )
+
+        completed = (
+            cursor.rowcount == 1
+        )
+
+        connection.commit()
+
+        return {
+            "completed": completed,
+            "state": (
+                "completed"
+                if completed
+                else "claim_mismatch"
+            ),
+        }
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+
+
+def abandon_mcp_idempotency_key(
+    *,
+    key_hash: str,
+    request_hash: str,
+    claim_token: str,
+) -> bool:
+    connection = connect()
+
+    try:
+        connection.execute(
+            "BEGIN IMMEDIATE"
+        )
+
+        _ensure_mcp_idempotency_schema(
+            connection
+        )
+
+        cursor = connection.execute(
+            """
+            DELETE FROM
+                trusted_mcp_idempotency
+            WHERE key_hash = ?
+              AND request_hash = ?
+              AND claim_token = ?
+              AND status = 'processing'
+            """,
+            (
+                str(key_hash),
+                str(request_hash),
+                str(claim_token),
+            ),
+        )
+
+        connection.commit()
+
+        return cursor.rowcount == 1
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()

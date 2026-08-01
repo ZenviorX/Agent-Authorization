@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,8 +12,20 @@ from typing import Any, Dict, Tuple
 
 
 WORKSPACE = Path("/workspace")
+DATABASE_PATH = (
+    WORKSPACE
+    / "agent_runtime.db"
+)
+
 MAX_READ_BYTES = 512 * 1024
-SAFE_SHELL_COMMANDS = {"echo", "pwd", "ls", "cat"}
+MAX_DB_ROWS = 200
+
+SAFE_SHELL_COMMANDS = {
+    "echo",
+    "pwd",
+    "ls",
+    "cat",
+}
 
 
 class SandboxDenied(Exception):
@@ -114,6 +128,413 @@ def _write_file(params: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _delete_file(
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    path, rel = _resolve_workspace_path(
+        _get_path(params)
+    )
+
+    # Docker 中只有 outbox 是可写挂载。
+    if not rel.startswith("outbox/"):
+        raise SandboxDenied(
+            "Docker sandbox only allows "
+            "file.delete under outbox/."
+        )
+
+    if not path.exists():
+        raise SandboxDenied(
+            f"File does not exist in mounted workspace: {rel}"
+        )
+
+    if not path.is_file():
+        raise SandboxDenied(
+            f"Target is not a regular file: {rel}"
+        )
+
+    path.unlink()
+
+    return {
+        "success": True,
+        "result": {
+            "message": (
+                "File deleted inside Docker "
+                "sandbox outbox mount."
+            ),
+            "path": rel,
+        },
+    }
+
+
+def _validate_readonly_sql(
+    raw_sql: Any,
+) -> str:
+    sql = str(raw_sql or "").strip()
+
+    if not sql:
+        raise SandboxDenied(
+            "SQL query is empty."
+        )
+
+    normalized = sql.rstrip(";").strip()
+
+    if ";" in normalized:
+        raise SandboxDenied(
+            "Multiple SQL statements are denied."
+        )
+
+    lowered = re.sub(
+        r"\s+",
+        " ",
+        normalized.lower(),
+    )
+
+    if not (
+        lowered.startswith("select ")
+        or lowered == "select"
+        or lowered.startswith("with ")
+    ):
+        raise SandboxDenied(
+            "Docker sandbox database only permits "
+            "SELECT or read-only WITH queries."
+        )
+
+    forbidden_pattern = (
+        r"\b("
+        r"insert|update|delete|drop|alter|"
+        r"create|replace|attach|detach|"
+        r"pragma|vacuum|reindex|analyze"
+        r")\b"
+    )
+
+    if re.search(
+        forbidden_pattern,
+        lowered,
+    ):
+        raise SandboxDenied(
+            "Database modification or administrative "
+            "SQL is denied."
+        )
+
+    if re.search(
+        r"load_extension\s*\(",
+        lowered,
+    ):
+        raise SandboxDenied(
+            "SQLite extension loading is denied."
+        )
+
+    return normalized
+
+
+
+
+def _execute_public_database_query(
+    database_path: Path,
+    sql: str,
+) -> Dict[str, Any]:
+    """
+    从原始只读数据库提取 public 数据，
+    再在隔离的内存数据库中执行 Agent SQL。
+    """
+    from urllib.parse import quote
+
+    source_connection = None
+    public_connection = None
+
+    try:
+        resolved_path = (
+            database_path.resolve()
+        )
+
+        if not resolved_path.exists():
+            raise SandboxDenied(
+                "Runtime database does not exist: "
+                + str(resolved_path)
+            )
+
+        # Windows:
+        # file:D:/project/.../agent_runtime.db?mode=ro
+        #
+        # Linux:
+        # file:/home/.../agent_runtime.db?mode=ro
+        encoded_path = quote(
+            resolved_path.as_posix(),
+            safe="/:",
+        )
+
+        source_uri = (
+            "file:"
+            + encoded_path
+            + "?mode=ro"
+        )
+
+        source_connection = (
+            sqlite3.connect(
+                source_uri,
+                uri=True,
+                timeout=5,
+            )
+        )
+
+        source_connection.execute(
+            "PRAGMA query_only=ON"
+        )
+
+        table_exists = (
+            source_connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE
+                    type = 'table'
+                    AND name = 'notices'
+                """
+            ).fetchone()
+        )
+
+        if table_exists is None:
+            raise SandboxDenied(
+                "Runtime database does not "
+                "contain the notices table."
+            )
+
+        table_info = (
+            source_connection.execute(
+                "PRAGMA table_info(notices)"
+            ).fetchall()
+        )
+
+        available_columns = {
+            str(row[1]).lower()
+            for row in table_info
+        }
+
+        required_columns = {
+            "id",
+            "title",
+            "content",
+            "visibility",
+        }
+
+        missing_columns = (
+            required_columns
+            - available_columns
+        )
+
+        if missing_columns:
+            raise SandboxDenied(
+                "The notices table is missing "
+                "required columns: "
+                + ", ".join(
+                    sorted(missing_columns)
+                )
+            )
+
+        public_source_rows = (
+            source_connection.execute(
+                """
+                SELECT
+                    id,
+                    title,
+                    content,
+                    visibility
+                FROM notices
+                WHERE
+                    lower(
+                        trim(visibility)
+                    ) = 'public'
+                ORDER BY id
+                """
+            ).fetchall()
+        )
+
+        public_connection = (
+            sqlite3.connect(":memory:")
+        )
+
+        public_connection.row_factory = (
+            sqlite3.Row
+        )
+
+        public_connection.execute(
+            """
+            CREATE TABLE notices (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                visibility TEXT NOT NULL
+                    CHECK (
+                        visibility = 'public'
+                    )
+            )
+            """
+        )
+
+        public_connection.executemany(
+            """
+            INSERT INTO notices (
+                id,
+                title,
+                content,
+                visibility
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            public_source_rows,
+        )
+
+        public_connection.commit()
+
+        public_connection.execute(
+            "PRAGMA query_only=ON"
+        )
+
+        executed_vm_steps = [0]
+
+        def progress_handler():
+            executed_vm_steps[0] += 1000
+
+            if (
+                executed_vm_steps[0]
+                > 200000
+            ):
+                return 1
+
+            return 0
+
+        public_connection.set_progress_handler(
+            progress_handler,
+            1000,
+        )
+
+        cursor = public_connection.execute(
+            sql
+        )
+
+        columns = [
+            str(item[0])
+            for item in (
+                cursor.description
+                or []
+            )
+        ]
+
+        fetched_rows = cursor.fetchmany(
+            MAX_DB_ROWS + 1
+        )
+
+        truncated = (
+            len(fetched_rows)
+            > MAX_DB_ROWS
+        )
+
+        visible_rows = fetched_rows[
+            :MAX_DB_ROWS
+        ]
+
+        return {
+            "sql": sql,
+            "columns": columns,
+            "rows": [
+                dict(row)
+                for row in visible_rows
+            ],
+            "row_count": len(
+                visible_rows
+            ),
+            "truncated": truncated,
+            "data_scope": "public",
+            "source_public_rows": len(
+                public_source_rows
+            ),
+            "policy": {
+                "source_database": (
+                    "read_only"
+                ),
+                "query_database": (
+                    "sanitized_in_memory"
+                ),
+                "allowed_tables": [
+                    "notices"
+                ],
+                "allowed_visibility": [
+                    "public"
+                ],
+                "max_rows": (
+                    MAX_DB_ROWS
+                ),
+                "max_vm_steps": 200000,
+            },
+        }
+
+    except sqlite3.OperationalError as exc:
+        if (
+            "interrupted"
+            in str(exc).lower()
+        ):
+            raise SandboxDenied(
+                "Database query exceeded "
+                "the execution budget."
+            ) from exc
+
+        raise SandboxDenied(
+            "Public database query failed: "
+            + str(exc)
+        ) from exc
+
+    except sqlite3.DatabaseError as exc:
+        raise SandboxDenied(
+            "Public database projection "
+            "failed: "
+            + str(exc)
+        ) from exc
+
+    finally:
+        if public_connection is not None:
+            public_connection.close()
+
+        if source_connection is not None:
+            source_connection.close()
+
+
+
+
+def _query_database(
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    sql = _validate_readonly_sql(
+        str(
+            params.get("sql")
+            or ""
+        )
+    )
+
+    database_path = (
+        DATABASE_PATH.resolve()
+    )
+
+    if not database_path.exists():
+        raise SandboxDenied(
+            "Runtime database does not exist."
+        )
+
+    projected_result = (
+        _execute_public_database_query(
+            database_path,
+            sql,
+        )
+    )
+
+    # Docker Runner 与 Native Runner
+    # 使用完全相同的工具返回协议。
+    return {
+        "success": True,
+        "result": projected_result,
+    }
+
+
+
 def _send_email(params: Dict[str, Any]) -> Dict[str, Any]:
     to = str(params.get("to") or "").strip()
     if not to:
@@ -202,10 +623,14 @@ def execute_tool(tool: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return _read_file(params)
     if normalized == "file.write":
         return _write_file(params)
+    if normalized == "file.delete":
+        return _delete_file(params)
     if normalized == "email.send":
         return _send_email(params)
     if normalized == "shell.run":
         return _run_shell(params)
+    if normalized == "db.query":
+        return _query_database(params)
 
     raise SandboxDenied(f"Tool is not implemented in Docker sandbox runner: {tool}")
 

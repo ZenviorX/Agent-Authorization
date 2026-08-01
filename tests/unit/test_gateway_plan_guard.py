@@ -27,7 +27,7 @@ def test_low_confidence_is_denied():
     assert result["decision"] == "deny"
 
 
-def test_missing_param_requires_confirm():
+def test_missing_param_is_denied_by_fail_closed_policy():
     result = check_tool_call(
         ToolCallRequest(
             user="user",
@@ -37,4 +37,8 @@ def test_missing_param_requires_confirm():
         )
     )
 
-    assert result["decision"] == "confirm"
+    assert result["decision"] == "deny"
+    assert any(
+        "失败关闭" in item
+        for item in result["reason"]
+    )

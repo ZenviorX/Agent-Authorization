@@ -518,14 +518,244 @@ def run_shell(params: dict[str, Any]):
         "result": f"命令暂未实现：{command_name}",
     }
 
-def query_db(params: dict[str, Any]):
-    """
-    沙箱数据库查询。
 
-    只允许 SELECT 查询，防止通过工具执行修改或破坏性 SQL。
-    """
 
-    sql = str(params.get("sql", "")).strip()
+def _execute_public_database_projection(
+    database_path: Path,
+    sql: str,
+) -> dict[str, Any]:
+    from urllib.parse import quote
+
+    source_connection = None
+    public_connection = None
+
+    try:
+        resolved_path = (
+            database_path.resolve()
+        )
+
+        if not resolved_path.exists():
+            raise RuntimeError(
+                "运行时数据库不存在："
+                + str(resolved_path)
+            )
+
+        encoded_path = quote(
+            resolved_path.as_posix(),
+            safe="/:",
+        )
+
+        source_uri = (
+            "file:"
+            + encoded_path
+            + "?mode=ro"
+        )
+
+        source_connection = (
+            sqlite3.connect(
+                source_uri,
+                uri=True,
+                timeout=5,
+            )
+        )
+
+        source_connection.execute(
+            "PRAGMA query_only=ON"
+        )
+
+        table_exists = (
+            source_connection.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE
+                    type = 'table'
+                    AND name = 'notices'
+                """
+            ).fetchone()
+        )
+
+        if table_exists is None:
+            raise RuntimeError(
+                "运行时数据库不存在 notices 表"
+            )
+
+        table_info = (
+            source_connection.execute(
+                "PRAGMA table_info(notices)"
+            ).fetchall()
+        )
+
+        columns = {
+            str(row[1]).lower()
+            for row in table_info
+        }
+
+        required_columns = {
+            "id",
+            "title",
+            "content",
+            "visibility",
+        }
+
+        missing_columns = (
+            required_columns - columns
+        )
+
+        if missing_columns:
+            raise RuntimeError(
+                "notices 表缺少字段："
+                + ", ".join(
+                    sorted(missing_columns)
+                )
+            )
+
+        public_rows = (
+            source_connection.execute(
+                """
+                SELECT
+                    id,
+                    title,
+                    content,
+                    visibility
+                FROM notices
+                WHERE
+                    lower(
+                        trim(visibility)
+                    ) = 'public'
+                ORDER BY id
+                """
+            ).fetchall()
+        )
+
+        public_connection = (
+            sqlite3.connect(":memory:")
+        )
+
+        public_connection.row_factory = (
+            sqlite3.Row
+        )
+
+        public_connection.execute(
+            """
+            CREATE TABLE notices (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                visibility TEXT NOT NULL
+                    CHECK (
+                        visibility = 'public'
+                    )
+            )
+            """
+        )
+
+        public_connection.executemany(
+            """
+            INSERT INTO notices (
+                id,
+                title,
+                content,
+                visibility
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            public_rows,
+        )
+
+        public_connection.commit()
+
+        public_connection.execute(
+            "PRAGMA query_only=ON"
+        )
+
+        executed_steps = [0]
+
+        def progress_handler():
+            executed_steps[0] += 1000
+
+            return int(
+                executed_steps[0]
+                > 200000
+            )
+
+        public_connection.set_progress_handler(
+            progress_handler,
+            1000,
+        )
+
+        cursor = public_connection.execute(
+            sql
+        )
+
+        result_columns = [
+            str(item[0])
+            for item in (
+                cursor.description
+                or []
+            )
+        ]
+
+        fetched = cursor.fetchmany(201)
+        visible_rows = fetched[:200]
+
+        return {
+            "sql": sql,
+            "columns": result_columns,
+            "rows": [
+                dict(row)
+                for row in visible_rows
+            ],
+            "row_count": len(
+                visible_rows
+            ),
+            "truncated": (
+                len(fetched) > 200
+            ),
+            "data_scope": "public",
+            "source_public_rows": len(
+                public_rows
+            ),
+            "policy": {
+                "source_database": (
+                    "read_only"
+                ),
+                "query_database": (
+                    "sanitized_in_memory"
+                ),
+                "allowed_tables": [
+                    "notices"
+                ],
+                "allowed_visibility": [
+                    "public"
+                ],
+                "max_rows": 200,
+                "max_vm_steps": 200000,
+            },
+        }
+
+    finally:
+        if public_connection is not None:
+            public_connection.close()
+
+        if source_connection is not None:
+            source_connection.close()
+
+
+
+def query_db(
+    params: dict[str, Any],
+):
+    """
+    在公开数据投影上执行只读 SQL。
+
+    Agent 无法直接查询包含 course 或 secret
+    记录的原始数据库。
+    """
+    sql = str(
+        params.get("sql")
+        or ""
+    ).strip()
 
     if not sql:
         return {
@@ -533,42 +763,103 @@ def query_db(params: dict[str, Any]):
             "result": "SQL 语句为空",
         }
 
-    normalized_sql = sql.rstrip(";").strip()
-    lowered_sql = normalized_sql.lower()
+    normalized_sql = (
+        sql.rstrip(";").strip()
+    )
 
-    if not lowered_sql.startswith("select"):
+    lowered_sql = (
+        normalized_sql.lower()
+    )
+
+    if not lowered_sql.startswith(
+        (
+            "select",
+            "with",
+        )
+    ):
         return {
             "success": False,
-            "result": "沙箱数据库只允许 SELECT 查询",
+            "result": (
+                "沙箱数据库仅允许 "
+                "SELECT 或 WITH 查询"
+            ),
         }
 
     if ";" in normalized_sql:
         return {
             "success": False,
-            "result": "禁止执行多条 SQL 语句",
+            "result": (
+                "沙箱数据库禁止多语句 SQL"
+            ),
         }
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    forbidden_tokens = [
+        "insert",
+        "update",
+        "delete",
+        "drop",
+        "alter",
+        "create",
+        "replace",
+        "attach",
+        "detach",
+        "pragma",
+        "vacuum",
+        "reindex",
+        "analyze",
+        "load_extension",
+    ]
+
+    for token in forbidden_tokens:
+        if token in lowered_sql:
+            return {
+                "success": False,
+                "result": (
+                    "SQL 包含禁止操作："
+                    + token
+                ),
+            }
 
     try:
-        rows = conn.execute(normalized_sql).fetchall()
-        result_rows = [dict(row) for row in rows]
+        result = (
+            _execute_public_database_projection(
+                DB_PATH,
+                normalized_sql,
+            )
+        )
 
-    except sqlite3.Error as exc:
         return {
-            "success": False,
-            "result": f"数据库查询失败：{exc}",
+            "success": True,
+            "result": result,
         }
 
-    finally:
-        conn.close()
+    except sqlite3.OperationalError as exc:
+        if (
+            "interrupted"
+            in str(exc).lower()
+        ):
+            message = (
+                "数据库查询超过执行预算"
+            )
+        else:
+            message = (
+                "公开数据库查询失败："
+                + str(exc)
+            )
 
-    return {
-        "success": True,
-        "result": {
-            "rows": result_rows,
-            "row_count": len(result_rows),
-            "database": str(DB_PATH.relative_to(SANDBOX_DIR)),
-        },
-    }
+        return {
+            "success": False,
+            "result": message,
+        }
+
+    except (
+        sqlite3.DatabaseError,
+        RuntimeError,
+    ) as exc:
+        return {
+            "success": False,
+            "result": (
+                "数据库数据隔离失败："
+                + str(exc)
+            ),
+        }

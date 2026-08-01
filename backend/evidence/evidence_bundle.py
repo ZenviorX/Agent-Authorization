@@ -1,10 +1,26 @@
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from cryptography.exceptions import (
+    InvalidSignature,
+)
+
+from cryptography.hazmat.primitives import (
+    serialization,
+)
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
 
 from backend.audit.decision_snapshot import (
     verify_decision_snapshot,
@@ -23,7 +39,36 @@ from backend.task_session.task_store import (
 )
 
 
-EVIDENCE_BUNDLE_VERSION = 1
+EVIDENCE_BUNDLE_VERSION = 2
+
+SUPPORTED_EVIDENCE_BUNDLE_VERSIONS = {
+    1,
+    2,
+}
+
+EVIDENCE_SIGNATURE_SCHEMA = (
+    "agentguard.evidence_bundle_signature.v1"
+)
+
+EVIDENCE_SIGNATURE_ALGORITHM = (
+    "Ed25519"
+)
+
+EVIDENCE_SIGNATURE_REQUIRED_ENV = (
+    "AGENTGUARD_REQUIRE_EVIDENCE_BUNDLE_SIGNATURE"
+)
+
+EVIDENCE_PRIVATE_KEY_ENV = (
+    "AGENTGUARD_AUDIT_SIGNING_PRIVATE_KEY_PEM"
+)
+
+EVIDENCE_PUBLIC_KEY_ENV = (
+    "AGENTGUARD_AUDIT_SIGNING_PUBLIC_KEY_PEM"
+)
+
+EVIDENCE_KEY_ID_ENV = (
+    "AGENTGUARD_AUDIT_SIGNING_KEY_ID"
+)
 
 
 class EvidenceBundleError(RuntimeError):
@@ -69,6 +114,484 @@ def _sha256_text(
     return hashlib.sha256(
         str(value).encode("utf-8")
     ).hexdigest()
+
+
+def _environment_enabled(
+    name: str,
+) -> bool:
+    return os.getenv(
+        name,
+        "",
+    ).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _evidence_signature_required(
+) -> bool:
+    if _environment_enabled(
+        EVIDENCE_SIGNATURE_REQUIRED_ENV
+    ):
+        return True
+
+    return (
+        os.getenv(
+            "AGENTGUARD_MODE",
+            "demo",
+        ).strip().lower()
+        == "competition"
+    )
+
+
+def _b64url_encode(
+    value: bytes,
+) -> str:
+    return (
+        base64.urlsafe_b64encode(value)
+        .decode("ascii")
+        .rstrip("=")
+    )
+
+
+def _b64url_decode(
+    value: str,
+) -> bytes:
+    normalized = str(value or "")
+
+    padded = normalized + (
+        "=" * (-len(normalized) % 4)
+    )
+
+    return base64.urlsafe_b64decode(
+        padded.encode("ascii")
+    )
+
+
+def _load_evidence_private_key(
+) -> Ed25519PrivateKey:
+    private_pem = os.getenv(
+        EVIDENCE_PRIVATE_KEY_ENV,
+        "",
+    ).strip()
+
+    if not private_pem:
+        raise EvidenceBundleError(
+            "证据包需要签名，但缺少环境变量："
+            + EVIDENCE_PRIVATE_KEY_ENV
+        )
+
+    try:
+        private_key = (
+            serialization
+            .load_pem_private_key(
+                private_pem.encode(
+                    "utf-8"
+                ),
+                password=None,
+            )
+        )
+
+    except Exception as exc:
+        raise EvidenceBundleError(
+            "证据包 Ed25519 私钥无法解析。"
+        ) from exc
+
+    if not isinstance(
+        private_key,
+        Ed25519PrivateKey,
+    ):
+        raise EvidenceBundleError(
+            "证据包签名私钥必须是 "
+            "Ed25519 私钥。"
+        )
+
+    return private_key
+
+
+def _load_evidence_public_key(
+    public_key_pem: str = "",
+) -> tuple[
+    Optional[Ed25519PublicKey],
+    str,
+]:
+    configured_pem = (
+        str(public_key_pem or "").strip()
+        or os.getenv(
+            EVIDENCE_PUBLIC_KEY_ENV,
+            "",
+        ).strip()
+    )
+
+    if not configured_pem:
+        return (
+            None,
+            "缺少可信 Ed25519 公钥。",
+        )
+
+    try:
+        public_key = (
+            serialization
+            .load_pem_public_key(
+                configured_pem.encode(
+                    "utf-8"
+                )
+            )
+        )
+
+    except Exception:
+        return (
+            None,
+            "可信 Ed25519 公钥无法解析。",
+        )
+
+    if not isinstance(
+        public_key,
+        Ed25519PublicKey,
+    ):
+        return (
+            None,
+            "可信公钥不是 Ed25519 公钥。",
+        )
+
+    return (
+        public_key,
+        "",
+    )
+
+
+def _public_key_fingerprint(
+    public_key: Ed25519PublicKey,
+) -> str:
+    raw_public_key = (
+        public_key.public_bytes(
+            encoding=(
+                serialization.Encoding.Raw
+            ),
+            format=(
+                serialization
+                .PublicFormat
+                .Raw
+            ),
+        )
+    )
+
+    return hashlib.sha256(
+        raw_public_key
+    ).hexdigest()
+
+
+def _build_bundle_signature(
+    *,
+    bundle_hash: str,
+    bundle_version: int,
+) -> Dict[str, Any]:
+    private_key = (
+        _load_evidence_private_key()
+    )
+
+    public_key = (
+        private_key.public_key()
+    )
+
+    key_id = (
+        os.getenv(
+            EVIDENCE_KEY_ID_ENV,
+            "agentguard-audit-ed25519-v1",
+        ).strip()
+        or "agentguard-audit-ed25519-v1"
+    )
+
+    payload = {
+        "schema": (
+            EVIDENCE_SIGNATURE_SCHEMA
+        ),
+        "algorithm": (
+            EVIDENCE_SIGNATURE_ALGORITHM
+        ),
+        "bundle_version": int(
+            bundle_version
+        ),
+        "bundle_hash": str(
+            bundle_hash
+        ),
+        "signed_at": _now_iso(),
+        "key_id": key_id,
+        "public_key_sha256": (
+            _public_key_fingerprint(
+                public_key
+            )
+        ),
+    }
+
+    signature = private_key.sign(
+        _canonical_json(
+            payload
+        ).encode("utf-8")
+    )
+
+    return {
+        "payload": payload,
+        "signature": (
+            _b64url_encode(signature)
+        ),
+    }
+
+
+def _verify_bundle_signature(
+    *,
+    signature_envelope: Any,
+    bundle_hash: str,
+    bundle_version: int,
+    public_key_pem: str = "",
+) -> Dict[str, Any]:
+    if not isinstance(
+        signature_envelope,
+        dict,
+    ):
+        return {
+            "present": False,
+            "valid": False,
+            "key_id": "",
+            "public_key_sha256": "",
+            "reason": (
+                "Evidence bundle signature "
+                "is not present."
+            ),
+        }
+
+    payload = signature_envelope.get(
+        "payload"
+    )
+
+    if not isinstance(payload, dict):
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": "",
+            "public_key_sha256": "",
+            "reason": (
+                "Evidence bundle signature "
+                "payload is missing."
+            ),
+        }
+
+    key_id = str(
+        payload.get(
+            "key_id",
+            "",
+        )
+        or ""
+    )
+
+    expected_fingerprint = str(
+        payload.get(
+            "public_key_sha256",
+            "",
+        )
+        or ""
+    )
+
+    if (
+        payload.get("schema")
+        != EVIDENCE_SIGNATURE_SCHEMA
+    ):
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": key_id,
+            "public_key_sha256": (
+                expected_fingerprint
+            ),
+            "reason": (
+                "Evidence signature schema "
+                "is invalid."
+            ),
+        }
+
+    if (
+        payload.get("algorithm")
+        != EVIDENCE_SIGNATURE_ALGORITHM
+    ):
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": key_id,
+            "public_key_sha256": (
+                expected_fingerprint
+            ),
+            "reason": (
+                "Evidence signature algorithm "
+                "is invalid."
+            ),
+        }
+
+    try:
+        signed_bundle_version = int(
+            payload.get(
+                "bundle_version",
+                0,
+            )
+            or 0
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        signed_bundle_version = 0
+
+    if (
+        signed_bundle_version
+        != int(bundle_version)
+    ):
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": key_id,
+            "public_key_sha256": (
+                expected_fingerprint
+            ),
+            "reason": (
+                "Signed evidence bundle "
+                "version does not match."
+            ),
+        }
+
+    if (
+        str(
+            payload.get(
+                "bundle_hash",
+                "",
+            )
+            or ""
+        )
+        != str(bundle_hash)
+    ):
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": key_id,
+            "public_key_sha256": (
+                expected_fingerprint
+            ),
+            "reason": (
+                "Signed bundle hash does "
+                "not match the evidence bundle."
+            ),
+        }
+
+    if not key_id:
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": "",
+            "public_key_sha256": (
+                expected_fingerprint
+            ),
+            "reason": (
+                "Evidence signature Key ID "
+                "is missing."
+            ),
+        }
+
+    public_key, public_key_error = (
+        _load_evidence_public_key(
+            public_key_pem
+        )
+    )
+
+    if public_key is None:
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": key_id,
+            "public_key_sha256": (
+                expected_fingerprint
+            ),
+            "reason": public_key_error,
+        }
+
+    actual_fingerprint = (
+        _public_key_fingerprint(
+            public_key
+        )
+    )
+
+    if not hmac.compare_digest(
+        actual_fingerprint,
+        expected_fingerprint,
+    ):
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": key_id,
+            "public_key_sha256": (
+                actual_fingerprint
+            ),
+            "reason": (
+                "Evidence signature public-key "
+                "fingerprint does not match."
+            ),
+        }
+
+    try:
+        signature = _b64url_decode(
+            str(
+                signature_envelope.get(
+                    "signature",
+                    "",
+                )
+                or ""
+            )
+        )
+
+        public_key.verify(
+            signature,
+            _canonical_json(
+                payload
+            ).encode("utf-8"),
+        )
+
+    except (
+        InvalidSignature,
+        ValueError,
+        TypeError,
+    ):
+        return {
+            "present": True,
+            "valid": False,
+            "key_id": key_id,
+            "public_key_sha256": (
+                actual_fingerprint
+            ),
+            "reason": (
+                "Evidence bundle Ed25519 "
+                "signature verification failed."
+            ),
+        }
+
+    return {
+        "present": True,
+        "valid": True,
+        "key_id": key_id,
+        "public_key_sha256": (
+            actual_fingerprint
+        ),
+        "signed_at": str(
+            payload.get(
+                "signed_at",
+                "",
+            )
+            or ""
+        ),
+        "reason": (
+            "Evidence bundle Ed25519 "
+            "signature verification passed."
+        ),
+    }
 
 
 def _load_all_task_events(
@@ -679,14 +1202,48 @@ def build_task_evidence_bundle(
         _sha256_value(body)
     )
 
+    private_key_configured = bool(
+        os.getenv(
+            EVIDENCE_PRIVATE_KEY_ENV,
+            "",
+        ).strip()
+    )
+
+    if (
+        _evidence_signature_required()
+        or private_key_configured
+    ):
+        body["bundle_signature"] = (
+            _build_bundle_signature(
+                bundle_hash=(
+                    body["bundle_hash"]
+                ),
+                bundle_version=(
+                    body["bundle_version"]
+                ),
+            )
+        )
+
     return body
 
 
 def verify_task_evidence_bundle(
     bundle: Dict[str, Any],
+    *,
+    require_signature: Optional[
+        bool
+    ] = None,
+    public_key_pem: str = "",
 ) -> Dict[str, Any]:
     candidate = dict(
         bundle or {}
+    )
+
+    signature_envelope = (
+        candidate.pop(
+            "bundle_signature",
+            None,
+        )
     )
 
     stored_bundle_hash = str(
@@ -707,16 +1264,68 @@ def verify_task_evidence_bundle(
         == recalculated_bundle_hash
     )
 
-    version_valid = (
-        int(
+    try:
+        bundle_version = int(
             candidate.get(
                 "bundle_version",
                 0,
             )
             or 0
         )
-        == EVIDENCE_BUNDLE_VERSION
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        bundle_version = 0
+
+    version_valid = (
+        bundle_version
+        in SUPPORTED_EVIDENCE_BUNDLE_VERSIONS
     )
+
+    if require_signature is None:
+        signature_required = (
+            _evidence_signature_required()
+        )
+    else:
+        signature_required = bool(
+            require_signature
+        )
+
+    signature_result = (
+        _verify_bundle_signature(
+            signature_envelope=(
+                signature_envelope
+            ),
+            bundle_hash=(
+                stored_bundle_hash
+            ),
+            bundle_version=(
+                bundle_version
+            ),
+            public_key_pem=(
+                public_key_pem
+            ),
+        )
+    )
+
+    signature_present = bool(
+        signature_result.get(
+            "present"
+        )
+    )
+
+    if signature_present:
+        signature_check_valid = bool(
+            signature_result.get(
+                "valid"
+            )
+        )
+    else:
+        signature_check_valid = (
+            not signature_required
+        )
 
     task = candidate.get(
         "task"
@@ -1072,6 +1681,9 @@ def verify_task_evidence_bundle(
         "bundle_version_valid": (
             version_valid
         ),
+        "bundle_signature_valid": (
+            signature_check_valid
+        ),
         "task_snapshot_hash_valid": (
             task_snapshot_hash_valid
         ),
@@ -1107,6 +1719,33 @@ def verify_task_evidence_bundle(
         **checks,
         "broken_task_sequence": (
             broken_task_sequence
+        ),
+        "bundle_signature_present": (
+            signature_present
+        ),
+        "bundle_signature_required": (
+            signature_required
+        ),
+        "bundle_signature_key_id": str(
+            signature_result.get(
+                "key_id",
+                "",
+            )
+            or ""
+        ),
+        "bundle_signature_public_key_sha256": str(
+            signature_result.get(
+                "public_key_sha256",
+                "",
+            )
+            or ""
+        ),
+        "bundle_signature_reason": str(
+            signature_result.get(
+                "reason",
+                "",
+            )
+            or ""
         ),
         "global_chain_reason": (
             proof_reason

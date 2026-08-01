@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
@@ -17,16 +18,174 @@ from backend.guardrails.capability_token_ledger import (
 )
 
 
-DEFAULT_SECRET = (
+
+
+
+_PROCESS_CAPABILITY_SECRET = (
+    secrets.token_urlsafe(48)
+    .encode("utf-8")
+)
+
+_LEGACY_INSECURE_CAPABILITY_SECRET = (
     "agentguard-dev-capability-secret"
 )
 
 
+def capability_secret_readiness(
+) -> Dict[str, Any]:
+    """
+    返回 Capability Token 签名密钥状态。
+
+    demo 模式允许使用进程级随机密钥；
+    competition/生产部署应显式配置至少
+    32 字节的 AGENTGUARD_CAPABILITY_SECRET。
+    """
+    mode = str(
+        os.getenv(
+            "AGENTGUARD_MODE",
+            "demo",
+        )
+        or "demo"
+    ).strip().lower()
+
+    configured_value = str(
+        os.getenv(
+            "AGENTGUARD_CAPABILITY_SECRET",
+            "",
+        )
+        or ""
+    )
+
+    configured_bytes = (
+        configured_value.encode(
+            "utf-8"
+        )
+    )
+
+    legacy_insecure = (
+        configured_value
+        == _LEGACY_INSECURE_CAPABILITY_SECRET
+    )
+
+    configured_securely = bool(
+        configured_value
+        and len(configured_bytes) >= 32
+        and not legacy_insecure
+    )
+
+    production_ready = (
+        configured_securely
+    )
+
+    runtime_ready = bool(
+        configured_securely
+        or mode != "competition"
+    )
+
+    if configured_securely:
+        source = "environment"
+
+    elif configured_value:
+        source = (
+            "invalid_environment"
+        )
+
+    else:
+        source = "process_random"
+
+    if configured_securely:
+        reason = (
+            "Capability Token signing uses "
+            "an explicitly configured secret."
+        )
+
+    elif legacy_insecure:
+        reason = (
+            "The legacy hard-coded Capability "
+            "Token secret is forbidden."
+        )
+
+    elif configured_value:
+        reason = (
+            "AGENTGUARD_CAPABILITY_SECRET "
+            "must contain at least 32 UTF-8 bytes."
+        )
+
+    elif mode == "competition":
+        reason = (
+            "Competition mode requires an explicit "
+            "AGENTGUARD_CAPABILITY_SECRET."
+        )
+
+    else:
+        reason = (
+            "Demo mode uses a process-random "
+            "Capability Token signing secret."
+        )
+
+    return {
+        "ready": runtime_ready,
+        "production_ready": (
+            production_ready
+        ),
+        "mode": mode,
+        "configured": bool(
+            configured_value
+        ),
+        "configured_securely": (
+            configured_securely
+        ),
+        "source": source,
+        "minimum_bytes": 32,
+        "configured_bytes": len(
+            configured_bytes
+        ),
+        "legacy_insecure": (
+            legacy_insecure
+        ),
+        "reason": reason,
+    }
+
+
 def _secret() -> bytes:
-    return os.getenv(
-        "AGENTGUARD_CAPABILITY_SECRET",
-        DEFAULT_SECRET,
-    ).encode("utf-8")
+    configured_value = str(
+        os.getenv(
+            "AGENTGUARD_CAPABILITY_SECRET",
+            "",
+        )
+        or ""
+    )
+
+    if not configured_value:
+        return (
+            _PROCESS_CAPABILITY_SECRET
+        )
+
+    if (
+        configured_value
+        == _LEGACY_INSECURE_CAPABILITY_SECRET
+    ):
+        raise RuntimeError(
+            "The legacy hard-coded "
+            "AGENTGUARD_CAPABILITY_SECRET "
+            "is forbidden."
+        )
+
+    configured_bytes = (
+        configured_value.encode(
+            "utf-8"
+        )
+    )
+
+    if len(configured_bytes) < 32:
+        raise RuntimeError(
+            "AGENTGUARD_CAPABILITY_SECRET "
+            "must contain at least "
+            "32 UTF-8 bytes."
+        )
+
+    return configured_bytes
+
 
 
 def _b64(data: bytes) -> str:

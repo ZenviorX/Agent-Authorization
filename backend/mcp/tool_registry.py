@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+import os
 from copy import deepcopy
 from typing import Any, Dict, Iterable, List
 
@@ -154,8 +158,218 @@ _TOOL_DEFINITIONS: List[Dict[str, Any]] = [
 ]
 
 
+TOOL_MANIFEST_SCHEMA = (
+    "agentguard.tool_manifest.v1"
+)
+
+TOOL_MANIFEST_PIN_ENV = (
+    "AGENTGUARD_TOOL_MANIFEST_SHA256"
+)
+
+TOOL_MANIFEST_REQUIRED_ENV = (
+    "AGENTGUARD_REQUIRE_TOOL_ATTESTATION"
+)
+
+
+def _canonical_json(
+    value: Any,
+) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _manifest_source() -> Dict[str, Any]:
+    return {
+        "schema": TOOL_MANIFEST_SCHEMA,
+        "tools": [
+            deepcopy(tool)
+            for tool in sorted(
+                _TOOL_DEFINITIONS,
+                key=lambda item: item["name"],
+            )
+        ],
+    }
+
+
+def tool_manifest_digest() -> str:
+    """
+    对完整工具定义进行 SHA-256 摘要。
+
+    摘要覆盖：
+    - 工具名称
+    - 工具说明
+    - JSON Schema
+    - 安全 annotations
+    - 所需 OAuth Scope
+    """
+    return hashlib.sha256(
+        _canonical_json(
+            _manifest_source()
+        )
+    ).hexdigest()
+
+
+def tool_definition_digest(
+    tool: Dict[str, Any],
+) -> str:
+    return hashlib.sha256(
+        _canonical_json(
+            deepcopy(tool)
+        )
+    ).hexdigest()
+
+
+def _env_enabled(
+    name: str,
+) -> bool:
+    return os.getenv(
+        name,
+        "",
+    ).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def tool_manifest_attestation() -> Dict[str, Any]:
+    """
+    校验运行时工具清单是否与部署时固定的摘要一致。
+
+    开发环境：
+    - 未设置摘要时返回 unpinned，不中断运行。
+
+    严格部署环境：
+    - 设置 AGENTGUARD_REQUIRE_TOOL_ATTESTATION=1
+    - 设置 AGENTGUARD_TOOL_MANIFEST_SHA256=<可信摘要>
+    - 摘要不一致时 MCP 请求失败关闭。
+    """
+    actual_digest = (
+        tool_manifest_digest()
+    )
+
+    expected_digest = os.getenv(
+        TOOL_MANIFEST_PIN_ENV,
+        "",
+    ).strip().lower()
+
+    required = _env_enabled(
+        TOOL_MANIFEST_REQUIRED_ENV
+    )
+
+    if not expected_digest:
+        return {
+            "schema": (
+                TOOL_MANIFEST_SCHEMA
+            ),
+            "algorithm": "sha256",
+            "valid": not required,
+            "status": (
+                "missing_required_pin"
+                if required
+                else "unpinned"
+            ),
+            "required": required,
+            "actual_digest": (
+                actual_digest
+            ),
+            "expected_digest": "",
+        }
+
+    valid_format = (
+        len(expected_digest) == 64
+    )
+
+    if valid_format:
+        try:
+            int(
+                expected_digest,
+                16,
+            )
+        except ValueError:
+            valid_format = False
+
+    if not valid_format:
+        return {
+            "schema": (
+                TOOL_MANIFEST_SCHEMA
+            ),
+            "algorithm": "sha256",
+            "valid": False,
+            "status": "invalid_pin",
+            "required": required,
+            "actual_digest": (
+                actual_digest
+            ),
+            "expected_digest": (
+                expected_digest
+            ),
+        }
+
+    matched = hmac.compare_digest(
+        actual_digest,
+        expected_digest,
+    )
+
+    return {
+        "schema": TOOL_MANIFEST_SCHEMA,
+        "algorithm": "sha256",
+        "valid": matched,
+        "status": (
+            "verified"
+            if matched
+            else "mismatch"
+        ),
+        "required": required,
+        "actual_digest": actual_digest,
+        "expected_digest": (
+            expected_digest
+        ),
+    }
+
+
+def _attested_tool_copy(
+    tool: Dict[str, Any],
+) -> Dict[str, Any]:
+    copied = deepcopy(tool)
+
+    attestation = (
+        tool_manifest_attestation()
+    )
+
+    meta = copied.setdefault(
+        "_meta",
+        {},
+    )
+
+    meta[
+        "agentguard/definitionDigest"
+    ] = tool_definition_digest(tool)
+
+    meta[
+        "agentguard/manifestDigest"
+    ] = attestation["actual_digest"]
+
+    meta[
+        "agentguard/attestationStatus"
+    ] = attestation["status"]
+
+    return copied
+
+
 def all_tool_definitions() -> List[Dict[str, Any]]:
-    return [deepcopy(item) for item in sorted(_TOOL_DEFINITIONS, key=lambda tool: tool["name"])]
+    return [
+        _attested_tool_copy(item)
+        for item in sorted(
+            _TOOL_DEFINITIONS,
+            key=lambda tool: tool["name"],
+        )
+    ]
 
 
 def required_list_scopes(tool: Dict[str, Any]) -> List[str]:
@@ -181,9 +395,13 @@ def tool_definitions_for_scopes(scopes: Iterable[str]) -> List[Dict[str, Any]]:
 
 def get_tool_definition(name: str) -> Dict[str, Any] | None:
     normalized = str(name or "")
+
     for tool in _TOOL_DEFINITIONS:
         if tool["name"] == normalized:
-            return deepcopy(tool)
+            return _attested_tool_copy(
+                tool
+            )
+
     return None
 
 
