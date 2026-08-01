@@ -606,19 +606,37 @@ def finalize_token_execution(
             else "execution_failed"
         )
 
+        event_detail = {
+            "execution_id": execution_id,
+            "result_hash": str(
+                result_hash or ""
+            ),
+            "failure_reason": str(
+                failure_reason or ""
+            ),
+            "finished_at": finished_at,
+        }
+
+        # Rich lifecycle event used by the new atomic
+        # execution state machine.
         _record_event(
             connection,
             token_id,
             event_name,
+            event_detail,
+        )
+
+        # Compatibility alias used by existing routes,
+        # reports and regression tests.
+        _record_event(
+            connection,
+            token_id,
+            outcome,
             {
-                "execution_id": execution_id,
-                "result_hash": str(
-                    result_hash or ""
+                **event_detail,
+                "compatibility_alias_for": (
+                    event_name
                 ),
-                "failure_reason": str(
-                    failure_reason or ""
-                ),
-                "finished_at": finished_at,
             },
         )
 
@@ -629,6 +647,12 @@ def finalize_token_execution(
             "token_id": token_id,
             "execution_id": execution_id,
             "status": outcome,
+            "consumed": (
+                outcome == "consumed"
+            ),
+            "failed": (
+                outcome == "failed"
+            ),
             "finished_at": finished_at,
             "reason": (
                 "Capability token execution "
