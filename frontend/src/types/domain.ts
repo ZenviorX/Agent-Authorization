@@ -1,6 +1,42 @@
 export type Decision = 'allow' | 'deny' | 'confirm' | 'review';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type RequestStatus = 'pending' | 'approved' | 'rejected' | 'blocked';
+export type LiveConnectionState = 'connecting' | 'live' | 'degraded' | 'offline';
+export type ServiceHealthState = 'online' | 'offline' | 'unknown';
+
+export interface ServiceHealth {
+  status: ServiceHealthState;
+  detail: string;
+  latencyMs?: number;
+}
+
+export interface SystemRuntimeStatus {
+  message: string;
+  version: string;
+  agentguard_mode: 'demo' | 'competition' | string;
+  competition_mode: boolean;
+  execution_entrypoint: string;
+  disabled_direct_route_prefixes?: string[];
+  registered_core_features?: string[];
+  architecture?: Record<string, string>;
+  mcp?: {
+    endpoint?: string;
+    protected_resource_metadata?: string;
+    protocol_target?: string;
+    demo_authorization_server?: string;
+  };
+  note?: string;
+}
+
+export interface McpRuntimeStatus {
+  status?: string;
+  service?: string;
+  protocol_target?: string;
+  endpoint?: string;
+  oauth_issuer?: string;
+  protected_resource_metadata?: string;
+  [key: string]: unknown;
+}
 
 export interface Overview {
   totalRequests: number;
@@ -11,6 +47,9 @@ export interface Overview {
   securityScore: number;
   activePolicies: number;
   agentsOnline: number;
+  source?: string;
+  localEvidenceRuns?: number;
+  localAuditLogs?: number;
 }
 
 export interface GatewayRequest {
@@ -128,6 +167,25 @@ export interface TestResultSummary {
   status?: string;
   message?: string;
   hint?: string;
+}
+
+export interface LiveRuntimeSnapshot {
+  generatedAt: string;
+  sequence: number;
+  fetchLatencyMs: number;
+  systemStatus: SystemRuntimeStatus;
+  mcpStatus: McpRuntimeStatus | null;
+  services: {
+    backend: ServiceHealth;
+    mcp: ServiceHealth;
+    oauth: ServiceHealth;
+  };
+  overview: Overview | null;
+  requests: GatewayRequest[];
+  auditLogs: AuditLog[];
+  evaluations: EvaluationMetric[];
+  testSummary: TestResultSummary | null;
+  errors: string[];
 }
 
 export interface TestCaseResultRow {
