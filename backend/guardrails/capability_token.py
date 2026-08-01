@@ -8,25 +8,46 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from backend.guardrails.capability_token_ledger import get_token_status, record_token_consumed, record_token_issued
+from backend.guardrails.capability_token_ledger import (
+    claim_token_for_execution,
+    finalize_token_execution,
+    get_token_status,
+    record_token_consumed,
+    record_token_issued,
+)
 
 
-DEFAULT_SECRET = "agentguard-dev-capability-secret"
+DEFAULT_SECRET = (
+    "agentguard-dev-capability-secret"
+)
 
 
 def _secret() -> bytes:
-    return os.getenv("AGENTGUARD_CAPABILITY_SECRET", DEFAULT_SECRET).encode("utf-8")
+    return os.getenv(
+        "AGENTGUARD_CAPABILITY_SECRET",
+        DEFAULT_SECRET,
+    ).encode("utf-8")
 
 
 def _b64(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).decode("utf-8").rstrip("=")
+    return (
+        base64.urlsafe_b64encode(data)
+        .decode("utf-8")
+        .rstrip("=")
+    )
 
 
-def _json_b64(payload: Dict[str, Any]) -> str:
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+def _json_b64(
+    payload: Dict[str, Any],
+) -> str:
+    raw = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
     return _b64(raw)
-
-
 
 
 def _stable_hash(value: Any) -> str:
@@ -36,11 +57,75 @@ def _stable_hash(value: Any) -> str:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
-    return hashlib.sha256(raw).hexdigest()[:16]
+
+    return hashlib.sha256(
+        raw
+    ).hexdigest()[:16]
+
 
 def _sign(data: str) -> str:
-    digest = hmac.new(_secret(), data.encode("utf-8"), hashlib.sha256).digest()
+    digest = hmac.new(
+        _secret(),
+        data.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+
     return _b64(digest)
+
+
+def _decode_payload_part(
+    payload_part: str,
+) -> Dict[str, Any]:
+    padded = (
+        payload_part
+        + "=" * (-len(payload_part) % 4)
+    )
+
+    decoded = base64.urlsafe_b64decode(
+        padded.encode("utf-8")
+    ).decode("utf-8")
+
+    payload = json.loads(decoded)
+
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "Capability token payload must be an object."
+        )
+
+    return payload
+
+
+def _ledger_denial_reason(
+    ledger_state: str,
+) -> str:
+    reasons = {
+        "unknown": (
+            "Capability token is not present "
+            "in the trusted ledger."
+        ),
+        "executing": (
+            "Capability token is already reserved "
+            "by another execution."
+        ),
+        "consumed": (
+            "Capability token has already been consumed."
+        ),
+        "failed": (
+            "Capability token belongs to a previous "
+            "failed execution and cannot be reused."
+        ),
+        "revoked": (
+            "Capability token has been revoked."
+        ),
+    }
+
+    return reasons.get(
+        ledger_state,
+        (
+            "Capability token is not in an "
+            "executable ledger state."
+        ),
+    )
 
 
 def issue_capability_token(
@@ -54,56 +139,200 @@ def issue_capability_token(
     ttl_minutes: int = 15,
 ) -> Dict[str, Any]:
     now = datetime.now(timezone.utc)
-    expires_at = now + timedelta(minutes=ttl_minutes)
+    expires_at = now + timedelta(
+        minutes=max(
+            1,
+            int(ttl_minutes),
+        )
+    )
 
     payload = {
-        "type": "agentguard_capability_token",
+        "type": (
+            "agentguard_capability_token"
+        ),
         "version": "v1",
         "token_id": hashlib.sha256(
-            f"{user}:{agent_platform}:{original_task}:{tool}:{_stable_hash(params or {})}:{now.isoformat()}".encode("utf-8")
+            (
+                f"{user}:"
+                f"{agent_platform}:"
+                f"{original_task}:"
+                f"{tool}:"
+                f"{_stable_hash(params or {})}:"
+                f"{now.isoformat()}"
+            ).encode("utf-8")
         ).hexdigest()[:16],
-        "user": user,
-        "agent_platform": agent_platform,
-        "task_hash": hashlib.sha256(original_task.encode("utf-8")).hexdigest()[:16],
-        "tool": tool,
-        "params_hash": _stable_hash(params or {}),
-        "sandbox_profile": sandbox_profile,
-        "capability_contract": capability_contract,
+        "user": str(user),
+        "agent_platform": str(
+            agent_platform
+        ),
+        "task_hash": hashlib.sha256(
+            str(original_task).encode(
+                "utf-8"
+            )
+        ).hexdigest()[:16],
+        "tool": str(tool),
+        "params_hash": _stable_hash(
+            params or {}
+        ),
+        "sandbox_profile": str(
+            sandbox_profile
+        ),
+        "capability_contract": (
+            capability_contract
+        ),
         "issued_at": now.isoformat(),
-        "expires_at": expires_at.isoformat(),
+        "expires_at": (
+            expires_at.isoformat()
+        ),
     }
 
-    payload_part = _json_b64(payload)
-    signature = _sign(payload_part)
-    token = f"{payload_part}.{signature}"
+    payload_part = _json_b64(
+        payload
+    )
+    signature = _sign(
+        payload_part
+    )
+    token = (
+        f"{payload_part}.{signature}"
+    )
 
-    record_token_issued(str(payload.get("token_id", "")), payload)
+    record_token_issued(
+        str(
+            payload.get(
+                "token_id",
+                "",
+            )
+        ),
+        payload,
+    )
 
     return {
-        "token_type": "agentguard_capability_token",
+        "token_type": (
+            "agentguard_capability_token"
+        ),
         "token": token,
         "payload": payload,
     }
 
 
-def verify_capability_token(token: str) -> Dict[str, Any]:
+def verify_capability_token(
+    token: str,
+) -> Dict[str, Any]:
     try:
-        payload_part, signature = token.split(".", 1)
+        payload_part, signature = (
+            str(token).split(
+                ".",
+                1,
+            )
+        )
     except ValueError:
-        return {"valid": False, "reason": "Malformed capability token."}
+        return {
+            "valid": False,
+            "reason": (
+                "Malformed capability token."
+            ),
+        }
 
-    expected = _sign(payload_part)
-    if not hmac.compare_digest(signature, expected):
-        return {"valid": False, "reason": "Invalid capability token signature."}
+    expected = _sign(
+        payload_part
+    )
 
-    padded = payload_part + "=" * (-len(payload_part) % 4)
-    payload = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
+    if not hmac.compare_digest(
+        signature,
+        expected,
+    ):
+        return {
+            "valid": False,
+            "reason": (
+                "Invalid capability token "
+                "signature."
+            ),
+        }
 
-    expires_at = datetime.fromisoformat(payload["expires_at"])
-    if datetime.now(timezone.utc) > expires_at:
-        return {"valid": False, "reason": "Capability token expired.", "payload": payload}
+    try:
+        payload = _decode_payload_part(
+            payload_part
+        )
+    except Exception as exc:
+        return {
+            "valid": False,
+            "reason": (
+                "Capability token payload "
+                f"cannot be decoded: {exc}"
+            ),
+        }
 
-    return {"valid": True, "reason": "Capability token is valid.", "payload": payload}
+    if (
+        payload.get("type")
+        != "agentguard_capability_token"
+    ):
+        return {
+            "valid": False,
+            "reason": (
+                "Unexpected capability token type."
+            ),
+            "payload": payload,
+        }
+
+    try:
+        expires_at = (
+            datetime.fromisoformat(
+                str(payload["expires_at"])
+            )
+        )
+    except Exception:
+        return {
+            "valid": False,
+            "reason": (
+                "Capability token expiry "
+                "is missing or invalid."
+            ),
+            "payload": payload,
+        }
+
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(
+            tzinfo=timezone.utc
+        )
+
+    if (
+        datetime.now(timezone.utc)
+        > expires_at
+    ):
+        return {
+            "valid": False,
+            "reason": (
+                "Capability token expired."
+            ),
+            "payload": payload,
+        }
+
+    token_id = str(
+        payload.get(
+            "token_id",
+            "",
+        )
+    ).strip()
+
+    if not token_id:
+        return {
+            "valid": False,
+            "reason": (
+                "Capability token does not "
+                "contain token_id."
+            ),
+            "payload": payload,
+        }
+
+    return {
+        "valid": True,
+        "reason": (
+            "Capability token signature "
+            "and expiry are valid."
+        ),
+        "payload": payload,
+    }
+
 
 def validate_capability_token_for_request(
     token: str,
@@ -122,52 +351,110 @@ def validate_capability_token_for_request(
                 "provided": False,
                 "decision": "deny",
                 "risk_delta": 100,
-                "reason": ["Execution request must provide a valid task-scoped capability token."],
+                "ledger_status": (
+                    "not_provided"
+                ),
+                "reason": [
+                    (
+                        "Execution request must "
+                        "provide a valid task-scoped "
+                        "capability token."
+                    )
+                ],
             }
 
         return {
             "provided": False,
             "decision": "allow",
             "risk_delta": 0,
-            "ledger_status": "not_provided",
-            "reason": ["No capability token provided; this request is treated as an initial authorization request."],
+            "ledger_status": (
+                "not_provided"
+            ),
+            "reason": [
+                (
+                    "No capability token provided; "
+                    "this request is treated as an "
+                    "initial authorization request."
+                )
+            ],
         }
 
-    verified = verify_capability_token(token)
+    verified = verify_capability_token(
+        token
+    )
+
     if not verified.get("valid"):
         return {
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
             "ledger_status": "invalid",
-            "reason": [verified.get("reason", "Invalid capability token.")],
+            "reason": [
+                str(
+                    verified.get(
+                        "reason",
+                        (
+                            "Invalid capability "
+                            "token."
+                        ),
+                    )
+                )
+            ],
         }
 
-    payload = verified["payload"]
-    expected_task_hash = hashlib.sha256(original_task.encode("utf-8")).hexdigest()[:16]
+    payload = dict(
+        verified["payload"]
+    )
 
-    reasons = ["Capability token signature and expiry were verified."]
+    expected_task_hash = (
+        hashlib.sha256(
+            str(original_task).encode(
+                "utf-8"
+            )
+        ).hexdigest()[:16]
+    )
 
-    token_id = str(payload.get("token_id", ""))
-    ledger_status = get_token_status(token_id)
-    ledger_state = ledger_status.get("status", "unknown")
+    reasons = [
+        (
+            "Capability token signature "
+            "and expiry were verified."
+        )
+    ]
 
-    if require_token and ledger_state == "consumed":
+    token_id = str(
+        payload.get(
+            "token_id",
+            "",
+        )
+    )
+
+    ledger_status = get_token_status(
+        token_id
+    )
+
+    ledger_state = str(
+        ledger_status.get(
+            "status",
+            "unknown",
+        )
+    )
+
+    # A cryptographically valid token is not enough.
+    # It must also exist in the trusted ledger and
+    # remain in the single executable state: issued.
+    if ledger_state != "issued":
         return {
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
-            "ledger_status": "consumed",
-            "reason": reasons + ["Capability token has already been consumed."],
-        }
-
-    if require_token and ledger_state == "revoked":
-        return {
-            "provided": True,
-            "decision": "deny",
-            "risk_delta": 100,
-            "ledger_status": "revoked",
-            "reason": reasons + ["Capability token has been revoked."],
+            "ledger_status": ledger_state,
+            "token_id": token_id,
+            "reason": reasons
+            + [
+                _ledger_denial_reason(
+                    ledger_state
+                )
+            ],
         }
 
     if payload.get("user") != user:
@@ -175,95 +462,356 @@ def validate_capability_token_for_request(
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
-            "ledger_status": ledger_state,
-            "reason": reasons + ["Capability token user does not match current request user."],
+            "ledger_status": (
+                ledger_state
+            ),
+            "token_id": token_id,
+            "reason": reasons
+            + [
+                (
+                    "Capability token user does "
+                    "not match current request user."
+                )
+            ],
         }
 
-    if payload.get("agent_platform") != agent_platform:
+    if (
+        payload.get("agent_platform")
+        != agent_platform
+    ):
         return {
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
-            "ledger_status": ledger_state,
-            "reason": reasons + ["Capability token agent platform does not match current request."],
+            "ledger_status": (
+                ledger_state
+            ),
+            "token_id": token_id,
+            "reason": reasons
+            + [
+                (
+                    "Capability token agent platform "
+                    "does not match current request."
+                )
+            ],
         }
 
-    if payload.get("task_hash") != expected_task_hash:
+    if (
+        payload.get("task_hash")
+        != expected_task_hash
+    ):
         return {
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
-            "ledger_status": ledger_state,
-            "reason": reasons + ["Capability token is bound to a different original task."],
+            "ledger_status": (
+                ledger_state
+            ),
+            "token_id": token_id,
+            "reason": reasons
+            + [
+                (
+                    "Capability token is bound "
+                    "to a different original task."
+                )
+            ],
         }
 
-    if payload.get("tool", "") != tool:
+    if payload.get(
+        "tool",
+        "",
+    ) != tool:
         return {
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
-            "ledger_status": ledger_state,
-            "reason": reasons + ["Capability token is bound to a different tool."],
+            "ledger_status": (
+                ledger_state
+            ),
+            "token_id": token_id,
+            "reason": reasons
+            + [
+                (
+                    "Capability token is bound "
+                    "to a different tool."
+                )
+            ],
         }
 
-    if payload.get("params_hash", "") != _stable_hash(params or {}):
+    if payload.get(
+        "params_hash",
+        "",
+    ) != _stable_hash(
+        params or {}
+    ):
         return {
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
-            "ledger_status": ledger_state,
-            "reason": reasons + ["Capability token is bound to different tool parameters."],
+            "ledger_status": (
+                ledger_state
+            ),
+            "token_id": token_id,
+            "reason": reasons
+            + [
+                (
+                    "Capability token is bound "
+                    "to different tool parameters."
+                )
+            ],
         }
 
-    if payload.get("sandbox_profile", "") != sandbox_profile:
+    if payload.get(
+        "sandbox_profile",
+        "",
+    ) != sandbox_profile:
         return {
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
-            "ledger_status": ledger_state,
-            "reason": reasons + ["Capability token is bound to a different sandbox profile."],
+            "ledger_status": (
+                ledger_state
+            ),
+            "token_id": token_id,
+            "reason": reasons
+            + [
+                (
+                    "Capability token is bound "
+                    "to a different sandbox profile."
+                )
+            ],
         }
 
-    if payload.get("capability_contract") != expected_contract:
+    if (
+        payload.get(
+            "capability_contract"
+        )
+        != expected_contract
+    ):
         return {
             "provided": True,
             "decision": "deny",
             "risk_delta": 100,
-            "ledger_status": ledger_state,
-            "reason": reasons + ["Capability token contract does not match current derived contract."],
+            "ledger_status": (
+                ledger_state
+            ),
+            "token_id": token_id,
+            "reason": reasons
+            + [
+                (
+                    "Capability token contract "
+                    "does not match the current "
+                    "derived contract."
+                )
+            ],
         }
 
     return {
         "provided": True,
         "decision": "allow",
         "risk_delta": 0,
-        "ledger_status": ledger_state,
-        "reason": reasons + ["Capability token matches current task, user, agent and contract."],
+        "ledger_status": (
+            ledger_state
+        ),
+        "token_id": token_id,
+        "reason": reasons
+        + [
+            (
+                "Capability token matches the "
+                "current task, user, agent, tool, "
+                "parameters and sandbox profile."
+            ),
+            (
+                "Capability token is available "
+                "for atomic execution claim."
+            ),
+        ],
     }
 
 
+def claim_capability_token_for_execution(
+    token: str,
+    execution_id: str,
+) -> Dict[str, Any]:
+    """
+    Atomically reserve a verified capability token
+    for one exact execution attempt.
+    """
 
-def mark_capability_token_consumed(token: str) -> Dict[str, Any]:
-    verified = verify_capability_token(token)
+    verified = verify_capability_token(
+        token
+    )
+
+    if not verified.get("valid"):
+        return {
+            "acquired": False,
+            "status": "invalid",
+            "reason": str(
+                verified.get(
+                    "reason",
+                    (
+                        "Invalid capability "
+                        "token."
+                    ),
+                )
+            ),
+        }
+
+    payload = dict(
+        verified.get(
+            "payload",
+            {},
+        )
+    )
+
+    token_id = str(
+        payload.get(
+            "token_id",
+            "",
+        )
+    ).strip()
+
+    result = claim_token_for_execution(
+        token_id=token_id,
+        execution_id=str(
+            execution_id
+        ),
+    )
+
+    result = dict(result)
+    result["token_id"] = token_id
+    result["token_verified"] = True
+
+    return result
+
+
+def finalize_capability_token_execution(
+    token: str,
+    execution_id: str,
+    outcome: str,
+    result_hash: str = "",
+    failure_reason: str = "",
+) -> Dict[str, Any]:
+    """
+    Finalize the exact execution that atomically
+    claimed the capability token.
+    """
+
+    verified = verify_capability_token(
+        token
+    )
+
+    if not verified.get("valid"):
+        return {
+            "finalized": False,
+            "status": "invalid",
+            "reason": str(
+                verified.get(
+                    "reason",
+                    (
+                        "Invalid capability "
+                        "token."
+                    ),
+                )
+            ),
+        }
+
+    payload = dict(
+        verified.get(
+            "payload",
+            {},
+        )
+    )
+
+    token_id = str(
+        payload.get(
+            "token_id",
+            "",
+        )
+    ).strip()
+
+    result = finalize_token_execution(
+        token_id=token_id,
+        execution_id=str(
+            execution_id
+        ),
+        outcome=str(outcome),
+        result_hash=str(
+            result_hash or ""
+        ),
+        failure_reason=str(
+            failure_reason or ""
+        ),
+    )
+
+    result = dict(result)
+    result["token_id"] = token_id
+    result["token_verified"] = True
+
+    return result
+
+
+def mark_capability_token_consumed(
+    token: str,
+) -> Dict[str, Any]:
+    """
+    Legacy compatibility wrapper.
+
+    New execution code must use:
+      claim_capability_token_for_execution()
+      finalize_capability_token_execution()
+    """
+
+    verified = verify_capability_token(
+        token
+    )
+
     if not verified.get("valid"):
         return {
             "consumed": False,
-            "reason": verified.get("reason", "Invalid capability token."),
+            "reason": str(
+                verified.get(
+                    "reason",
+                    (
+                        "Invalid capability "
+                        "token."
+                    ),
+                )
+            ),
         }
 
-    payload = verified.get("payload", {})
-    token_id = str(payload.get("token_id", ""))
+    payload = dict(
+        verified.get(
+            "payload",
+            {},
+        )
+    )
+
+    token_id = str(
+        payload.get(
+            "token_id",
+            "",
+        )
+    )
 
     if not token_id:
         return {
             "consumed": False,
-            "reason": "Capability token does not contain token_id.",
+            "reason": (
+                "Capability token does not "
+                "contain token_id."
+            ),
         }
 
-    record_token_consumed(token_id)
+    record_token_consumed(
+        token_id
+    )
 
     return {
         "consumed": True,
         "token_id": token_id,
-        "reason": "Capability token consumed after successful execution.",
+        "reason": (
+            "Capability token was consumed "
+            "through the legacy compatibility path."
+        ),
     }

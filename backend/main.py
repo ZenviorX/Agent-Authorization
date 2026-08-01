@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +34,58 @@ from backend.routes.mcp_routes import router as mcp_router
 from backend.routes.trusted_audit_routes import router as trusted_audit_router
 from backend.routes.evidence_bundle_routes import router as evidence_bundle_router
 
+
+SUPPORTED_AGENTGUARD_MODES = {
+    "demo",
+    "competition",
+}
+
+
+def _resolve_agentguard_mode() -> str:
+    """
+    Resolve the current AgentGuard exposure mode.
+
+    demo:
+        Keep legacy development and demonstration APIs.
+
+    competition:
+        Expose the OAuth-protected MCP execution path and
+        read-only evidence/reporting APIs. Legacy direct
+        execution routes are not registered.
+
+    Invalid values fail closed to competition mode.
+    """
+
+    configured = str(
+        os.getenv(
+            "AGENTGUARD_MODE",
+            "demo",
+        )
+        or "demo"
+    ).strip().lower()
+
+    if configured in SUPPORTED_AGENTGUARD_MODES:
+        return configured
+
+    return "competition"
+
+
+AGENTGUARD_MODE = _resolve_agentguard_mode()
+COMPETITION_MODE = (
+    AGENTGUARD_MODE == "competition"
+)
+
+COMPETITION_DISABLED_ROUTE_PREFIXES = (
+    "/gateway",
+    "/agent/call",
+    "/approval",
+    "/tool-proxy",
+    "/external-agent",
+    "/sandbox-native",
+    "/sandbox-docker",
+    "/demo",
+    "/llm",
+)
 
 app = FastAPI(
     title="AgentGuard MCP Security Gateway",
@@ -84,57 +137,57 @@ app.add_middleware(
 )
 
 # -----------------------------
-# Core project APIs
+# Always-available trusted APIs
 # -----------------------------
 
-app.include_router(gateway_router)
-app.include_router(approval_router)
+# The MCP router is the only tool-execution entrypoint
+# registered in competition mode. It validates the OAuth
+# Bearer Token before reaching AgentGuard authorization.
+app.include_router(mcp_router)
+
+# Read-only reporting, evidence and local visualization APIs.
 app.include_router(audit_router)
-app.include_router(task_contract_router)
 app.include_router(report_router)
-app.include_router(capability_router)
-app.include_router(runtime_router)
-app.include_router(attack_chain_router)
 app.include_router(security_overview_router)
 app.include_router(sandbox_evidence_router)
 app.include_router(showcase_report_router)
-app.include_router(agent_runtime_router)
-app.include_router(tool_proxy_router)
-app.include_router(external_agent_router)
 app.include_router(oauth_comparison_router)
 app.include_router(research_eval_router)
 app.include_router(research_strategy_router)
-app.include_router(two_phase_tool_proxy_router)
-app.include_router(capability_token_router)
-app.include_router(llm_tool_call_router)
-app.include_router(mcp_router)
-
-# -----------------------------
-# Frontend local runtime data APIs
-# -----------------------------
-
-app.include_router(frontend_data_router)
-
-# -----------------------------
-# Real execution sandbox APIs
-# -----------------------------
-
-app.include_router(docker_sandbox_router)
-app.include_router(native_sandbox_router)
-
-# -----------------------------
-# Independent test result APIs
-# -----------------------------
-
 app.include_router(test_results_router)
-
-# -----------------------------
-# Demo-only APIs
-# -----------------------------
-
-app.include_router(demo_router)
+app.include_router(frontend_data_router)
 app.include_router(trusted_audit_router)
 app.include_router(evidence_bundle_router)
+
+
+# -----------------------------
+# Demo/development-only APIs
+# -----------------------------
+
+if not COMPETITION_MODE:
+    # These routes are retained for local development and
+    # backward-compatible demonstrations. They are deliberately
+    # absent in competition mode because they can accept tool
+    # calls without entering through the protected MCP boundary.
+    app.include_router(gateway_router)
+    app.include_router(approval_router)
+    app.include_router(task_contract_router)
+    app.include_router(capability_router)
+    app.include_router(runtime_router)
+    app.include_router(attack_chain_router)
+    app.include_router(agent_runtime_router)
+    app.include_router(tool_proxy_router)
+    app.include_router(external_agent_router)
+    app.include_router(two_phase_tool_proxy_router)
+    app.include_router(capability_token_router)
+    app.include_router(llm_tool_call_router)
+    app.include_router(docker_sandbox_router)
+    app.include_router(native_sandbox_router)
+    app.include_router(demo_router)
+
+
+app.state.agentguard_mode = AGENTGUARD_MODE
+app.state.competition_mode = COMPETITION_MODE
 
 # -----------------------------
 # Frontend pages
@@ -213,6 +266,20 @@ def api_status():
     return {
         "message": "AgentGuard MCP Security Gateway is running",
         "version": "0.6.0",
+        "agentguard_mode": AGENTGUARD_MODE,
+        "competition_mode": COMPETITION_MODE,
+        "execution_entrypoint": (
+            "oauth_protected_mcp_only"
+            if COMPETITION_MODE
+            else "development_multi_entry"
+        ),
+        "disabled_direct_route_prefixes": (
+            list(
+                COMPETITION_DISABLED_ROUTE_PREFIXES
+            )
+            if COMPETITION_MODE
+            else []
+        ),
         "architecture": {
             "mcp": (
                 "MCP Client -> OAuth Bearer Token -> /mcp -> Tool Proxy -> "
