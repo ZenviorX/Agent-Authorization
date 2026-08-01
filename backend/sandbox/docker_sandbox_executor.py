@@ -105,18 +105,16 @@ SOURCE_DIR_MAP = {
 
 
 
+
 def docker_available(
     timeout_seconds: int = 3,
 ) -> bool:
     """
-    Docker 可用必须同时满足：
+    自动沙箱模式只接受可响应的 Linux Docker daemon。
 
-    1. Docker CLI 存在；
-    2. Docker daemon 可以正常响应。
-
-    Windows GitHub Runner 可能只有 docker.exe，
-    但没有正在运行的 daemon，不能仅凭 CLI
-    是否存在判断 Docker 可用。
+    Windows GitHub Runner 可能安装 Docker CLI，
+    甚至临时启动 Windows 容器 daemon，但本项目的
+    沙箱镜像是 Linux 镜像，不能将其视为可用环境。
     """
     docker_path = shutil.which(
         "docker"
@@ -131,7 +129,7 @@ def docker_available(
                 docker_path,
                 "info",
                 "--format",
-                "{{.ServerVersion}}",
+                "{{.OSType}}|{{.ServerVersion}}",
             ],
             cwd=str(BASE_DIR),
             capture_output=True,
@@ -151,13 +149,30 @@ def docker_available(
     ):
         return False
 
-    return bool(
-        completed.returncode == 0
-        and str(
-            completed.stdout
-            or ""
-        ).strip()
+    if completed.returncode != 0:
+        return False
+
+    output = str(
+        completed.stdout
+        or ""
+    ).strip()
+
+    if "|" not in output:
+        return False
+
+    os_type, server_version = (
+        output.split(
+            "|",
+            1,
+        )
     )
+
+    return bool(
+        os_type.strip().lower()
+        == "linux"
+        and server_version.strip()
+    )
+
 
 
 

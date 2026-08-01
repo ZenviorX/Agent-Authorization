@@ -119,7 +119,7 @@ def test_docker_available_accepts_ready_daemon(
         lambda *args, **kwargs: (
             SimpleNamespace(
                 returncode=0,
-                stdout="28.0.0\n",
+                stdout="linux|28.0.0\n",
                 stderr="",
             )
         ),
@@ -129,4 +129,41 @@ def test_docker_available_accepts_ready_daemon(
         docker_sandbox_executor
         .docker_available()
         is True
+    )
+
+
+
+def test_docker_available_rejects_windows_daemon(
+    monkeypatch,
+):
+    from types import SimpleNamespace
+
+    from backend.sandbox import (
+        docker_sandbox_executor,
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.shutil,
+        "which",
+        lambda name: "docker",
+    )
+
+    monkeypatch.setattr(
+        docker_sandbox_executor.subprocess,
+        "run",
+        lambda *args, **kwargs: (
+            SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "windows|28.0.0\n"
+                ),
+                stderr="",
+            )
+        ),
+    )
+
+    assert (
+        docker_sandbox_executor
+        .docker_available()
+        is False
     )
