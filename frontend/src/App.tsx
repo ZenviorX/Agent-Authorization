@@ -12,6 +12,7 @@ import type { StrategyComparisonResponse } from './types/domain';
 import './styles/global.css';
 import './styles/layout.css';
 import './styles/realtime-console.css';
+import './styles/overview-hero-header.css';
 
 type PageKey = 'overview' | 'workbench' | 'evidence' | 'test' | 'research';
 
@@ -134,12 +135,14 @@ export default function App() {
       </aside>
 
       <main className="main-panel clean-main realtime-main">
-        <header className="topbar clean-topbar realtime-topbar">
-          <div>
-            <span className="eyebrow">AgentGuard Security Operations</span>
-            <h1>{currentNavItem?.label ?? '安全总览'}</h1>
-            <p className="topbar-desc">{currentNavItem?.subtitle ?? 'AI Agent 工具调用安全控制台。'}</p>
-          </div>
+        <header className={`topbar clean-topbar realtime-topbar ${page === 'overview' ? 'overview-actions-only' : ''}`}>
+          {page !== 'overview' && (
+            <div>
+              <span className="eyebrow">AgentGuard Security Operations</span>
+              <h1>{currentNavItem?.label ?? '安全总览'}</h1>
+              <p className="topbar-desc">{currentNavItem?.subtitle ?? 'AI Agent 工具调用安全控制台。'}</p>
+            </div>
+          )}
           <div className="topbar-actions realtime-topbar-actions">
             <button className="secondary-btn small" onClick={() => void refresh()}>立即刷新</button>
             <LiveStatus state={connectionState} snapshot={snapshot} error={error} />
