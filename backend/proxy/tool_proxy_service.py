@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import uuid
+
 from typing import Any, Dict, List, Optional
 
 from backend.audit import write_log
@@ -20,7 +24,12 @@ from backend.sandbox.real_sandbox_executor import execute_tool_in_real_sandbox
 from backend.sandbox.sandbox_policy import evaluate_sandbox_policy
 from backend.guardrails.task_boundary_guard import evaluate_task_boundary_policy
 from backend.guardrails.authorization_trace import build_authorization_trace
-from backend.guardrails.capability_token import issue_capability_token, validate_capability_token_for_request, mark_capability_token_consumed
+from backend.guardrails.capability_token import (
+    claim_capability_token_for_execution,
+    finalize_capability_token_execution,
+    issue_capability_token,
+    validate_capability_token_for_request,
+)
 from backend.task_session.session_executor import model_to_dict
 from backend.task_session.task_store import (
     load_session,
@@ -300,24 +309,450 @@ def _write_proxy_audit_log(
     )
 
 
-def _sandbox_entered(real_sandbox_result: Dict[str, Any]) -> bool:
+def _sandbox_entered(
+    real_sandbox_result: Dict[str, Any],
+) -> bool:
     """
-    Execution phase means the authorized call entered the sandbox runner.
+    Return True only when the sandbox executor explicitly
+    confirms that its runner process or container started.
 
-    Token replay protection must not depend only on tool_result.success. A tool may
-    execute and return success=false, but the capability token has still been spent.
-    Existing regression tests also expect execute=true + allow to mark executed when
-    the sandbox creates evidence.
+    A run directory, run_id or started_at timestamp proves
+    only that execution was prepared. It must never be used
+    as proof that the authorized tool call entered a sandbox.
+
+    Fail closed when evidence is missing, malformed or does
+    not contain an explicit execution state.
     """
 
-    evidence = real_sandbox_result.get("sandbox_evidence")
-    if isinstance(evidence, dict):
-        if evidence.get("executed") is True:
-            return True
-        if evidence.get("run_id") or evidence.get("started_at"):
-            return True
+    evidence = real_sandbox_result.get(
+        "sandbox_evidence"
+    )
 
-    return bool(real_sandbox_result.get("success") is True)
+    if not isinstance(evidence, dict):
+        return False
+
+    explicit_executed = evidence.get(
+        "executed"
+    )
+
+    if isinstance(explicit_executed, bool):
+        return explicit_executed
+
+    # Compatibility for future sandbox engines that expose
+    # an explicit lifecycle state instead of executed=true.
+    lifecycle_state = str(
+        evidence.get("lifecycle_state")
+        or evidence.get("state")
+        or ""
+    ).strip().lower()
+
+    entered_states = {
+        "started",
+        "running",
+        "completed",
+        "failed",
+        "timed_out",
+        "cancelled",
+    }
+
+    return lifecycle_state in entered_states
+
+
+def _execution_result_hash(
+    tool_result: Optional[Dict[str, Any]],
+    sandbox_evidence: Optional[Dict[str, Any]],
+) -> str:
+    material = {
+        "tool_result": tool_result,
+        "sandbox_evidence": sandbox_evidence,
+    }
+
+    encoded = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+
+    return (
+        "sha256:"
+        + hashlib.sha256(encoded).hexdigest()
+    )
+
+
+def _execute_with_atomic_capability_claim(
+    request: ToolProxyAuthorizeRequest,
+) -> Dict[str, Any]:
+    """
+    Atomically reserve the request capability token
+    before entering the sandbox.
+
+    Exactly one concurrent request can acquire the token.
+    A token is consumed once the sandbox explicitly starts,
+    even when the tool itself returns success=False.
+    """
+
+    execution_id = (
+        "exec_"
+        + uuid.uuid4().hex
+    )
+
+    token = str(
+        getattr(
+            request,
+            "capability_token",
+            "",
+        )
+        or ""
+    )
+
+    claim = (
+        claim_capability_token_for_execution(
+            token=token,
+            execution_id=execution_id,
+        )
+    )
+
+    result: Dict[str, Any] = {
+        "execution_id": execution_id,
+        "claim": dict(claim),
+        "finalization": {},
+        "executed": False,
+        "tool_result": None,
+        "sandbox_evidence": None,
+        "real_sandbox_result": None,
+    }
+
+    if not claim.get("acquired"):
+        return result
+
+    try:
+        real_sandbox_result = (
+            execute_tool_in_real_sandbox(
+                tool=request.tool,
+                params=request.params,
+                profile_name=(
+                    request.sandbox_profile
+                ),
+                prefer="auto",
+            )
+        )
+
+    except Exception as exc:
+        failure_reason = (
+            "Sandbox executor raised "
+            + type(exc).__name__
+            + " before explicit sandbox entry."
+        )
+
+        finalization = (
+            finalize_capability_token_execution(
+                token=token,
+                execution_id=execution_id,
+                outcome="failed",
+                failure_reason=failure_reason,
+            )
+        )
+
+        result.update(
+            {
+                "finalization": dict(
+                    finalization
+                ),
+                "tool_result": {
+                    "success": False,
+                    "result": failure_reason,
+                },
+                "sandbox_evidence": {
+                    "executed": False,
+                    "lifecycle_state": (
+                        "failed_to_start"
+                    ),
+                    "error_type": (
+                        type(exc).__name__
+                    ),
+                },
+            }
+        )
+
+        return result
+
+    sandbox_evidence = (
+        real_sandbox_result.get(
+            "sandbox_evidence"
+        )
+    )
+
+    tool_result = (
+        real_sandbox_result.get(
+            "tool_result"
+        )
+        or {
+            "success": bool(
+                real_sandbox_result.get(
+                    "success"
+                )
+            ),
+            "result": (
+                real_sandbox_result.get(
+                    "result"
+                )
+            ),
+        }
+    )
+
+    executed = _sandbox_entered(
+        real_sandbox_result
+    )
+
+    result_hash = (
+        _execution_result_hash(
+            tool_result=tool_result,
+            sandbox_evidence=(
+                sandbox_evidence
+                if isinstance(
+                    sandbox_evidence,
+                    dict,
+                )
+                else None
+            ),
+        )
+    )
+
+    if executed:
+        outcome = "consumed"
+        failure_reason = ""
+    else:
+        outcome = "failed"
+        failure_reason = (
+            "Sandbox did not explicitly confirm "
+            "that its runner process or container "
+            "was entered."
+        )
+
+    finalization = (
+        finalize_capability_token_execution(
+            token=token,
+            execution_id=execution_id,
+            outcome=outcome,
+            result_hash=result_hash,
+            failure_reason=failure_reason,
+        )
+    )
+
+    result.update(
+        {
+            "finalization": dict(
+                finalization
+            ),
+            "executed": bool(
+                executed
+            ),
+            "tool_result": tool_result,
+            "sandbox_evidence": (
+                sandbox_evidence
+            ),
+            "real_sandbox_result": (
+                real_sandbox_result
+            ),
+        }
+    )
+
+    return result
+
+
+def _attach_execution_token_state(
+    capability_token_validation: Dict[str, Any],
+    execution_attempt: Dict[str, Any],
+) -> Dict[str, Any]:
+    validation = dict(
+        capability_token_validation or {}
+    )
+
+    validation["execution_id"] = str(
+        execution_attempt.get(
+            "execution_id",
+            "",
+        )
+    )
+
+    validation["execution_claim"] = dict(
+        execution_attempt.get(
+            "claim",
+            {},
+        )
+        or {}
+    )
+
+    validation[
+        "execution_finalization"
+    ] = dict(
+        execution_attempt.get(
+            "finalization",
+            {},
+        )
+        or {}
+    )
+
+    return validation
+
+
+def _apply_execution_attempt_result(
+    result_dict: Dict[str, Any],
+    execution_attempt: Dict[str, Any],
+) -> Dict[str, Any]:
+    result = dict(result_dict)
+
+    claim = dict(
+        execution_attempt.get(
+            "claim",
+            {},
+        )
+        or {}
+    )
+
+    finalization = dict(
+        execution_attempt.get(
+            "finalization",
+            {},
+        )
+        or {}
+    )
+
+    reasons = _as_reason_list(
+        result.get("reason")
+    )
+
+    if not claim.get("acquired"):
+        result["decision"] = "deny"
+        result["risk_score"] = max(
+            100,
+            int(
+                result.get(
+                    "risk_score",
+                    0,
+                )
+                or 0
+            ),
+        )
+
+        reasons.extend(
+            [
+                (
+                    "Capability Token atomic "
+                    "execution claim failed."
+                ),
+                str(
+                    claim.get(
+                        "reason",
+                        (
+                            "The token is already "
+                            "executing, consumed, "
+                            "failed or revoked."
+                        ),
+                    )
+                ),
+            ]
+        )
+
+    elif not execution_attempt.get(
+        "executed"
+    ):
+        result["decision"] = "deny"
+        result["risk_score"] = max(
+            100,
+            int(
+                result.get(
+                    "risk_score",
+                    0,
+                )
+                or 0
+            ),
+        )
+
+        reasons.append(
+            "Sandbox execution failed before "
+            "explicit entry was confirmed."
+        )
+
+    elif not finalization.get(
+        "finalized"
+    ):
+        result["risk_score"] = max(
+            100,
+            int(
+                result.get(
+                    "risk_score",
+                    0,
+                )
+                or 0
+            ),
+        )
+
+        reasons.append(
+            "The sandbox was entered, but the "
+            "Capability Token ledger could not "
+            "finalize the execution record."
+        )
+
+    else:
+        reasons.append(
+            "Capability Token was atomically "
+            "claimed before sandbox execution."
+        )
+        reasons.append(
+            "Capability Token execution state "
+            "was finalized as "
+            + str(
+                finalization.get(
+                    "status",
+                    "unknown",
+                )
+            )
+            + "."
+        )
+
+    result["reason"] = reasons
+    return result
+
+
+def _block_latest_runtime_step(
+    runtime_state: RuntimeTaskState,
+    reason: str,
+) -> None:
+    runtime_state.final_decision = (
+        "deny"
+    )
+    runtime_state.is_blocked = True
+
+    if reason not in runtime_state.violations:
+        runtime_state.violations.append(
+            reason
+        )
+
+    if not runtime_state.steps:
+        return
+
+    latest_step = (
+        runtime_state.steps[-1]
+    )
+
+    latest_step.decision = "deny"
+    latest_step.executed = False
+    latest_step.blocked = True
+    latest_step.requires_confirmation = (
+        False
+    )
+    latest_step.confirmed = False
+    latest_step.confirmation_status = (
+        "execution_failed"
+    )
+
+    if reason not in latest_step.reason:
+        latest_step.reason.append(
+            reason
+        )
 
 
 def _runtime_state_from_dict(
@@ -858,57 +1293,79 @@ def _authorize_approved_tool_call(
                 )
             )
 
-            real_sandbox_result = (
-                execute_tool_in_real_sandbox(
-                    tool=request.tool,
-                    params=request.params,
-                    profile_name=(
-                        request.sandbox_profile
-                    ),
-                    prefer="auto",
+            execution_attempt = (
+                _execute_with_atomic_capability_claim(
+                    request
+                )
+            )
+
+            capability_token_validation = (
+                _attach_execution_token_state(
+                    capability_token_validation,
+                    execution_attempt,
+                )
+            )
+
+            result_dict = (
+                _apply_execution_attempt_result(
+                    result_dict,
+                    execution_attempt,
                 )
             )
 
             sandbox_evidence = (
-                real_sandbox_result.get(
+                execution_attempt.get(
                     "sandbox_evidence"
                 )
             )
 
             tool_result = (
-                real_sandbox_result.get(
+                execution_attempt.get(
                     "tool_result"
                 )
-                or {
-                    "success": bool(
-                        real_sandbox_result.get(
-                            "success"
-                        )
-                    ),
-                    "result": (
-                        real_sandbox_result.get(
-                            "result"
-                        )
-                    ),
-                }
             )
 
-            executed = _sandbox_entered(
-                real_sandbox_result
+            executed = bool(
+                execution_attempt.get(
+                    "executed"
+                )
             )
 
-            approved_step.decision = "allow"
-            approved_step.executed = executed
-            approved_step.blocked = False
-            approved_step.requires_confirmation = False
-            approved_step.confirmed = True
+            approved_step.decision = (
+                "allow"
+                if executed
+                else "deny"
+            )
+            approved_step.executed = (
+                executed
+            )
+            approved_step.blocked = (
+                not executed
+            )
+            approved_step.requires_confirmation = (
+                False
+            )
+            approved_step.confirmed = (
+                executed
+            )
             approved_step.confirmation_status = (
                 "approved"
+                if executed
+                else "execution_failed"
             )
 
             approved_reason = (
-                "Human approval ticket was "
-                "validated and consumed."
+                (
+                    "Human approval ticket was "
+                    "validated and consumed; "
+                    "the sandbox was entered."
+                )
+                if executed
+                else (
+                    "Human approval ticket was "
+                    "consumed, but atomic token "
+                    "claim or sandbox entry failed."
+                )
             )
 
             if (
@@ -987,12 +1444,17 @@ def _authorize_approved_tool_call(
                 )
             ]
 
-            if (
-                trusted_session.status
-                == "confirm_required"
-            ):
+            if executed:
+                if (
+                    trusted_session.status
+                    == "confirm_required"
+                ):
+                    trusted_session.status = (
+                        "running"
+                    )
+            else:
                 trusted_session.status = (
-                    "running"
+                    "blocked"
                 )
 
             task_version = save_session(
@@ -1021,33 +1483,6 @@ def _authorize_approved_tool_call(
             runtime_state
         )
     )
-
-    if (
-        request.execute
-        and result_dict.get("decision")
-        == "allow"
-        and capability_token_validation.get(
-            "decision"
-        )
-        == "allow"
-    ):
-        capability_token_validation = dict(
-            capability_token_validation
-        )
-
-        consumption = (
-            mark_capability_token_consumed(
-                getattr(
-                    request,
-                    "capability_token",
-                    "",
-                )
-            )
-        )
-
-        capability_token_validation[
-            "consumption"
-        ] = consumption
 
     if (
         result_dict.get("decision")
@@ -1596,21 +2031,59 @@ def authorize_tool_call(
                 sandbox_evaluation=sandbox_evaluation,
             )
 
-    # 4. 只有明确 allow 且 execute=True 时才进入真执行沙箱。
-    #    默认 auto：有 Docker 用 Docker；无 Docker 自动降级到无需安装的 native_subprocess sandbox。
-    if request.execute and result_dict.get("decision") == "allow":
-        real_sandbox_result = execute_tool_in_real_sandbox(
-            tool=request.tool,
-            params=request.params,
-            profile_name=request.sandbox_profile,
-            prefer="auto",
+    # 4. Atomically claim the Capability Token before
+    #    entering the real sandbox.
+    if (
+        request.execute
+        and result_dict.get("decision")
+        == "allow"
+    ):
+        execution_attempt = (
+            _execute_with_atomic_capability_claim(
+                request
+            )
         )
-        sandbox_evidence = real_sandbox_result.get("sandbox_evidence")
-        tool_result = real_sandbox_result.get("tool_result") or {
-            "success": bool(real_sandbox_result.get("success")),
-            "result": real_sandbox_result.get("result"),
-        }
-        executed = _sandbox_entered(real_sandbox_result)
+
+        capability_token_validation = (
+            _attach_execution_token_state(
+                capability_token_validation,
+                execution_attempt,
+            )
+        )
+
+        result_dict = (
+            _apply_execution_attempt_result(
+                result_dict,
+                execution_attempt,
+            )
+        )
+
+        sandbox_evidence = (
+            execution_attempt.get(
+                "sandbox_evidence"
+            )
+        )
+
+        tool_result = (
+            execution_attempt.get(
+                "tool_result"
+            )
+        )
+
+        executed = bool(
+            execution_attempt.get(
+                "executed"
+            )
+        )
+
+        if not executed:
+            _block_latest_runtime_step(
+                runtime_state,
+                (
+                    "Atomic token claim or "
+                    "sandbox entry failed."
+                ),
+            )
 
     _update_runtime_labels_from_tool_output(
         runtime_state=runtime_state,
@@ -1620,17 +2093,6 @@ def authorize_tool_call(
     )
 
     security_graph = build_runtime_security_graph(runtime_state)
-
-    if request.execute and result_dict.get("decision") == "allow" and capability_token_validation.get("decision") == "allow":
-        capability_token_validation = dict(capability_token_validation)
-        consumption = mark_capability_token_consumed(getattr(request, "capability_token", ""))
-        capability_token_validation["consumption"] = consumption
-        reasons = _as_reason_list(capability_token_validation.get("reason"))
-        if consumption.get("consumed"):
-            reasons.append("Capability token was consumed after execution phase entered sandbox.")
-        else:
-            reasons.append("Capability token consumption was attempted after execution phase.")
-        capability_token_validation["reason"] = reasons
 
     if str(result_dict.get("decision", "deny")) == "allow" and not bool(request.execute):
         capability_token = issue_capability_token(
