@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Icon } from './components/Icon';
 import { LiveStatus } from './components/LiveStatus';
 import { useLiveRuntime } from './hooks/useLiveRuntime';
+import { AuthenticationPage } from './pages/AuthenticationPage';
 import { Dashboard } from './pages/Dashboard';
 import { EvaluationPage } from './pages/EvaluationPage';
 import { GatewayWorkbench } from './pages/GatewayWorkbench';
@@ -13,24 +13,25 @@ import './styles/global.css';
 import './styles/layout.css';
 import './styles/realtime-console.css';
 import './styles/overview-hero-header.css';
+import './styles/sidebar-authentication.css';
 
-type PageKey = 'overview' | 'workbench' | 'evidence' | 'test' | 'research';
+type PageKey = 'auth' | 'overview' | 'workbench' | 'evidence' | 'test' | 'research';
 
 const navItems: Array<{
   key: PageKey;
   label: string;
   subtitle: string;
-  icon: string;
 }> = [
-  { key: 'overview', label: '安全总览', subtitle: '实时状态与安全链路', icon: 'dashboard' },
-  { key: 'workbench', label: '实时演示', subtitle: '发起任务并观察决策', icon: 'shield' },
-  { key: 'evidence', label: '审计证据', subtitle: '运行记录与事件时间线', icon: 'check' },
-  { key: 'test', label: '评测对比', subtitle: '测试指标与策略图表', icon: 'lab' },
-  { key: 'research', label: '研究说明', subtitle: '方法定位与实验逻辑', icon: 'spark' }
+  { key: 'auth', label: 'MCP / OAuth 认证', subtitle: '认证服务与协议状态' },
+  { key: 'overview', label: '安全总览', subtitle: '实时状态与安全链路' },
+  { key: 'workbench', label: '实时演示', subtitle: '发起任务并观察决策' },
+  { key: 'evidence', label: '审计证据', subtitle: '运行记录与事件时间线' },
+  { key: 'test', label: '评测对比', subtitle: '测试指标与策略图表' },
+  { key: 'research', label: '研究说明', subtitle: '方法定位与实验逻辑' }
 ];
 
 export default function App() {
-  const [page, setPage] = useState<PageKey>('overview');
+  const [page, setPage] = useState<PageKey>('auth');
   const [strategyComparison, setStrategyComparison] = useState<StrategyComparisonResponse | null>(null);
   const [testRunning, setTestRunning] = useState(false);
   const [testRunMessage, setTestRunMessage] = useState<string | null>(null);
@@ -69,6 +70,12 @@ export default function App() {
   }
 
   const content: Record<PageKey, JSX.Element> = {
+    auth: (
+      <AuthenticationPage
+        snapshot={snapshot}
+        connectionState={connectionState}
+      />
+    ),
     overview: (
       <SecurityOverview
         snapshot={snapshot}
@@ -104,34 +111,52 @@ export default function App() {
     <div className="app-shell clean-shell realtime-shell">
       <aside className="sidebar clean-sidebar realtime-sidebar">
         <div className="brand clean-brand realtime-brand">
-          <div className="brand-mark"><Icon name="shield" /></div>
-          <div>
-            <strong>AgentGuard</strong>
-            <span>MCP Agent Security Console</span>
-          </div>
-        </div>
-
-        <div className="sidebar-mode-card">
-          <span>当前运行模式</span>
-          <strong>{snapshot?.systemStatus.agentguard_mode?.toUpperCase() ?? 'CONNECTING'}</strong>
-          <small>{snapshot?.systemStatus.execution_entrypoint ?? '等待后端状态'}</small>
+          <strong>AgentGuard</strong>
+          <span>MCP Agent Security Console</span>
         </div>
 
         <nav className="nav-list clean-nav realtime-nav" aria-label="AgentGuard frontend navigation">
-          {navItems.map((item, index) => (
-            <button key={item.key} className={page === item.key ? 'active' : ''} onClick={() => setPage(item.key)}>
-              <span className="nav-index">{String(index + 1).padStart(2, '0')}</span>
-              <Icon name={item.icon} />
-              <span><strong>{item.label}</strong><small>{item.subtitle}</small></span>
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              className={page === item.key ? 'active' : ''}
+              onClick={() => setPage(item.key)}
+            >
+              <span className="nav-copy">
+                <strong>{item.label}</strong>
+                <small>{item.subtitle}</small>
+              </span>
             </button>
           ))}
         </nav>
 
-        <div className="sidebar-card clean-sidebar-card realtime-sidebar-card">
-          <span>安全主线</span>
-          <strong>OAuth → MCP → Task Boundary → Token → Sandbox → Evidence</strong>
-          <small>实时页面每 2 秒读取本机后端状态；窗口重新聚焦时立即刷新。</small>
-        </div>
+        <div className="sidebar-spacer" />
+
+        <section
+          className={`sidebar-security-status status-${connectionState}`}
+          aria-label="系统状态与安全主线"
+        >
+          <div className="sidebar-status-row">
+            <div className="sidebar-status-name">
+              <span className="sidebar-status-dot" />
+              <span>系统状态</span>
+            </div>
+            <strong className="sidebar-status-value">{connectionState.toUpperCase()}</strong>
+          </div>
+          <small className="sidebar-status-detail">
+            {snapshot?.systemStatus.execution_entrypoint ?? '等待后端状态'}
+          </small>
+
+          <div className="sidebar-status-divider" />
+
+          <span className="sidebar-security-label">安全主线</span>
+          <div className="sidebar-security-flow">
+            OAuth → MCP → Task Boundary → Token → Sandbox → Evidence
+          </div>
+          <p className="sidebar-security-note">
+            页面每 2 秒读取本机后端状态；窗口重新聚焦时立即刷新。
+          </p>
+        </section>
       </aside>
 
       <main className="main-panel clean-main realtime-main">
@@ -139,8 +164,8 @@ export default function App() {
           {page !== 'overview' && (
             <div>
               <span className="eyebrow">AgentGuard Security Operations</span>
-              <h1>{currentNavItem?.label ?? '安全总览'}</h1>
-              <p className="topbar-desc">{currentNavItem?.subtitle ?? 'AI Agent 工具调用安全控制台。'}</p>
+              <h1>{currentNavItem?.label ?? 'MCP / OAuth 认证'}</h1>
+              <p className="topbar-desc">{currentNavItem?.subtitle ?? '认证服务与协议状态。'}</p>
             </div>
           )}
           <div className="topbar-actions realtime-topbar-actions">
