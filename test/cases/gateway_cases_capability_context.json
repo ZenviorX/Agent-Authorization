@@ -19,21 +19,36 @@
           {
             "tool": "file.read",
             "mode": "read",
-            "resource_patterns": ["data/public/*"],
+            "resource_patterns": [
+              "data/public/*"
+            ],
             "recipients": [],
-            "allowed_input_labels": ["public"],
-            "output_labels": ["public"],
+            "allowed_input_labels": [
+              "public"
+            ],
+            "output_labels": [
+              "public"
+            ],
             "risk_cost": 5,
             "require_approval": false
           }
         ],
-        "forbidden_tools": ["shell.run"],
-        "forbidden_resources": ["data/secret/*", "data/private/*"],
+        "forbidden_tools": [
+          "shell.run"
+        ],
+        "forbidden_resources": [
+          "data/secret/*",
+          "data/private/*"
+        ],
         "max_steps": 3,
         "risk_budget": 40,
-        "reason": ["Only public read is required for this task."]
+        "reason": [
+          "Only public read is required for this task."
+        ]
       },
-      "input_labels": ["public"],
+      "input_labels": [
+        "public"
+      ],
       "current_step": 1,
       "used_risk": 0
     },
@@ -59,21 +74,35 @@
           {
             "tool": "file.read",
             "mode": "read",
-            "resource_patterns": ["data/public/*"],
+            "resource_patterns": [
+              "data/public/*"
+            ],
             "recipients": [],
-            "allowed_input_labels": ["public"],
-            "output_labels": ["public"],
+            "allowed_input_labels": [
+              "public"
+            ],
+            "output_labels": [
+              "public"
+            ],
             "risk_cost": 5,
             "require_approval": false
           }
         ],
-        "forbidden_tools": ["shell.run"],
-        "forbidden_resources": ["data/secret/*"],
+        "forbidden_tools": [
+          "shell.run"
+        ],
+        "forbidden_resources": [
+          "data/secret/*"
+        ],
         "max_steps": 2,
         "risk_budget": 40,
-        "reason": ["The task should finish within two tool calls."]
+        "reason": [
+          "The task should finish within two tool calls."
+        ]
       },
-      "input_labels": ["public"],
+      "input_labels": [
+        "public"
+      ],
       "current_step": 3,
       "used_risk": 0
     },
@@ -99,21 +128,35 @@
           {
             "tool": "file.read",
             "mode": "read",
-            "resource_patterns": ["data/public/*"],
+            "resource_patterns": [
+              "data/public/*"
+            ],
             "recipients": [],
-            "allowed_input_labels": ["public"],
-            "output_labels": ["public"],
+            "allowed_input_labels": [
+              "public"
+            ],
+            "output_labels": [
+              "public"
+            ],
             "risk_cost": 15,
             "require_approval": false
           }
         ],
-        "forbidden_tools": ["shell.run"],
-        "forbidden_resources": ["data/secret/*"],
+        "forbidden_tools": [
+          "shell.run"
+        ],
+        "forbidden_resources": [
+          "data/secret/*"
+        ],
         "max_steps": 5,
         "risk_budget": 40,
-        "reason": ["The task has a strict risk budget."]
+        "reason": [
+          "The task has a strict risk budget."
+        ]
       },
-      "input_labels": ["public"],
+      "input_labels": [
+        "public"
+      ],
       "current_step": 1,
       "used_risk": 30
     },
@@ -139,21 +182,36 @@
           {
             "tool": "file.read",
             "mode": "read",
-            "resource_patterns": ["data/public/*"],
+            "resource_patterns": [
+              "data/public/*"
+            ],
             "recipients": [],
-            "allowed_input_labels": ["public"],
-            "output_labels": ["public"],
+            "allowed_input_labels": [
+              "public"
+            ],
+            "output_labels": [
+              "public"
+            ],
             "risk_cost": 5,
             "require_approval": false
           }
         ],
-        "forbidden_tools": ["shell.run"],
-        "forbidden_resources": ["data/public/notice.txt", "data/secret/*"],
+        "forbidden_tools": [
+          "shell.run"
+        ],
+        "forbidden_resources": [
+          "data/public/notice.txt",
+          "data/secret/*"
+        ],
         "max_steps": 3,
         "risk_budget": 40,
-        "reason": ["This specific public resource is outside the task boundary."]
+        "reason": [
+          "This specific public resource is outside the task boundary."
+        ]
       },
-      "input_labels": ["public"],
+      "input_labels": [
+        "public"
+      ],
       "current_step": 1,
       "used_risk": 0
     },
@@ -180,21 +238,35 @@
           {
             "tool": "file.read",
             "mode": "read",
-            "resource_patterns": ["data/public/*"],
+            "resource_patterns": [
+              "data/public/*"
+            ],
             "recipients": [],
-            "allowed_input_labels": ["public"],
-            "output_labels": ["public"],
+            "allowed_input_labels": [
+              "public"
+            ],
+            "output_labels": [
+              "public"
+            ],
             "risk_cost": 5,
             "require_approval": false
           }
         ],
-        "forbidden_tools": ["shell.run"],
-        "forbidden_resources": ["data/secret/*"],
+        "forbidden_tools": [
+          "shell.run"
+        ],
+        "forbidden_resources": [
+          "data/secret/*"
+        ],
         "max_steps": 3,
         "risk_budget": 40,
-        "reason": ["The task is read-only."]
+        "reason": [
+          "The task is read-only."
+        ]
       },
-      "input_labels": ["public"],
+      "input_labels": [
+        "public"
+      ],
       "current_step": 1,
       "used_risk": 0
     },
@@ -223,20 +295,34 @@
             "tool": "email.send",
             "mode": "external_write",
             "resource_patterns": [],
-            "recipients": ["team@sdu.edu.cn"],
-            "allowed_input_labels": ["public", "internal", "secret"],
+            "recipients": [
+              "team@sdu.edu.cn"
+            ],
+            "allowed_input_labels": [
+              "public",
+              "internal",
+              "secret"
+            ],
             "output_labels": [],
             "risk_cost": 20,
             "require_approval": false
           }
         ],
-        "forbidden_tools": ["shell.run"],
-        "forbidden_resources": ["data/secret/*"],
+        "forbidden_tools": [
+          "shell.run"
+        ],
+        "forbidden_resources": [
+          "data/secret/*"
+        ],
         "max_steps": 3,
         "risk_budget": 60,
-        "reason": ["Email sending is allowed only for non-secret data."]
+        "reason": [
+          "Email sending is allowed only for non-secret data."
+        ]
       },
-      "input_labels": ["secret"],
+      "input_labels": [
+        "secret"
+      ],
       "current_step": 1,
       "used_risk": 0
     },
@@ -265,20 +351,33 @@
             "tool": "email.send",
             "mode": "external_write",
             "resource_patterns": [],
-            "recipients": ["team@sdu.edu.cn"],
-            "allowed_input_labels": ["public", "internal"],
+            "recipients": [
+              "team@sdu.edu.cn"
+            ],
+            "allowed_input_labels": [
+              "public",
+              "internal"
+            ],
             "output_labels": [],
             "risk_cost": 20,
             "require_approval": false
           }
         ],
-        "forbidden_tools": ["shell.run"],
-        "forbidden_resources": ["data/secret/*"],
+        "forbidden_tools": [
+          "shell.run"
+        ],
+        "forbidden_resources": [
+          "data/secret/*"
+        ],
         "max_steps": 3,
         "risk_budget": 60,
-        "reason": ["Only the authorized recipient is allowed."]
+        "reason": [
+          "Only the authorized recipient is allowed."
+        ]
       },
-      "input_labels": ["public"],
+      "input_labels": [
+        "public"
+      ],
       "current_step": 1,
       "used_risk": 0
     },
@@ -304,21 +403,35 @@
           {
             "tool": "file.read",
             "mode": "read",
-            "resource_patterns": ["data/public/*"],
+            "resource_patterns": [
+              "data/public/*"
+            ],
             "recipients": [],
-            "allowed_input_labels": ["public"],
-            "output_labels": ["public"],
+            "allowed_input_labels": [
+              "public"
+            ],
+            "output_labels": [
+              "public"
+            ],
             "risk_cost": 5,
             "require_approval": false
           }
         ],
-        "forbidden_tools": ["shell.run"],
-        "forbidden_resources": ["data/secret/*"],
+        "forbidden_tools": [
+          "shell.run"
+        ],
+        "forbidden_resources": [
+          "data/secret/*"
+        ],
         "max_steps": 3,
         "risk_budget": 40,
-        "reason": ["Shell execution is not required by this task."]
+        "reason": [
+          "Shell execution is not required by this task."
+        ]
       },
-      "input_labels": ["public"],
+      "input_labels": [
+        "public"
+      ],
       "current_step": 1,
       "used_risk": 0
     },

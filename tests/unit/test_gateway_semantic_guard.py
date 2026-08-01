@@ -32,7 +32,7 @@ def test_gateway_keeps_allow_when_semantic_guard_disabled(monkeypatch):
     assert not any("语义检测" in item for item in result["reason"])
 
 
-def test_gateway_adds_semantic_risk_and_forces_confirmation(monkeypatch):
+def test_gateway_blocks_critical_data_exfiltration_risk(monkeypatch):
     def fake_semantic_guard(**kwargs):
         return {
             "enabled": True,
@@ -63,10 +63,19 @@ def test_gateway_adds_semantic_risk_and_forces_confirmation(monkeypatch):
         },
     )
 
-    assert result["decision"] == "confirm"
+    assert result["decision"] == "deny"
     assert result["risk_score"] >= 25
-    assert any("语义检测命中风险标签：data_exfiltration" in item for item in result["reason"])
-    assert any("语义检测发现潜在风险" in item for item in result["reason"])
+    assert any(
+        "语义检测命中风险标签：data_exfiltration"
+        in item
+        for item in result["reason"]
+    )
+    assert any(
+        "不可通过人工确认放行"
+        in item
+        and "data_exfiltration" in item
+        for item in result["reason"]
+    )
 
 
 def test_gateway_semantic_hard_deny_overrides_allow_policy(monkeypatch):
@@ -129,6 +138,15 @@ def test_gateway_semantic_reason_is_exposed_in_explanations(monkeypatch):
         },
     )
 
-    assert result["decision"] == "confirm"
+    assert result["decision"] == "deny"
     assert "explanations" in result
-    assert any("credential_access" in item["reason"] for item in result["explanations"])
+    assert any(
+        "credential_access"
+        in item["reason"]
+        for item in result["explanations"]
+    )
+    assert any(
+        "不可通过人工确认放行"
+        in item
+        for item in result["reason"]
+    )

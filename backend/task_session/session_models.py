@@ -126,6 +126,19 @@ class TaskSession(BaseModel):
     original_input: str
     agent_type: str = "fake"
 
+    # OAuth 任务授权上下文。
+    #
+    # 任务不仅绑定用户 sub，也绑定创建任务时的
+    # issuer、client、audience 和 scope 权限上限。
+    oauth_authorization_binding: Dict[
+        str,
+        Any,
+    ] = Field(
+        default_factory=dict
+    )
+
+    oauth_authorization_fingerprint: str = ""
+
     steps: List[TaskStep] = Field(default_factory=list)
 
     # ------------------------------------------------------------

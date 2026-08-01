@@ -17,9 +17,22 @@ RUNTIME_WORKSPACE = BASE_DIR / "runtime_workspace"
 PUBLIC_DIR = RUNTIME_WORKSPACE / "public"
 COURSE_DIR = RUNTIME_WORKSPACE / "course"
 OUTBOX_DIR = RUNTIME_WORKSPACE / "outbox"
-DOCKER_RUNS_DIR = RUNTIME_WORKSPACE / "sandbox_runs"
-RUNNER_DIR = Path(__file__).resolve().parent / "runner"
-IMAGE_NAME = "agentguard-tool-sandbox:latest"
+DATABASE_PATH = (
+    RUNTIME_WORKSPACE
+    / "agent_runtime.db"
+)
+DOCKER_RUNS_DIR = (
+    RUNTIME_WORKSPACE
+    / "sandbox_runs"
+)
+RUNNER_DIR = (
+    Path(__file__).resolve().parent
+    / "runner"
+)
+
+# Runner 功能发生变化后使用新镜像标签，
+# 防止继续运行旧缓存镜像。
+IMAGE_NAME = "agentguard-tool-sandbox:v2"
 DEFAULT_TIMEOUT_SECONDS = 30
 
 
@@ -209,16 +222,51 @@ def build_docker_command(run_dir: Path, profile_name: str) -> List[str]:
 
     for mount in profile.get("mounts", []):
         source_name = str(mount["source"])
-        source_path = SOURCE_DIR_MAP[source_name]
-        source_path.mkdir(parents=True, exist_ok=True)
-        command.extend([
+        source_path = SOURCE_DIR_MAP[
+            source_name
+        ]
+
+        source_path.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        command.extend(
+            [
+                "--mount",
+                _mount_arg(
+                    source_path,
+                    str(mount["target"]),
+                    bool(
+                        mount.get(
+                            "readonly",
+                            True,
+                        )
+                    ),
+                ),
+            ]
+        )
+
+    # 数据库文件始终以只读方式挂载，
+    # 物理层面禁止容器修改数据库。
+    if (
+        not DATABASE_PATH.exists()
+        or not DATABASE_PATH.is_file()
+    ):
+        raise RuntimeError(
+            "Sandbox database was not initialized."
+        )
+
+    command.extend(
+        [
             "--mount",
             _mount_arg(
-                source_path,
-                str(mount["target"]),
-                bool(mount.get("readonly", True)),
+                DATABASE_PATH,
+                "/workspace/agent_runtime.db",
+                readonly=True,
             ),
-        ])
+        ]
+    )
 
     command.extend([
         IMAGE_NAME,
@@ -238,7 +286,24 @@ def _public_mounts(profile_name: str) -> List[Dict[str, Any]]:
             "readonly": False,
         }
     ]
-    mounts.extend(profile.get("mounts", []))
+    mounts.extend(
+        profile.get(
+            "mounts",
+            [],
+        )
+    )
+
+    mounts.append(
+        {
+            "source": "agent_runtime.db",
+            "target": (
+                "/workspace/"
+                "agent_runtime.db"
+            ),
+            "readonly": True,
+        }
+    )
+
     return _jsonable(mounts)
 
 

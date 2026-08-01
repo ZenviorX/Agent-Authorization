@@ -1,9 +1,18 @@
 from pathlib import Path
+import hmac
 import os
+from typing import Any, Dict, Mapping, Optional
+from urllib.parse import urlparse
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from backend.routes.approval_routes import router as approval_router
 from backend.routes.audit_routes import router as audit_router
@@ -33,6 +42,10 @@ from backend.routes.llm_tool_call_routes import router as llm_tool_call_router
 from backend.routes.mcp_routes import router as mcp_router
 from backend.routes.trusted_audit_routes import router as trusted_audit_router
 from backend.routes.evidence_bundle_routes import router as evidence_bundle_router
+
+from backend.mcp.tool_registry import (
+    tool_manifest_digest,
+)
 
 
 SUPPORTED_AGENTGUARD_MODES = {
@@ -86,6 +99,609 @@ COMPETITION_DISABLED_ROUTE_PREFIXES = (
     "/demo",
     "/llm",
 )
+
+
+STARTUP_SECURITY_ENFORCEMENT_ENV = (
+    "AGENTGUARD_ENFORCE_STARTUP_SECURITY"
+)
+
+
+def _environment_enabled(
+    environment: Mapping[str, str],
+    name: str,
+) -> bool:
+    return str(
+        environment.get(name, "")
+    ).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _is_https_url(
+    value: str,
+) -> bool:
+    try:
+        parsed = urlparse(
+            str(value or "").strip()
+        )
+
+    except ValueError:
+        return False
+
+    return bool(
+        parsed.scheme.lower() == "https"
+        and parsed.netloc
+    )
+
+
+def _normalize_oauth_mode(
+    value: str,
+) -> str:
+    aliases = {
+        "jwks": "jwks_rs256",
+        "rs256": "jwks_rs256",
+        "jwks_rs256": "jwks_rs256",
+        "demo": "demo_hs256",
+        "hs256": "demo_hs256",
+        "demo_hs256": "demo_hs256",
+    }
+
+    normalized = str(
+        value or ""
+    ).strip().lower()
+
+    return aliases.get(
+        normalized,
+        normalized,
+    )
+
+
+def _valid_sha256_digest(
+    value: str,
+) -> bool:
+    normalized = str(
+        value or ""
+    ).strip().lower()
+
+    if len(normalized) != 64:
+        return False
+
+    try:
+        int(normalized, 16)
+
+    except ValueError:
+        return False
+
+    return True
+
+
+def _audit_key_pair_status(
+    environment: Mapping[str, str],
+) -> Dict[str, Any]:
+    private_pem = str(
+        environment.get(
+            "AGENTGUARD_AUDIT_SIGNING_PRIVATE_KEY_PEM",
+            "",
+        )
+    ).strip()
+
+    public_pem = str(
+        environment.get(
+            "AGENTGUARD_AUDIT_SIGNING_PUBLIC_KEY_PEM",
+            "",
+        )
+    ).strip()
+
+    if not private_pem or not public_pem:
+        return {
+            "valid": False,
+            "detail": (
+                "必须同时配置 Ed25519 "
+                "审计签名公钥和私钥。"
+            ),
+        }
+
+    try:
+        private_key = (
+            serialization
+            .load_pem_private_key(
+                private_pem.encode("utf-8"),
+                password=None,
+            )
+        )
+
+        public_key = (
+            serialization
+            .load_pem_public_key(
+                public_pem.encode("utf-8")
+            )
+        )
+
+    except Exception:
+        return {
+            "valid": False,
+            "detail": (
+                "审计签名公钥或私钥 "
+                "不是有效的 PEM。"
+            ),
+        }
+
+    if not isinstance(
+        private_key,
+        Ed25519PrivateKey,
+    ):
+        return {
+            "valid": False,
+            "detail": (
+                "审计签名私钥必须是 "
+                "Ed25519 私钥。"
+            ),
+        }
+
+    if not isinstance(
+        public_key,
+        Ed25519PublicKey,
+    ):
+        return {
+            "valid": False,
+            "detail": (
+                "审计签名公钥必须是 "
+                "Ed25519 公钥。"
+            ),
+        }
+
+    derived_public = (
+        private_key
+        .public_key()
+        .public_bytes(
+            encoding=(
+                serialization.Encoding.Raw
+            ),
+            format=(
+                serialization
+                .PublicFormat
+                .Raw
+            ),
+        )
+    )
+
+    configured_public = (
+        public_key.public_bytes(
+            encoding=(
+                serialization.Encoding.Raw
+            ),
+            format=(
+                serialization
+                .PublicFormat
+                .Raw
+            ),
+        )
+    )
+
+    matched = hmac.compare_digest(
+        derived_public,
+        configured_public,
+    )
+
+    return {
+        "valid": matched,
+        "detail": (
+            "Ed25519 审计签名公私钥匹配。"
+            if matched
+            else (
+                "Ed25519 审计签名公私钥 "
+                "不属于同一密钥对。"
+            )
+        ),
+    }
+
+
+def build_security_readiness_report(
+    environment: Optional[
+        Mapping[str, str]
+    ] = None,
+    *,
+    mode: Optional[str] = None,
+) -> Dict[str, Any]:
+    env: Mapping[str, str] = (
+        os.environ
+        if environment is None
+        else environment
+    )
+
+    resolved_mode = str(
+        mode
+        if mode is not None
+        else env.get(
+            "AGENTGUARD_MODE",
+            AGENTGUARD_MODE,
+        )
+    ).strip().lower()
+
+    competition_mode = (
+        resolved_mode == "competition"
+    )
+
+    enforcement_requested = (
+        _environment_enabled(
+            env,
+            STARTUP_SECURITY_ENFORCEMENT_ENV,
+        )
+    )
+
+    if not competition_mode:
+        return {
+            "schema": (
+                "agentguard."
+                "security_readiness.v1"
+            ),
+            "ready": True,
+            "status": "development",
+            "agentguard_mode": (
+                resolved_mode
+            ),
+            "competition_mode": False,
+            "enforcement_requested": (
+                enforcement_requested
+            ),
+            "passed_checks": 0,
+            "failed_checks": 0,
+            "checks": [],
+            "reason": (
+                "Demo mode does not require "
+                "production security settings."
+            ),
+        }
+
+    checks: list[
+        Dict[str, Any]
+    ] = []
+
+    def add_check(
+        check_id: str,
+        passed: bool,
+        detail: str,
+        remediation: str,
+    ) -> None:
+        checks.append(
+            {
+                "id": check_id,
+                "required": True,
+                "passed": bool(passed),
+                "detail": detail,
+                "remediation": remediation,
+            }
+        )
+
+    add_check(
+        "startup_enforcement",
+        enforcement_requested,
+        (
+            "生产安全强制启动已开启。"
+            if enforcement_requested
+            else (
+                "生产安全强制启动尚未开启。"
+            )
+        ),
+        (
+            "设置 "
+            "AGENTGUARD_ENFORCE_STARTUP_SECURITY=1"
+        ),
+    )
+
+    oauth_mode_value = (
+        _normalize_oauth_mode(
+            str(
+                env.get(
+                    "AGENTGUARD_OAUTH_MODE",
+                    "",
+                )
+            )
+        )
+    )
+
+    add_check(
+        "oauth_jwks_rs256",
+        oauth_mode_value
+        == "jwks_rs256",
+        (
+            "OAuth 使用 JWKS/RS256。"
+            if oauth_mode_value
+            == "jwks_rs256"
+            else (
+                "OAuth 仍在使用本地 "
+                "HS256 演示模式。"
+            )
+        ),
+        (
+            "设置 "
+            "AGENTGUARD_OAUTH_MODE="
+            "jwks_rs256"
+        ),
+    )
+
+    jwks_url = str(
+        env.get(
+            "AGENTGUARD_OAUTH_JWKS_URL",
+            "",
+        )
+    ).strip()
+
+    add_check(
+        "oauth_jwks_https",
+        _is_https_url(jwks_url),
+        (
+            "JWKS 地址使用 HTTPS。"
+            if _is_https_url(jwks_url)
+            else (
+                "JWKS 地址缺失或未使用 HTTPS。"
+            )
+        ),
+        (
+            "配置 HTTPS 的 "
+            "AGENTGUARD_OAUTH_JWKS_URL"
+        ),
+    )
+
+    issuer = str(
+        env.get(
+            "AGENTGUARD_OAUTH_ISSUER",
+            "",
+        )
+    ).strip()
+
+    add_check(
+        "oauth_issuer_https",
+        _is_https_url(issuer),
+        (
+            "OAuth issuer 使用 HTTPS。"
+            if _is_https_url(issuer)
+            else (
+                "OAuth issuer 缺失或 "
+                "未使用 HTTPS。"
+            )
+        ),
+        (
+            "配置 HTTPS 的 "
+            "AGENTGUARD_OAUTH_ISSUER"
+        ),
+    )
+
+    resource = str(
+        env.get(
+            "AGENTGUARD_MCP_RESOURCE",
+            "",
+        )
+    ).strip()
+
+    add_check(
+        "mcp_resource_https",
+        _is_https_url(resource),
+        (
+            "MCP Resource 使用 HTTPS。"
+            if _is_https_url(resource)
+            else (
+                "MCP Resource 缺失或 "
+                "未使用 HTTPS。"
+            )
+        ),
+        (
+            "配置 HTTPS 的 "
+            "AGENTGUARD_MCP_RESOURCE"
+        ),
+    )
+
+    attestation_required = (
+        _environment_enabled(
+            env,
+            "AGENTGUARD_REQUIRE_TOOL_ATTESTATION",
+        )
+    )
+
+    add_check(
+        "tool_attestation_required",
+        attestation_required,
+        (
+            "工具清单强制校验已开启。"
+            if attestation_required
+            else (
+                "工具清单强制校验未开启。"
+            )
+        ),
+        (
+            "设置 "
+            "AGENTGUARD_REQUIRE_TOOL_ATTESTATION=1"
+        ),
+    )
+
+    configured_manifest_digest = str(
+        env.get(
+            "AGENTGUARD_TOOL_MANIFEST_SHA256",
+            "",
+        )
+    ).strip().lower()
+
+    current_manifest_digest = (
+        tool_manifest_digest()
+    )
+
+    manifest_digest_valid = (
+        _valid_sha256_digest(
+            configured_manifest_digest
+        )
+        and hmac.compare_digest(
+            configured_manifest_digest,
+            current_manifest_digest,
+        )
+    )
+
+    add_check(
+        "tool_manifest_pin",
+        manifest_digest_valid,
+        (
+            "工具清单 Pin 与当前注册表一致。"
+            if manifest_digest_valid
+            else (
+                "工具清单 Pin 缺失、格式错误 "
+                "或与当前注册表不一致。"
+            )
+        ),
+        (
+            "将当前 tool_manifest_digest() "
+            "写入 "
+            "AGENTGUARD_TOOL_MANIFEST_SHA256"
+        ),
+    )
+
+    checkpoint_required = (
+        _environment_enabled(
+            env,
+            "AGENTGUARD_REQUIRE_AUDIT_CHECKPOINT",
+        )
+    )
+
+    add_check(
+        "audit_checkpoint_required",
+        checkpoint_required,
+        (
+            "审计签名检查点已设为必需。"
+            if checkpoint_required
+            else (
+                "审计签名检查点尚未设为必需。"
+            )
+        ),
+        (
+            "设置 "
+            "AGENTGUARD_REQUIRE_AUDIT_CHECKPOINT=1"
+        ),
+    )
+
+    key_pair_status = (
+        _audit_key_pair_status(env)
+    )
+
+    add_check(
+        "audit_ed25519_key_pair",
+        bool(
+            key_pair_status.get(
+                "valid"
+            )
+        ),
+        str(
+            key_pair_status.get(
+                "detail",
+                "",
+            )
+        ),
+        (
+            "配置匹配的 "
+            "AGENTGUARD_AUDIT_SIGNING_PRIVATE_KEY_PEM "
+            "和 "
+            "AGENTGUARD_AUDIT_SIGNING_PUBLIC_KEY_PEM"
+        ),
+    )
+
+    key_id = str(
+        env.get(
+            "AGENTGUARD_AUDIT_SIGNING_KEY_ID",
+            "",
+        )
+    ).strip()
+
+    add_check(
+        "audit_key_id",
+        bool(key_id),
+        (
+            "审计签名 Key ID 已显式配置。"
+            if key_id
+            else (
+                "审计签名 Key ID 未配置。"
+            )
+        ),
+        (
+            "设置唯一的 "
+            "AGENTGUARD_AUDIT_SIGNING_KEY_ID"
+        ),
+    )
+
+    failed = [
+        item
+        for item in checks
+        if not item["passed"]
+    ]
+
+    ready = not failed
+
+    return {
+        "schema": (
+            "agentguard."
+            "security_readiness.v1"
+        ),
+        "ready": ready,
+        "status": (
+            "ready"
+            if ready
+            else "not_ready"
+        ),
+        "agentguard_mode": (
+            resolved_mode
+        ),
+        "competition_mode": True,
+        "enforcement_requested": (
+            enforcement_requested
+        ),
+        "passed_checks": (
+            len(checks) - len(failed)
+        ),
+        "failed_checks": len(failed),
+        "failed_check_ids": [
+            item["id"]
+            for item in failed
+        ],
+        "checks": checks,
+        "reason": (
+            "All production security "
+            "requirements passed."
+            if ready
+            else (
+                "One or more production "
+                "security requirements failed."
+            )
+        ),
+    }
+
+
+INITIAL_SECURITY_READINESS = (
+    build_security_readiness_report(
+        mode=AGENTGUARD_MODE
+    )
+)
+
+if (
+    COMPETITION_MODE
+    and INITIAL_SECURITY_READINESS[
+        "enforcement_requested"
+    ]
+    and not INITIAL_SECURITY_READINESS[
+        "ready"
+    ]
+):
+    failed_ids = ", ".join(
+        INITIAL_SECURITY_READINESS.get(
+            "failed_check_ids",
+            [],
+        )
+    )
+
+    raise RuntimeError(
+        "AgentGuard competition mode "
+        "security readiness failed: "
+        + failed_ids
+    )
+
 
 app = FastAPI(
     title="AgentGuard MCP Security Gateway",
@@ -188,6 +804,9 @@ if not COMPETITION_MODE:
 
 app.state.agentguard_mode = AGENTGUARD_MODE
 app.state.competition_mode = COMPETITION_MODE
+app.state.security_readiness = (
+    INITIAL_SECURITY_READINESS
+)
 
 # -----------------------------
 # Frontend pages
@@ -258,8 +877,30 @@ def authorized_evidence_page():
 
 
 # -----------------------------
-# Health check
+# Health and readiness checks
 # -----------------------------
+
+@app.get("/api/readiness")
+def api_readiness():
+    report = (
+        build_security_readiness_report(
+            mode=AGENTGUARD_MODE
+        )
+    )
+
+    app.state.security_readiness = (
+        report
+    )
+
+    return JSONResponse(
+        content=report,
+        status_code=(
+            200
+            if report["ready"]
+            else 503
+        ),
+    )
+
 
 @app.get("/api/status")
 def api_status():
@@ -273,6 +914,17 @@ def api_status():
             if COMPETITION_MODE
             else "development_multi_entry"
         ),
+        "security_readiness": {
+            "ready": (
+                build_security_readiness_report(
+                    mode=AGENTGUARD_MODE
+                )["ready"]
+            ),
+            "endpoint": "/api/readiness",
+            "enforcement_environment": (
+                STARTUP_SECURITY_ENFORCEMENT_ENV
+            ),
+        },
         "disabled_direct_route_prefixes": (
             list(
                 COMPETITION_DISABLED_ROUTE_PREFIXES

@@ -14,7 +14,7 @@ def test_local_readonly_docker_command_has_isolation_flags(tmp_path: Path):
     assert "--pids-limit" in command
     assert "--memory" in command
     assert "--cpus" in command
-    assert "agentguard-tool-sandbox:latest" in command
+    assert "agentguard-tool-sandbox:v2" in command
 
 
 def test_strict_profile_does_not_mount_secret_or_private(tmp_path: Path):

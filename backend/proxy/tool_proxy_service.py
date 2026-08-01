@@ -663,6 +663,324 @@ def _attach_execution_token_state(
     return validation
 
 
+def _enforce_proxy_response_invariants(
+    *,
+    request: ToolProxyAuthorizeRequest,
+    result_dict: Dict[str, Any],
+    executed: bool,
+    capability_token: Dict[str, Any],
+    capability_token_validation: Dict[str, Any],
+    sandbox_evidence: Optional[
+        Dict[str, Any]
+    ],
+) -> tuple[
+    Dict[str, Any],
+    Dict[str, Any],
+]:
+    """
+    在生成最终响应前统一验证安全不变量。
+
+    prepare + allow:
+        必须确实签发新的 Capability Token。
+
+    execute + allow:
+        必须确认沙箱已进入，并且 Capability Token
+        已在原子账本中最终标记为 consumed。
+
+    任意非 allow 结果:
+        不允许最终响应继续携带私有 Token。
+    """
+    result = dict(
+        result_dict or {}
+    )
+
+    token_summary = dict(
+        capability_token or {}
+    )
+
+    validation = dict(
+        capability_token_validation or {}
+    )
+
+    reasons = _as_reason_list(
+        result.get("reason")
+    )
+
+    def add_reason(
+        reason: str,
+    ) -> None:
+        if reason not in reasons:
+            reasons.append(reason)
+
+    decision = str(
+        result.get(
+            "decision",
+            "deny",
+        )
+        or "deny"
+    ).strip().lower()
+
+    if decision not in {
+        "allow",
+        "confirm",
+        "deny",
+    }:
+        decision = "deny"
+
+        result["risk_score"] = max(
+            100,
+            int(
+                result.get(
+                    "risk_score",
+                    0,
+                )
+                or 0
+            ),
+        )
+
+        add_reason(
+            "Final Tool Proxy decision was "
+            "invalid and was changed to deny."
+        )
+
+    request_execute = bool(
+        request.execute
+    )
+
+    if (
+        not request_execute
+        and executed
+    ):
+        decision = "deny"
+
+        result["risk_score"] = max(
+            100,
+            int(
+                result.get(
+                    "risk_score",
+                    0,
+                )
+                or 0
+            ),
+        )
+
+        add_reason(
+            "A prepare-only request cannot "
+            "report sandbox execution."
+        )
+
+    if decision == "allow":
+        if request_execute:
+            evidence_wrapper = {
+                "sandbox_evidence": (
+                    sandbox_evidence
+                )
+            }
+
+            sandbox_entered = (
+                bool(executed)
+                and _sandbox_entered(
+                    evidence_wrapper
+                )
+            )
+
+            consumption = validation.get(
+                "consumption"
+            )
+
+            if not isinstance(
+                consumption,
+                dict,
+            ):
+                consumption = {}
+
+            execution_claim = validation.get(
+                "execution_claim"
+            )
+
+            if not isinstance(
+                execution_claim,
+                dict,
+            ):
+                execution_claim = {}
+
+            finalization = validation.get(
+                "execution_finalization"
+            )
+
+            if not isinstance(
+                finalization,
+                dict,
+            ):
+                finalization = {}
+
+            claim_acquired = bool(
+                consumption.get(
+                    "acquired"
+                )
+                or execution_claim.get(
+                    "acquired"
+                )
+            )
+
+            finalized = bool(
+                consumption.get(
+                    "finalized"
+                )
+                or finalization.get(
+                    "finalized"
+                )
+            )
+
+            final_status = str(
+                consumption.get(
+                    "status"
+                )
+                or finalization.get(
+                    "status"
+                )
+                or ""
+            ).strip().lower()
+
+            consumed = bool(
+                consumption.get(
+                    "consumed"
+                )
+                or finalization.get(
+                    "consumed"
+                )
+                or (
+                    finalized
+                    and final_status
+                    == "consumed"
+                )
+            )
+
+            failed_invariants = []
+
+            if not sandbox_entered:
+                failed_invariants.append(
+                    "sandbox_entry"
+                )
+
+            if not claim_acquired:
+                failed_invariants.append(
+                    "atomic_token_claim"
+                )
+
+            if not finalized:
+                failed_invariants.append(
+                    "token_finalization"
+                )
+
+            if not consumed:
+                failed_invariants.append(
+                    "token_consumption"
+                )
+
+            if failed_invariants:
+                decision = "deny"
+
+                result[
+                    "risk_score"
+                ] = max(
+                    100,
+                    int(
+                        result.get(
+                            "risk_score",
+                            0,
+                        )
+                        or 0
+                    ),
+                )
+
+                add_reason(
+                    "Execution allow invariant "
+                    "failed: "
+                    + ", ".join(
+                        failed_invariants
+                    )
+                    + "."
+                )
+
+                add_reason(
+                    "Tool Proxy failed closed "
+                    "because execution was not "
+                    "fully bound to an atomically "
+                    "consumed Capability Token."
+                )
+
+        else:
+            issued = (
+                token_summary.get(
+                    "issued"
+                )
+                is True
+            )
+
+            token_value = str(
+                token_summary.get(
+                    "token"
+                )
+                or ""
+            ).strip()
+
+            if (
+                not issued
+                or not token_value
+            ):
+                decision = "deny"
+
+                result[
+                    "risk_score"
+                ] = max(
+                    100,
+                    int(
+                        result.get(
+                            "risk_score",
+                            0,
+                        )
+                        or 0
+                    ),
+                )
+
+                add_reason(
+                    "Prepare-phase allow "
+                    "invariant failed because "
+                    "no usable Capability Token "
+                    "was issued."
+                )
+
+    result["decision"] = decision
+    result["reason"] = reasons
+
+    if decision != "allow":
+        token_type = str(
+            token_summary.get(
+                "token_type"
+            )
+            or (
+                "agentguard_"
+                "capability_token"
+            )
+        )
+
+        token_summary = {
+            "token_type": token_type,
+            "issued": False,
+            "reason": (
+                "Final Tool Proxy decision "
+                "does not permit Capability "
+                "Token disclosure."
+            ),
+        }
+
+    return (
+        result,
+        token_summary,
+    )
+
+
 def _apply_execution_attempt_result(
     result_dict: Dict[str, Any],
     execution_attempt: Dict[str, Any],
@@ -1606,6 +1924,24 @@ def _authorize_approved_tool_call(
             ),
         }
 
+    (
+        result_dict,
+        capability_token,
+    ) = _enforce_proxy_response_invariants(
+        request=request,
+        result_dict=result_dict,
+        executed=executed,
+        capability_token=(
+            capability_token
+        ),
+        capability_token_validation=(
+            capability_token_validation
+        ),
+        sandbox_evidence=(
+            sandbox_evidence
+        ),
+    )
+
     authorization_trace = (
         build_authorization_trace(
             agent_auth_profile=(
@@ -2182,6 +2518,24 @@ def authorize_tool_call(
             "issued": False,
             "reason": "Capability token is only issued when final decision is allow.",
         }
+
+    (
+        result_dict,
+        capability_token,
+    ) = _enforce_proxy_response_invariants(
+        request=request,
+        result_dict=result_dict,
+        executed=executed,
+        capability_token=(
+            capability_token
+        ),
+        capability_token_validation=(
+            capability_token_validation
+        ),
+        sandbox_evidence=(
+            sandbox_evidence
+        ),
+    )
 
     authorization_trace = build_authorization_trace(
         agent_auth_profile=agent_auth_profile,

@@ -1,4 +1,7 @@
 from __future__ import annotations
+import os
+import hmac
+import hashlib
 
 import json
 from dataclasses import dataclass
@@ -9,6 +12,7 @@ from backend.mcp.tool_registry import (
     MCP_TASK_SCOPE,
     get_tool_definition,
     tool_definitions_for_scopes,
+    tool_manifest_attestation,
 )
 from backend.oauth.token_service import normalize_scopes
 from backend.proxy.oauth_profile import get_required_scopes
@@ -61,6 +65,31 @@ class InsufficientScopeError(Exception):
     message: str = "The OAuth access token does not contain all scopes required for this MCP operation."
 
 
+def _require_tool_manifest_integrity() -> Dict[str, Any]:
+    attestation = (
+        tool_manifest_attestation()
+    )
+
+    if not attestation.get(
+        "valid",
+        False,
+    ):
+        raise McpProtocolError(
+            -32010,
+            (
+                "AgentGuard tool manifest "
+                "integrity verification failed."
+            ),
+            data={
+                "toolManifest": (
+                    attestation
+                ),
+            },
+        )
+
+    return attestation
+
+
 def _response(request_id: Any, result: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "jsonrpc": "2.0",
@@ -105,6 +134,10 @@ def _select_protocol_version(requested: Any) -> str:
 
 
 def _initialize_result(params: Dict[str, Any]) -> Dict[str, Any]:
+    attestation = (
+        _require_tool_manifest_integrity()
+    )
+
     return {
         "protocolVersion": _select_protocol_version(params.get("protocolVersion")),
         "capabilities": {
@@ -114,7 +147,12 @@ def _initialize_result(params: Dict[str, Any]) -> Dict[str, Any]:
         },
         "serverInfo": {
             "name": "agentguard-mcp-gateway",
-            "version": "0.6.0",
+            "version": "0.7.0",
+        },
+        "_meta": {
+            "agentguard/toolManifest": (
+                attestation
+            ),
         },
         "instructions": (
             "OAuth scopes provide coarse-grained access. AgentGuard additionally applies "
@@ -249,6 +287,41 @@ def _prepare_proxy_request(
         or "oauth-user"
     )
 
+    # OAuth_TASK_BINDING_CHECK:_prepare_proxy_request
+    if task_handle:
+        try:
+            (
+                trusted_session,
+                _trusted_version,
+            ) = load_session(
+                task_handle=task_handle,
+                expected_user=user,
+            )
+
+        except TaskNotFoundError as exc:
+            raise McpProtocolError(
+                -32004,
+                (
+                    "Trusted task session "
+                    "was not found."
+                ),
+            ) from exc
+
+        except TaskBindingError as exc:
+            raise McpProtocolError(
+                -32003,
+                (
+                    "Trusted task session "
+                    "does not belong to this "
+                    "OAuth subject."
+                ),
+            ) from exc
+
+        _assert_task_authorization_binding(
+            session=trusted_session,
+            principal=principal,
+        )
+
     trusted_steps: List[int] = []
     trusted_labels: List[str] = []
 
@@ -366,6 +439,337 @@ def _prepare_proxy_request(
 
 
 
+
+OAUTH_TASK_BINDING_SCHEMA = (
+    "agentguard.oauth_task_binding.v1"
+)
+
+
+def _normalized_oauth_audience(
+    value: Any,
+) -> List[str]:
+    if value is None:
+        return []
+
+    if isinstance(value, str):
+        candidates = [value]
+
+    elif isinstance(
+        value,
+        (
+            list,
+            tuple,
+            set,
+        ),
+    ):
+        candidates = [
+            str(item)
+            for item in value
+        ]
+
+    else:
+        candidates = [
+            str(value)
+        ]
+
+    normalized: List[str] = []
+
+    for item in candidates:
+        audience = str(
+            item
+        ).strip()
+
+        if (
+            audience
+            and audience
+            not in normalized
+        ):
+            normalized.append(
+                audience
+            )
+
+    return sorted(normalized)
+
+
+def _principal_task_authorization_binding(
+    principal: Dict[str, Any],
+) -> Dict[str, Any]:
+    principal = dict(
+        principal or {}
+    )
+
+    scopes = sorted(
+        set(
+            _principal_scopes(
+                principal
+            )
+        )
+    )
+
+    return {
+        "schema": (
+            OAUTH_TASK_BINDING_SCHEMA
+        ),
+        "issuer": str(
+            principal.get("iss")
+            or ""
+        ).strip(),
+        "subject": str(
+            principal.get("sub")
+            or ""
+        ).strip(),
+        "client_id": str(
+            principal.get("client_id")
+            or principal.get("azp")
+            or ""
+        ).strip(),
+        "audience": (
+            _normalized_oauth_audience(
+                principal.get("aud")
+            )
+        ),
+        "scope_ceiling": scopes,
+    }
+
+
+def _oauth_task_binding_fingerprint(
+    binding: Dict[str, Any],
+) -> str:
+    encoded = json.dumps(
+        binding,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+
+    return (
+        "sha256:"
+        + hashlib.sha256(
+            encoded
+        ).hexdigest()
+    )
+
+
+def _competition_mode() -> bool:
+    return (
+        os.getenv(
+            "AGENTGUARD_MODE",
+            "demo",
+        ).strip().lower()
+        == "competition"
+    )
+
+
+def _bind_task_session_authorization(
+    *,
+    session: TaskSession,
+    principal: Dict[str, Any],
+) -> None:
+    binding = (
+        _principal_task_authorization_binding(
+            principal
+        )
+    )
+
+    if not binding["subject"]:
+        raise McpProtocolError(
+            -32600,
+            (
+                "OAuth principal does not "
+                "contain a subject."
+            ),
+        )
+
+    if _competition_mode():
+        missing_fields = [
+            field_name
+            for field_name in (
+                "issuer",
+                "client_id",
+            )
+            if not binding[field_name]
+        ]
+
+        if not binding["audience"]:
+            missing_fields.append(
+                "audience"
+            )
+
+        if missing_fields:
+            raise McpProtocolError(
+                -32600,
+                (
+                    "Competition mode requires "
+                    "a complete OAuth task "
+                    "authorization context. "
+                    "Missing fields: "
+                    + ", ".join(
+                        missing_fields
+                    )
+                ),
+            )
+
+    session.oauth_authorization_binding = (
+        dict(binding)
+    )
+
+    session.oauth_authorization_fingerprint = (
+        _oauth_task_binding_fingerprint(
+            binding
+        )
+    )
+
+
+def _assert_task_authorization_binding(
+    *,
+    session: TaskSession,
+    principal: Dict[str, Any],
+) -> None:
+    stored_binding = dict(
+        getattr(
+            session,
+            "oauth_authorization_binding",
+            {},
+        )
+        or {}
+    )
+
+    stored_fingerprint = str(
+        getattr(
+            session,
+            "oauth_authorization_fingerprint",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not stored_binding:
+        if _competition_mode():
+            raise McpProtocolError(
+                -32003,
+                (
+                    "Trusted task session does "
+                    "not contain an OAuth "
+                    "authorization binding."
+                ),
+            )
+
+        # Demo 模式兼容创建于旧版本的任务。
+        return
+
+    if (
+        stored_binding.get("schema")
+        != OAUTH_TASK_BINDING_SCHEMA
+    ):
+        raise McpProtocolError(
+            -32003,
+            (
+                "Trusted task OAuth binding "
+                "uses an unsupported schema."
+            ),
+        )
+
+    expected_fingerprint = (
+        _oauth_task_binding_fingerprint(
+            stored_binding
+        )
+    )
+
+    if (
+        not stored_fingerprint
+        or not hmac.compare_digest(
+            stored_fingerprint,
+            expected_fingerprint,
+        )
+    ):
+        raise McpProtocolError(
+            -32003,
+            (
+                "Trusted task OAuth binding "
+                "fingerprint verification failed."
+            ),
+        )
+
+    current_binding = (
+        _principal_task_authorization_binding(
+            principal
+        )
+    )
+
+    identity_fields = (
+        "issuer",
+        "subject",
+        "client_id",
+        "audience",
+    )
+
+    mismatched_fields: List[str] = []
+
+    for field_name in identity_fields:
+        if (
+            stored_binding.get(
+                field_name
+            )
+            != current_binding.get(
+                field_name
+            )
+        ):
+            mismatched_fields.append(
+                field_name
+            )
+
+    if mismatched_fields:
+        raise McpProtocolError(
+            -32003,
+            (
+                "Trusted task belongs to a "
+                "different OAuth authorization "
+                "context. Mismatched fields: "
+                + ", ".join(
+                    mismatched_fields
+                )
+            ),
+        )
+
+    scope_ceiling = set(
+        normalize_scopes(
+            stored_binding.get(
+                "scope_ceiling"
+            )
+            or []
+        )
+    )
+
+    current_scopes = set(
+        normalize_scopes(
+            current_binding.get(
+                "scope_ceiling"
+            )
+            or []
+        )
+    )
+
+    expanded_scopes = sorted(
+        current_scopes
+        - scope_ceiling
+    )
+
+    if expanded_scopes:
+        raise McpProtocolError(
+            -32003,
+            (
+                "OAuth scopes exceed the "
+                "authority ceiling recorded "
+                "when the task was created. "
+                "Unexpected scopes: "
+                + ", ".join(
+                    expanded_scopes
+                )
+            ),
+        )
+
+
 def _create_trusted_task(
     *,
     principal: Dict[str, Any],
@@ -410,6 +814,11 @@ def _create_trusted_task(
         original_input=original_task,
         agent_type="mcp",
         status="created",
+    )
+
+    _bind_task_session_authorization(
+        session=session,
+        principal=principal,
     )
 
     task_handle, version = create_session(
@@ -470,6 +879,12 @@ def _get_trusted_task(
             "Trusted task session does not belong to this OAuth subject.",
         ) from exc
 
+
+    # OAuth_TASK_BINDING_CHECK:_get_trusted_task
+    _assert_task_authorization_binding(
+        session=session,
+        principal=principal,
+    )
     return {
         "taskHandle": task_handle,
         "version": version,
@@ -481,6 +896,8 @@ def _call_tool(
     principal: Dict[str, Any],
     params: Dict[str, Any],
 ) -> Dict[str, Any]:
+    _require_tool_manifest_integrity()
+
     name = str(params.get("name") or "")
     arguments = params.get("arguments", {}) or {}
 
@@ -886,13 +1303,30 @@ def _handle_mcp_request_without_revocation(
         return _response(request_id, {})
 
     if method == "tools/list":
-        _require_scopes(principal, [MCP_LIST_SCOPE])
+        _require_scopes(
+            principal,
+            [MCP_LIST_SCOPE],
+        )
+
+        attestation = (
+            _require_tool_manifest_integrity()
+        )
+
         return _response(
             request_id,
             {
-                "tools": tool_definitions_for_scopes(
-                    _principal_scopes(principal)
+                "tools": (
+                    tool_definitions_for_scopes(
+                        _principal_scopes(
+                            principal
+                        )
+                    )
                 ),
+                "_meta": {
+                    "agentguard/toolManifest": (
+                        attestation
+                    ),
+                },
             },
         )
 

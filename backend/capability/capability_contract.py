@@ -72,6 +72,25 @@ class CapabilityContract(BaseModel):
         description="能力合约版本"
     )
 
+    compiler_version: str = Field(
+        default="legacy",
+        description="生成该合约的 TaskSpec 编译器版本"
+    )
+
+    compilation_status: Literal[
+        "compiled",
+        "restricted",
+        "rejected",
+    ] = Field(
+        default="compiled",
+        description="任务编译结果：正常、受限或失败关闭"
+    )
+
+    source_task_sha256: str = Field(
+        default="",
+        description="用户原始任务文本的 SHA-256 摘要"
+    )
+
     task_id: str = Field(..., description="任务编号")
     user: str = Field(..., description="发起任务的用户")
     original_task: str = Field(..., description="用户原始任务")

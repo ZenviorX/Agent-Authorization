@@ -1,48 +1,111 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
 
-TESTS = [
-    "tests/test_research_oauth_comparison.py",
-    "tests/test_research_strategy_comparison.py",
-    "tests/test_authorization_trace.py",
-    "tests/test_capability_contract.py",
-    "tests/test_data_provenance_guard.py",
-    "tests/test_capability_token.py",
-    "tests/test_capability_token_enforcement.py",
-    "tests/test_capability_token_task_binding.py",
-    "tests/test_capability_token_execution_gate.py",
-    "tests/test_capability_token_execution_positive.py",
-    "tests/test_capability_token_issue_policy.py",
-    "tests/test_two_phase_tool_proxy_service.py",
-    "tests/test_two_phase_tool_proxy_routes.py",
-    "tests/test_capability_token_param_binding.py",
-    "tests/test_capability_token_tool_binding.py",
-    "tests/test_capability_token_expiry.py",
-    "tests/test_capability_token_replay_guard.py",
-    "tests/test_capability_token_ledger.py",
-    "tests/test_capability_token_status_routes.py",
-    "tests/test_capability_token_revoke_routes.py",
-    "tests/test_capability_token_events_routes.py",
-    "tests/test_capability_token_trace_status.py",
-    "tests/test_execute_phase_no_new_token.py",
-    "tests/test_capability_token_sandbox_binding.py",
-    "tests/test_sandbox_path_policy.py",
-    "tests/unit/test_oauth_access_token.py",
-    "tests/unit/test_mcp_tool_registry.py",
-    "tests/unit/test_mcp_service.py",
-]
+ROOT = Path(__file__).resolve().parents[1]
+TEST_ROOT = ROOT / "tests"
+
+MINIMUM_TEST_FILE_COUNT = 20
+
+
+def discover_test_files() -> list[Path]:
+    if not TEST_ROOT.exists():
+        raise RuntimeError(
+            "tests directory does not exist."
+        )
+
+    return sorted(
+        path
+        for path in TEST_ROOT.rglob(
+            "test_*.py"
+        )
+        if "__pycache__"
+        not in path.parts
+    )
+
+
+def build_test_environment(
+) -> dict[str, str]:
+    environment = dict(os.environ)
+
+    environment["PYTHONUTF8"] = "1"
+    environment["PYTHONHASHSEED"] = "0"
+
+    # 自动化回归统一在 Demo 暴露模式下运行。
+    # competition 安全就绪逻辑由专门单元测试覆盖，
+    # 避免开发机器遗留环境变量干扰全部测试。
+    environment["AGENTGUARD_MODE"] = (
+        "demo"
+    )
+
+    environment.pop(
+        "AGENTGUARD_ENFORCE_STARTUP_SECURITY",
+        None,
+    )
+
+    environment.pop(
+        "AGENTGUARD_REQUIRE_EVIDENCE_BUNDLE_SIGNATURE",
+        None,
+    )
+
+    return environment
 
 
 def main() -> int:
-    cmd = [sys.executable, "-m", "pytest", *TESTS, "-q"]
-    print("=== AgentGuard Backend Authorization Regression ===")
-    print("tests:", len(TESTS))
-    return subprocess.call(cmd, cwd=ROOT)
+    test_files = discover_test_files()
+
+    if (
+        len(test_files)
+        < MINIMUM_TEST_FILE_COUNT
+    ):
+        print(
+            "ERROR: discovered too few "
+            "backend test files."
+        )
+
+        print(
+            "discovered:",
+            len(test_files),
+        )
+
+        return 2
+
+    print(
+        "=== AgentGuard Complete "
+        "Backend Regression ==="
+    )
+
+    print(
+        "test_files:",
+        len(test_files),
+    )
+
+    for path in test_files:
+        print(
+            "-",
+            path.relative_to(ROOT),
+        )
+
+    command = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "tests",
+        "-q",
+        "--strict-markers",
+        "--maxfail=1",
+        "--durations=10",
+    ]
+
+    return subprocess.call(
+        command,
+        cwd=ROOT,
+        env=build_test_environment(),
+    )
 
 
 if __name__ == "__main__":
