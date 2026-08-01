@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { LiveStatus } from './components/LiveStatus';
+import { useEffect, useState } from 'react';
 import { useLiveRuntime } from './hooks/useLiveRuntime';
 import { AuthenticationPage } from './pages/AuthenticationPage';
 import { Dashboard } from './pages/Dashboard';
@@ -14,8 +13,23 @@ import './styles/layout.css';
 import './styles/realtime-console.css';
 import './styles/overview-hero-header.css';
 import './styles/sidebar-authentication.css';
+import './styles/page-status-banner.css';
 
 type PageKey = 'auth' | 'overview' | 'workbench' | 'evidence' | 'test' | 'research';
+type StatusTone = 'blue' | 'purple' | 'green' | 'yellow' | 'red' | 'gray';
+
+type PageStatusItem = {
+  label: string;
+  value: string;
+  tone: StatusTone;
+};
+
+type PageStatusConfig = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  items: PageStatusItem[];
+};
 
 const navItems: Array<{
   key: PageKey;
@@ -30,17 +44,43 @@ const navItems: Array<{
   { key: 'research', label: '研究说明', subtitle: '方法定位与实验逻辑' }
 ];
 
+function serviceLabel(status?: string) {
+  if (status === 'online') return '在线';
+  if (status === 'offline') return '离线';
+  return '等待状态';
+}
+
+function serviceTone(status?: string): StatusTone {
+  if (status === 'online') return 'green';
+  if (status === 'offline') return 'red';
+  return 'yellow';
+}
+
+function decisionTone(decision?: string): StatusTone {
+  if (decision === 'allow') return 'green';
+  if (decision === 'confirm' || decision === 'review') return 'yellow';
+  if (decision === 'deny') return 'red';
+  return 'gray';
+}
+
+function formatAccuracy(value?: number) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return '等待结果';
+  return `${(value * 100).toFixed(2)}%`;
+}
+
+function formatEventTime(value?: string) {
+  if (!value) return '暂无事件';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 export default function App() {
   const [page, setPage] = useState<PageKey>('auth');
   const [strategyComparison, setStrategyComparison] = useState<StrategyComparisonResponse | null>(null);
   const [testRunning, setTestRunning] = useState(false);
   const [testRunMessage, setTestRunMessage] = useState<string | null>(null);
   const { snapshot, connectionState, error, refresh } = useLiveRuntime();
-
-  const currentNavItem = useMemo(
-    () => navItems.find((item) => item.key === page),
-    [page]
-  );
 
   useEffect(() => {
     let active = true;
@@ -68,6 +108,155 @@ export default function App() {
       setTestRunning(false);
     }
   }
+
+  const latestRequest = snapshot?.requests[0];
+  const latestAudit = snapshot?.auditLogs[0];
+  const testSummary = snapshot?.testSummary;
+  const registeredFeatures = snapshot?.systemStatus.registered_core_features ?? [];
+  const sandboxRegistered = registeredFeatures.some((item) => item.toLowerCase().includes('sandbox'));
+
+  const pageStatus: PageStatusConfig = (() => {
+    switch (page) {
+      case 'auth':
+        return {
+          eyebrow: 'Authentication Status',
+          title: '认证链路状态',
+          description: 'OAuth Authorization Server、MCP Protected Resource 与 AgentGuard Backend。',
+          items: [
+            {
+              label: 'OAuth Server',
+              value: serviceLabel(snapshot?.services.oauth.status),
+              tone: serviceTone(snapshot?.services.oauth.status)
+            },
+            {
+              label: 'MCP Gateway',
+              value: serviceLabel(snapshot?.services.mcp.status),
+              tone: serviceTone(snapshot?.services.mcp.status)
+            },
+            {
+              label: 'Backend',
+              value: serviceLabel(snapshot?.services.backend.status),
+              tone: serviceTone(snapshot?.services.backend.status)
+            }
+          ]
+        };
+      case 'overview':
+        return {
+          eyebrow: 'Overview Status',
+          title: '全局运行摘要',
+          description: '当前运行模式、最近决策和审计记录。',
+          items: [
+            {
+              label: '运行模式',
+              value: snapshot?.systemStatus.agentguard_mode?.toUpperCase() ?? '等待状态',
+              tone: 'blue'
+            },
+            {
+              label: '最新决策',
+              value: latestRequest?.decision.toUpperCase() ?? 'WAITING',
+              tone: decisionTone(latestRequest?.decision)
+            },
+            {
+              label: '审计记录',
+              value: `${snapshot?.auditLogs.length ?? 0} 条`,
+              tone: snapshot?.auditLogs.length ? 'green' : 'gray'
+            }
+          ]
+        };
+      case 'workbench':
+        return {
+          eyebrow: 'Workbench Status',
+          title: '演示执行环境',
+          description: 'Gateway、运行模式和沙箱能力。',
+          items: [
+            {
+              label: 'Gateway',
+              value: serviceLabel(snapshot?.services.backend.status),
+              tone: serviceTone(snapshot?.services.backend.status)
+            },
+            {
+              label: '授权模式',
+              value: snapshot?.systemStatus.agentguard_mode?.toUpperCase() ?? '等待状态',
+              tone: 'blue'
+            },
+            {
+              label: '沙箱能力',
+              value: sandboxRegistered ? '已注册' : '等待状态',
+              tone: sandboxRegistered ? 'purple' : 'yellow'
+            }
+          ]
+        };
+      case 'evidence':
+        return {
+          eyebrow: 'Evidence Status',
+          title: '审计与证据摘要',
+          description: '运行记录、最新事件和沙箱证据。',
+          items: [
+            {
+              label: '运行记录',
+              value: `${snapshot?.overview?.totalRequests ?? snapshot?.requests.length ?? 0} 条`,
+              tone: 'blue'
+            },
+            {
+              label: '最新事件',
+              value: formatEventTime(latestAudit?.timestamp),
+              tone: latestAudit ? 'purple' : 'gray'
+            },
+            {
+              label: '沙箱证据',
+              value: `${snapshot?.overview?.localEvidenceRuns ?? 0} 份`,
+              tone: (snapshot?.overview?.localEvidenceRuns ?? 0) > 0 ? 'green' : 'gray'
+            }
+          ]
+        };
+      case 'test':
+        return {
+          eyebrow: 'Evaluation Status',
+          title: '测试运行摘要',
+          description: '最新准确率、样例规模和测试执行状态。',
+          items: [
+            {
+              label: '准确率',
+              value: formatAccuracy(testSummary?.accuracy),
+              tone: testSummary?.available ? 'blue' : 'gray'
+            },
+            {
+              label: '测试样例',
+              value: `${testSummary?.total_cases ?? 0} 条`,
+              tone: 'purple'
+            },
+            {
+              label: '测试状态',
+              value: testRunning ? '运行中' : testSummary?.available ? '已生成' : '等待运行',
+              tone: testRunning ? 'yellow' : testSummary?.available ? 'green' : 'gray'
+            }
+          ]
+        };
+      case 'research':
+        return {
+          eyebrow: 'Research Status',
+          title: '策略对比摘要',
+          description: '对比策略数量、样例规模和结果状态。',
+          items: [
+            {
+              label: '对比策略',
+              value: `${Object.keys(strategyComparison?.summary ?? {}).length} 种`,
+              tone: 'blue'
+            },
+            {
+              label: '对比样例',
+              value: `${strategyComparison?.total_cases ?? 0} 条`,
+              tone: 'purple'
+            },
+            {
+              label: '结果状态',
+              value: strategyComparison?.available ? '可用' : '等待生成',
+              tone: strategyComparison?.available ? 'green' : 'gray'
+            }
+          ]
+        };
+    }
+  })();
 
   const content: Record<PageKey, JSX.Element> = {
     auth: (
@@ -97,7 +286,7 @@ export default function App() {
       <EvaluationPage
         metrics={snapshot?.evaluations ?? []}
         strategyComparison={strategyComparison}
-        testSummary={snapshot?.testSummary ?? null}
+        testSummary={testSummary ?? null}
         testRunning={testRunning}
         testRunMessage={testRunMessage}
         onRunTests={() => void handleRunIndependentTests()}
@@ -160,19 +349,24 @@ export default function App() {
       </aside>
 
       <main className="main-panel clean-main realtime-main">
-        <header className={`topbar clean-topbar realtime-topbar ${page === 'overview' ? 'overview-actions-only' : ''}`}>
-          {page !== 'overview' && (
-            <div>
-              <span className="eyebrow">AgentGuard Security Operations</span>
-              <h1>{currentNavItem?.label ?? 'MCP / OAuth 认证'}</h1>
-              <p className="topbar-desc">{currentNavItem?.subtitle ?? '认证服务与协议状态。'}</p>
-            </div>
-          )}
-          <div className="topbar-actions realtime-topbar-actions">
-            <button className="secondary-btn small" onClick={() => void refresh()}>立即刷新</button>
-            <LiveStatus state={connectionState} snapshot={snapshot} error={error} />
+        <section className="page-status-banner" aria-label={`${pageStatus.title}状态`}>
+          <div className="page-status-copy">
+            <span className="eyebrow">{pageStatus.eyebrow}</span>
+            <h2>{pageStatus.title}</h2>
+            <p>{pageStatus.description}</p>
           </div>
-        </header>
+
+          <div className="page-status-actions">
+            <button className="page-status-refresh" onClick={() => void refresh()}>立即刷新</button>
+            {pageStatus.items.map((item) => (
+              <div className={`page-status-pill tone-${item.tone}`} key={item.label}>
+                <span className="page-status-pill-dot" />
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {error && connectionState !== 'offline' && (
           <div className="runtime-warning">
