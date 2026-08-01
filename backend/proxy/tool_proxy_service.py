@@ -566,18 +566,23 @@ def _attach_execution_token_state(
     capability_token_validation: Dict[str, Any],
     execution_attempt: Dict[str, Any],
 ) -> Dict[str, Any]:
+    """
+    Attach both the new atomic execution state and the
+    legacy consumption summary expected by existing APIs.
+    """
+
     validation = dict(
         capability_token_validation or {}
     )
 
-    validation["execution_id"] = str(
+    execution_id = str(
         execution_attempt.get(
             "execution_id",
             "",
         )
     )
 
-    validation["execution_claim"] = dict(
+    claim = dict(
         execution_attempt.get(
             "claim",
             {},
@@ -585,15 +590,75 @@ def _attach_execution_token_state(
         or {}
     )
 
-    validation[
-        "execution_finalization"
-    ] = dict(
+    finalization = dict(
         execution_attempt.get(
             "finalization",
             {},
         )
         or {}
     )
+
+    finalization_status = str(
+        finalization.get(
+            "status",
+            "",
+        )
+        or ""
+    )
+
+    finalized = bool(
+        finalization.get(
+            "finalized"
+        )
+    )
+
+    consumed = bool(
+        finalization.get(
+            "consumed"
+        )
+        is True
+        or (
+            finalized
+            and finalization_status
+            == "consumed"
+        )
+    )
+
+    validation["execution_id"] = (
+        execution_id
+    )
+
+    validation["execution_claim"] = (
+        claim
+    )
+
+    validation[
+        "execution_finalization"
+    ] = finalization
+
+    # Backward-compatible summary retained for the
+    # authorization trace and existing frontend APIs.
+    validation["consumption"] = {
+        "consumed": consumed,
+        "finalized": finalized,
+        "status": finalization_status,
+        "execution_id": execution_id,
+        "acquired": bool(
+            claim.get(
+                "acquired"
+            )
+        ),
+        "reason": str(
+            finalization.get(
+                "reason",
+                claim.get(
+                    "reason",
+                    "",
+                ),
+            )
+            or ""
+        ),
+    }
 
     return validation
 

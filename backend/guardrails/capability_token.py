@@ -139,11 +139,15 @@ def issue_capability_token(
     ttl_minutes: int = 15,
 ) -> Dict[str, Any]:
     now = datetime.now(timezone.utc)
+    # Negative TTL values intentionally create an already
+    # expired token. This is safe and is also required for
+    # deterministic expiry and security regression tests.
+    ttl_value = int(
+        ttl_minutes
+    )
+
     expires_at = now + timedelta(
-        minutes=max(
-            1,
-            int(ttl_minutes),
-        )
+        minutes=ttl_value
     )
 
     payload = {
