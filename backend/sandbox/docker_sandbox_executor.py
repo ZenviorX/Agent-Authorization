@@ -104,8 +104,61 @@ SOURCE_DIR_MAP = {
 }
 
 
-def docker_available() -> bool:
-    return shutil.which("docker") is not None
+
+def docker_available(
+    timeout_seconds: int = 3,
+) -> bool:
+    """
+    Docker 可用必须同时满足：
+
+    1. Docker CLI 存在；
+    2. Docker daemon 可以正常响应。
+
+    Windows GitHub Runner 可能只有 docker.exe，
+    但没有正在运行的 daemon，不能仅凭 CLI
+    是否存在判断 Docker 可用。
+    """
+    docker_path = shutil.which(
+        "docker"
+    )
+
+    if not docker_path:
+        return False
+
+    try:
+        completed = subprocess.run(
+            [
+                docker_path,
+                "info",
+                "--format",
+                "{{.ServerVersion}}",
+            ],
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=max(
+                1,
+                int(timeout_seconds),
+            ),
+            check=False,
+        )
+
+    except (
+        OSError,
+        subprocess.TimeoutExpired,
+    ):
+        return False
+
+    return bool(
+        completed.returncode == 0
+        and str(
+            completed.stdout
+            or ""
+        ).strip()
+    )
+
 
 
 def _now() -> str:
