@@ -24,6 +24,9 @@ const decisionTone = {
 } as const;
 
 export function RequestTable({ rows, onApprove, onReject, compact = false }: RequestTableProps) {
+  const showActions = Boolean(onApprove || onReject);
+  const columnCount = (compact ? 6 : 7) + (showActions ? 1 : 0);
+
   return (
     <div className="table-wrap">
       <table className="data-table">
@@ -36,7 +39,7 @@ export function RequestTable({ rows, onApprove, onReject, compact = false }: Req
             <th>风险</th>
             <th>决策</th>
             <th>状态</th>
-            <th>操作</th>
+            {showActions && <th>操作</th>}
           </tr>
         </thead>
         <tbody>
@@ -63,18 +66,27 @@ export function RequestTable({ rows, onApprove, onReject, compact = false }: Req
               <td><Badge tone={riskTone[row.risk]}>{riskText[row.risk]}</Badge></td>
               <td><Badge tone={decisionTone[row.decision]}>{decisionText[row.decision]}</Badge></td>
               <td><Badge>{statusText[row.status]}</Badge></td>
-              <td>
-                {row.status === 'pending' ? (
-                  <div className="row-actions">
-                    <button className="tiny-btn success" onClick={() => onApprove?.(row.id)}>通过</button>
-                    <button className="tiny-btn danger" onClick={() => onReject?.(row.id)}>拒绝</button>
-                  </div>
-                ) : (
-                  <span className="muted">完成</span>
-                )}
-              </td>
+              {showActions && (
+                <td>
+                  {row.status === 'pending' ? (
+                    <div className="row-actions">
+                      <button className="tiny-btn success" onClick={() => onApprove?.(row.id)}>通过</button>
+                      <button className="tiny-btn danger" onClick={() => onReject?.(row.id)}>拒绝</button>
+                    </div>
+                  ) : (
+                    <span className="muted">完成</span>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
+          {!rows.length && (
+            <tr>
+              <td className="table-empty-cell" colSpan={columnCount}>
+                暂无真实运行记录。前往“实时演示”发起一次任务后，本表会自动更新。
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
