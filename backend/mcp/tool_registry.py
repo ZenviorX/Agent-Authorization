@@ -7,6 +7,9 @@ from backend.oauth.token_service import normalize_scopes
 
 
 MCP_LIST_SCOPE = "mcp:tools:list"
+MCP_TASK_SCOPE = "mcp:tasks:manage"
+MCP_APPROVAL_READ_SCOPE = "mcp:approvals:read"
+MCP_APPROVAL_DECIDE_SCOPE = "mcp:approvals:decide"
 
 
 _TOOL_DEFINITIONS: List[Dict[str, Any]] = [
@@ -184,9 +187,52 @@ def get_tool_definition(name: str) -> Dict[str, Any] | None:
     return None
 
 
-def supported_oauth_scopes() -> List[str]:
-    values = {MCP_LIST_SCOPE}
+def _supported_oauth_scopes_without_revocation() -> List[str]:
+    values = {
+        MCP_LIST_SCOPE,
+        MCP_TASK_SCOPE,
+        MCP_APPROVAL_READ_SCOPE,
+        MCP_APPROVAL_DECIDE_SCOPE,
+    }
+
     for tool in _TOOL_DEFINITIONS:
-        values.update(required_list_scopes(tool))
-    values.update({"sink:external-email", "source:sensitive-file"})
+        values.update(
+            required_list_scopes(tool)
+        )
+
+    values.update(
+        {
+            "sink:external-email",
+            "source:sensitive-file",
+        }
+    )
+
     return sorted(values)
+
+
+AGENTGUARD_REVOCATION_READ_SCOPE = (
+    "mcp:revocations:read"
+)
+
+AGENTGUARD_REVOCATION_WRITE_SCOPE = (
+    "mcp:revocations:write"
+)
+
+
+def supported_oauth_scopes():
+    """
+    Return all existing OAuth scopes plus the trusted
+    revocation-management scopes.
+    """
+    existing = list(
+        _supported_oauth_scopes_without_revocation()
+    )
+
+    for scope in (
+        AGENTGUARD_REVOCATION_READ_SCOPE,
+        AGENTGUARD_REVOCATION_WRITE_SCOPE,
+    ):
+        if scope not in existing:
+            existing.append(scope)
+
+    return existing

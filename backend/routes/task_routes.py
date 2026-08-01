@@ -6,6 +6,13 @@ from backend.agents.multistep_llm_agent import MultiStepLLMAgent
 from backend.task_session.session_executor import execute_task_session
 from backend.task_session.session_models import TaskSession
 from backend.task_session.task_audit_logger import write_task_session_log, read_task_session_logs
+from backend.task_session.task_store import (
+    TaskBindingError,
+    TaskNotFoundError,
+    create_session,
+    load_session,
+    save_session,
+)
 
 
 router = APIRouter(
@@ -60,7 +67,16 @@ def run_task(request: TaskRunRequest):
             user_input=request.user_input,
         )
 
+        task_handle, version = create_session(session)
+
         result = execute_task_session(session)
+
+        save_session(
+            task_handle=task_handle,
+            session=result,
+            expected_version=version,
+        )
+
         write_task_session_log(result)
 
         return result
@@ -70,6 +86,38 @@ def run_task(request: TaskRunRequest):
             status_code=500,
             detail=f"多步任务执行失败：{str(e)}",
         )
+
+
+@router.get("/session/{task_handle}", response_model=TaskSession)
+def get_task_session(
+    task_handle: str,
+    user: str,
+):
+    """
+    ???????????????
+
+    task_handle ???????
+    user ??????????????????????
+    """
+    try:
+        session, _ = load_session(
+            task_handle=task_handle,
+            expected_user=user,
+        )
+
+        return session
+
+    except TaskNotFoundError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc),
+        ) from exc
+
+    except TaskBindingError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail=str(exc),
+        ) from exc
 
 @router.get("/logs")
 def get_task_logs(limit: int = 50):

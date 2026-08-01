@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from backend.mcp.tool_registry import (
     MCP_LIST_SCOPE,
+    MCP_TASK_SCOPE,
     get_tool_definition,
     tool_definitions_for_scopes,
 )
@@ -13,6 +14,31 @@ from backend.oauth.token_service import normalize_scopes
 from backend.proxy.oauth_profile import get_required_scopes
 from backend.proxy.proxy_models import ToolProxyAuthorizeRequest
 from backend.proxy.tool_proxy_service import authorize_tool_call
+from backend.task_session.session_executor import model_to_dict
+from backend.task_session.session_models import TaskSession
+from backend.task_session.task_store import (
+    TaskBindingError,
+    TaskNotFoundError,
+    create_session,
+    load_session,
+)
+from backend.task_session.task_store import DataReferenceBindingError, DataReferenceNotFoundError, resolve_data_references
+from backend.mcp.tool_registry import MCP_APPROVAL_DECIDE_SCOPE, MCP_APPROVAL_READ_SCOPE
+from backend.task_session.task_store import ApprovalTicketBindingError, ApprovalTicketNotFoundError, ApprovalTicketStateError, decide_approval_ticket, get_approval_ticket
+from backend.audit.trusted_audit_store import append_trusted_audit_event
+from backend.revocation.revocation_service import (
+    APPROVAL_DECIDE_SCOPE as REVOCATION_APPROVAL_DECIDE_SCOPE,
+    REVOCATION_READ_SCOPE,
+    REVOCATION_WRITE_SCOPE,
+    TASK_MANAGE_SCOPE as REVOCATION_TASK_MANAGE_SCOPE,
+    RevocationAuthorizationError,
+    RevocationServiceError,
+    RevocationTargetError,
+    list_task_revocations_for_principal,
+    revoke_approval_ticket_for_principal,
+    revoke_capability_token_for_principal,
+    revoke_task_for_principal,
+)
 
 
 CURRENT_PROTOCOL_VERSION = "2025-11-25"
@@ -93,8 +119,8 @@ def _initialize_result(params: Dict[str, Any]) -> Dict[str, Any]:
         "instructions": (
             "OAuth scopes provide coarse-grained access. AgentGuard additionally applies "
             "task-bound capability checks, runtime monitoring, sandbox policy and audit evidence "
-            "before any MCP tool is executed. Pass the original user task in "
-            "params._meta['agentguard/originalTask'] or the X-AgentGuard-Task HTTP header."
+            "before any MCP tool is executed. Use the server-issued task handle in "
+            "params._meta['agentguard/taskHandle'] to preserve trusted task state across calls."
         ),
     }
 
@@ -108,28 +134,65 @@ def _tool_result_payload(
     tool_result: Optional[Dict[str, Any]] = None,
     sandbox_evidence: Optional[Dict[str, Any]] = None,
     capability_token_validation: Optional[Dict[str, Any]] = None,
+    task_handle: str = "",
+    task_version: int = 0,
+    data_ref: str = "",
+    approval_ticket: str = "",
+    approval_status: str = "",
 ) -> Dict[str, Any]:
     structured = {
+        "task_handle": str(
+            task_handle or ""
+        ),
+        "task_version": int(
+            task_version or 0
+        ),
+        "data_ref": str(
+            data_ref or ""
+        ),
+        "approval_ticket": str(
+            approval_ticket or ""
+        ),
+        "approval_status": str(
+            approval_status or ""
+        ),
         "decision": str(decision),
-        "risk_score": int(risk_score or 0),
-        "reason": [str(item) for item in reason or []],
+        "risk_score": int(
+            risk_score or 0
+        ),
+        "reason": [
+            str(item)
+            for item in reason or []
+        ],
         "executed": bool(executed),
         "tool_result": tool_result,
         "sandbox_evidence": sandbox_evidence,
-        "capability_token_validation": capability_token_validation or {},
+        "capability_token_validation": (
+            capability_token_validation
+            or {}
+        ),
     }
 
     tool_failed = bool(
         isinstance(tool_result, dict)
         and tool_result.get("success") is False
     )
-    is_error = decision != "allow" or not executed or tool_failed
+
+    is_error = (
+        decision != "allow"
+        or not executed
+        or tool_failed
+    )
 
     return {
         "content": [
             {
                 "type": "text",
-                "text": json.dumps(structured, ensure_ascii=False, indent=2),
+                "text": json.dumps(
+                    structured,
+                    ensure_ascii=False,
+                    indent=2,
+                ),
             }
         ],
         "structuredContent": structured,
@@ -151,46 +214,267 @@ def _prepare_proxy_request(
     arguments: Dict[str, Any],
     meta: Dict[str, Any],
 ) -> ToolProxyAuthorizeRequest:
-    original_task = str(
-        meta.get("agentguard/originalTask")
-        or meta.get("agentguard.original_task")
-        or f"Invoke MCP tool {name} with the supplied arguments."
+    """
+    Build a Tool Proxy request using only server-trusted
+    task state and data references.
+    """
+    task_handle = str(
+        meta.get("agentguard/taskHandle")
+        or meta.get("agentguard.task_handle")
+        or ""
+    ).strip()
+
+    raw_data_refs = (
+        meta.get("agentguard/dataRefs")
+        or meta.get("agentguard.data_refs")
+        or []
     )
 
-    input_labels = meta.get("agentguard/inputLabels", []) or []
-    if not isinstance(input_labels, list):
-        raise McpProtocolError(-32602, "agentguard/inputLabels must be an array.")
+    if not isinstance(raw_data_refs, list):
+        raise McpProtocolError(
+            -32602,
+            "agentguard/dataRefs must be an array.",
+        )
 
-    input_from_steps = meta.get("agentguard/inputFromSteps", []) or []
-    if not isinstance(input_from_steps, list):
-        raise McpProtocolError(-32602, "agentguard/inputFromSteps must be an array.")
+    data_refs: List[str] = []
 
-    try:
-        confidence = float(meta.get("agentguard/agentConfidence", 1.0))
-    except (TypeError, ValueError):
-        raise McpProtocolError(-32602, "agentguard/agentConfidence must be numeric.")
+    for item in raw_data_refs:
+        value = str(item).strip()
+
+        if value and value not in data_refs:
+            data_refs.append(value)
+
+    user = str(
+        principal.get("sub")
+        or "oauth-user"
+    )
+
+    trusted_steps: List[int] = []
+    trusted_labels: List[str] = []
+
+    if data_refs:
+        if not task_handle:
+            raise McpProtocolError(
+                -32602,
+                (
+                    "agentguard/dataRefs requires a "
+                    "server-issued task handle."
+                ),
+            )
+
+        try:
+            (
+                trusted_steps,
+                trusted_labels,
+            ) = resolve_data_references(
+                task_handle=task_handle,
+                user=user,
+                data_refs=data_refs,
+            )
+
+        except DataReferenceNotFoundError as exc:
+            raise McpProtocolError(
+                -32004,
+                "One or more data references were not found.",
+            ) from exc
+
+        except DataReferenceBindingError as exc:
+            raise McpProtocolError(
+                -32003,
+                (
+                    "A data reference does not belong "
+                    "to this task or OAuth subject."
+                ),
+            ) from exc
+
+    ignored_client_fields: List[str] = []
+
+    for field_name in (
+        "agentguard/inputLabels",
+        "agentguard/inputFromSteps",
+        "agentguard/agentConfidence",
+        "agentguard/originalTask",
+        "agentguard.original_task",
+    ):
+        if field_name in meta:
+            ignored_client_fields.append(
+                field_name
+            )
+
+    approval_ticket = str(
+        meta.get(
+            "agentguard/approvalTicket"
+        )
+        or meta.get(
+            "agentguard.approval_ticket"
+        )
+        or ""
+    ).strip()
 
     return ToolProxyAuthorizeRequest(
-        user=str(principal.get("sub") or "oauth-user"),
-        original_task=original_task,
+        user=user,
+        original_task="",
+        task_handle=task_handle,
         tool=name,
-        params=arguments,
-        input_labels=[str(item) for item in input_labels],
-        input_from_steps=[int(item) for item in input_from_steps],
-        agent_confidence=confidence,
+        params=dict(arguments),
+        input_labels=list(trusted_labels),
+        input_from_steps=list(trusted_steps),
+        agent_confidence=1.0,
         execute=False,
-        agent_platform=str(meta.get("agentguard/agentPlatform") or principal.get("client_id") or "mcp-client"),
+        agent_platform=str(
+            meta.get("agentguard/agentPlatform")
+            or principal.get("client_id")
+            or "mcp-client"
+        ),
         auth_mode="oauth_scope",
-        requested_scopes=_principal_scopes(principal),
+        requested_scopes=_principal_scopes(
+            principal
+        ),
         oauth_token_claims=dict(principal),
         capability_token="",
-        sandbox_profile=str(meta.get("agentguard/sandboxProfile") or "default"),
+        sandbox_profile=str(
+            meta.get("agentguard/sandboxProfile")
+            or "default"
+        ),
         external_agent_metadata={
             "transport": "mcp_streamable_http",
-            "mcp_protocol_version": str(meta.get("agentguard/protocolVersion") or CURRENT_PROTOCOL_VERSION),
+            "mcp_protocol_version": str(
+                meta.get(
+                    "agentguard/protocolVersion"
+                )
+                or CURRENT_PROTOCOL_VERSION
+            ),
+            "authorization_phase": "prepare",
+            "security_context_source": (
+                "agentguard_server"
+            ),
+            "trusted_data_refs": list(
+                data_refs
+            ),
+            "resolved_source_steps": list(
+                trusted_steps
+            ),
+            "resolved_input_labels": list(
+                trusted_labels
+            ),
+            "ignored_client_security_fields": (
+                ignored_client_fields
+            ),
         },
+        approval_ticket=approval_ticket,
     )
 
+
+
+def _create_trusted_task(
+    *,
+    principal: Dict[str, Any],
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    _require_scopes(
+        principal,
+        [MCP_TASK_SCOPE],
+    )
+
+    original_task = str(
+        params.get("originalTask")
+        or params.get("original_task")
+        or ""
+    ).strip()
+
+    if not original_task:
+        raise McpProtocolError(
+            -32602,
+            "agentguard/tasks/create requires params.originalTask.",
+        )
+
+    if len(original_task) > 8000:
+        raise McpProtocolError(
+            -32602,
+            "The original task exceeds the 8000 character limit.",
+        )
+
+    user = str(
+        principal.get("sub")
+        or ""
+    ).strip()
+
+    if not user:
+        raise McpProtocolError(
+            -32600,
+            "The OAuth principal does not contain a subject.",
+        )
+
+    session = TaskSession(
+        user=user,
+        original_input=original_task,
+        agent_type="mcp",
+        status="created",
+    )
+
+    task_handle, version = create_session(
+        session
+    )
+
+    return {
+        "taskHandle": task_handle,
+        "version": version,
+        "status": session.status,
+        "user": user,
+        "createdAt": session.created_at,
+    }
+
+
+def _get_trusted_task(
+    *,
+    principal: Dict[str, Any],
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    _require_scopes(
+        principal,
+        [MCP_TASK_SCOPE],
+    )
+
+    task_handle = str(
+        params.get("taskHandle")
+        or params.get("task_handle")
+        or ""
+    ).strip()
+
+    if not task_handle:
+        raise McpProtocolError(
+            -32602,
+            "agentguard/tasks/get requires params.taskHandle.",
+        )
+
+    user = str(
+        principal.get("sub")
+        or ""
+    ).strip()
+
+    try:
+        session, version = load_session(
+            task_handle=task_handle,
+            expected_user=user,
+        )
+
+    except TaskNotFoundError as exc:
+        raise McpProtocolError(
+            -32004,
+            "Trusted task session was not found.",
+        ) from exc
+
+    except TaskBindingError as exc:
+        raise McpProtocolError(
+            -32003,
+            "Trusted task session does not belong to this OAuth subject.",
+        ) from exc
+
+    return {
+        "taskHandle": task_handle,
+        "version": version,
+        "session": model_to_dict(session),
+    }
 
 def _call_tool(
     *,
@@ -219,7 +503,20 @@ def _call_tool(
         arguments=arguments,
         meta=meta,
     )
-    prepare_result = authorize_tool_call(prepare_request)
+
+    if not prepare_request.task_handle:
+        raise McpProtocolError(
+            -32602,
+            (
+                "MCP tools/call requires a server-issued task handle in "
+                "params._meta['agentguard/taskHandle']. "
+                "Create one with agentguard/tasks/create."
+            ),
+        )
+
+    prepare_result = authorize_tool_call(
+        prepare_request
+    )
 
     missing_scopes = list((prepare_result.agent_auth_profile or {}).get("missing_scopes", []))
     if missing_scopes:
@@ -234,6 +531,10 @@ def _call_tool(
             tool_result=None,
             sandbox_evidence=None,
             capability_token_validation=prepare_result.capability_token_validation,
+            task_handle=prepare_result.task_handle,
+            task_version=prepare_result.task_version,
+            approval_ticket=prepare_result.approval_ticket,
+            approval_status=prepare_result.approval_status,
         )
 
     token = str((prepare_result.capability_token or {}).get("token") or "")
@@ -241,14 +542,26 @@ def _call_tool(
         return _tool_result_payload(
             decision="deny",
             risk_score=max(100, int(prepare_result.risk_score or 0)),
-            reason=list(prepare_result.reason) + ["AgentGuard did not issue the required task-scoped capability token."],
+            reason=list(prepare_result.reason) + [
+                "AgentGuard did not issue the required task-scoped capability token."
+            ],
             executed=False,
+            task_handle=prepare_result.task_handle,
+            task_version=prepare_result.task_version,
+            approval_ticket=prepare_result.approval_ticket,
+            approval_status=prepare_result.approval_status,
         )
+
+    execute_metadata = dict(
+        prepare_request.external_agent_metadata or {}
+    )
+    execute_metadata["authorization_phase"] = "execute"
 
     execute_request = prepare_request.model_copy(
         update={
             "execute": True,
             "capability_token": token,
+            "external_agent_metadata": execute_metadata,
         }
     )
     execute_result = authorize_tool_call(execute_request)
@@ -261,10 +574,288 @@ def _call_tool(
         tool_result=execute_result.tool_result,
         sandbox_evidence=execute_result.sandbox_evidence,
         capability_token_validation=execute_result.capability_token_validation,
+        task_handle=execute_result.task_handle,
+        task_version=execute_result.task_version,
+        data_ref=execute_result.data_ref,
+        approval_ticket=execute_result.approval_ticket,
+        approval_status=execute_result.approval_status,
     )
 
 
-def handle_mcp_request(
+def _approval_ticket_from_params(
+    params: Dict[str, Any],
+) -> str:
+    approval_ticket = str(
+        params.get("approvalTicket")
+        or params.get("approval_ticket")
+        or ""
+    ).strip()
+
+    if not approval_ticket:
+        raise McpProtocolError(
+            -32602,
+            "An approvalTicket is required.",
+        )
+
+    return approval_ticket
+
+
+def _approval_task_handle_from_params(
+    params: Dict[str, Any],
+) -> str:
+    task_handle = str(
+        params.get("taskHandle")
+        or params.get("task_handle")
+        or ""
+    ).strip()
+
+    if not task_handle:
+        raise McpProtocolError(
+            -32602,
+            "A taskHandle is required.",
+        )
+
+    return task_handle
+
+
+def _get_approval_request(
+    *,
+    principal: Dict[str, Any],
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    _require_scopes(
+        principal,
+        [MCP_APPROVAL_READ_SCOPE],
+    )
+
+    approval_ticket = (
+        _approval_ticket_from_params(params)
+    )
+    task_handle = (
+        _approval_task_handle_from_params(params)
+    )
+
+    try:
+        ticket = get_approval_ticket(
+            approval_ticket=approval_ticket,
+            expected_task_handle=task_handle,
+        )
+
+    except ApprovalTicketNotFoundError as exc:
+        raise McpProtocolError(
+            -32004,
+            "Approval ticket was not found.",
+        ) from exc
+
+    except ApprovalTicketBindingError as exc:
+        raise McpProtocolError(
+            -32003,
+            (
+                "Approval ticket does not belong "
+                "to the supplied task."
+            ),
+        ) from exc
+
+    return {
+        "approvalTicket": ticket[
+            "approval_ticket"
+        ],
+        "taskHandle": ticket[
+            "task_handle"
+        ],
+        "taskOwner": ticket["user"],
+        "stepIndex": ticket[
+            "step_index"
+        ],
+        "tool": ticket["tool"],
+        "params": ticket["params"],
+        "dataRefs": ticket[
+            "data_refs"
+        ],
+        "status": ticket["status"],
+        "requestedAt": ticket[
+            "requested_at"
+        ],
+        "decidedAt": ticket[
+            "decided_at"
+        ],
+        "decidedBy": ticket[
+            "decided_by"
+        ],
+        "consumedAt": ticket[
+            "consumed_at"
+        ],
+    }
+
+
+def _decide_approval_request(
+    *,
+    principal: Dict[str, Any],
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    _require_scopes(
+        principal,
+        [MCP_APPROVAL_DECIDE_SCOPE],
+    )
+
+    approval_ticket = (
+        _approval_ticket_from_params(params)
+    )
+    task_handle = (
+        _approval_task_handle_from_params(params)
+    )
+
+    decision = str(
+        params.get("decision")
+        or ""
+    ).strip().lower()
+
+    if decision not in {
+        "approve",
+        "approved",
+        "deny",
+        "denied",
+    }:
+        raise McpProtocolError(
+            -32602,
+            (
+                "decision must be "
+                "approve or deny."
+            ),
+        )
+
+    reviewer = str(
+        principal.get("sub")
+        or ""
+    ).strip()
+
+    if not reviewer:
+        raise McpProtocolError(
+            -32600,
+            (
+                "The OAuth principal does not "
+                "contain a reviewer subject."
+            ),
+        )
+
+    try:
+        current = get_approval_ticket(
+            approval_ticket=approval_ticket,
+            expected_task_handle=task_handle,
+        )
+
+    except ApprovalTicketNotFoundError as exc:
+        raise McpProtocolError(
+            -32004,
+            "Approval ticket was not found.",
+        ) from exc
+
+    except ApprovalTicketBindingError as exc:
+        raise McpProtocolError(
+            -32003,
+            (
+                "Approval ticket does not belong "
+                "to the supplied task."
+            ),
+        ) from exc
+
+    is_approval = decision in {
+        "approve",
+        "approved",
+    }
+
+    if (
+        is_approval
+        and reviewer == current["user"]
+    ):
+        raise McpProtocolError(
+            -32010,
+            (
+                "The task owner cannot approve "
+                "its own request."
+            ),
+        )
+
+    try:
+        updated = decide_approval_ticket(
+            approval_ticket=approval_ticket,
+            task_handle=task_handle,
+            user=current["user"],
+            decided_by=reviewer,
+            decision=decision,
+        )
+
+    except ApprovalTicketStateError as exc:
+        raise McpProtocolError(
+            -32009,
+            str(exc),
+        ) from exc
+
+    except ApprovalTicketBindingError as exc:
+        raise McpProtocolError(
+            -32003,
+            (
+                "Approval ticket does not belong "
+                "to the supplied task."
+            ),
+        ) from exc
+
+    append_trusted_audit_event(
+        task_handle=str(
+            updated["task_handle"]
+        ),
+        user=reviewer,
+        event_type=(
+            "approval."
+            + str(
+                updated["status"]
+            )
+        ),
+        payload={
+            "approval_ticket": str(
+                updated["approval_ticket"]
+            ),
+            "task_owner": str(
+                updated["user"]
+            ),
+            "step_index": int(
+                updated["step_index"]
+            ),
+            "tool": str(
+                updated["tool"]
+            ),
+            "status": str(
+                updated["status"]
+            ),
+            "decided_by": str(
+                updated["decided_by"]
+                or reviewer
+            ),
+        },
+    )
+
+    return {
+        "approvalTicket": updated[
+            "approval_ticket"
+        ],
+        "taskHandle": updated[
+            "task_handle"
+        ],
+        "taskOwner": updated["user"],
+        "stepIndex": updated[
+            "step_index"
+        ],
+        "tool": updated["tool"],
+        "status": updated["status"],
+        "decidedAt": updated[
+            "decided_at"
+        ],
+        "decidedBy": updated[
+            "decided_by"
+        ],
+    }
+
+def _handle_mcp_request_without_revocation(
     payload: Dict[str, Any],
     *,
     principal: Dict[str, Any],
@@ -299,8 +890,46 @@ def handle_mcp_request(
         return _response(
             request_id,
             {
-                "tools": tool_definitions_for_scopes(_principal_scopes(principal)),
+                "tools": tool_definitions_for_scopes(
+                    _principal_scopes(principal)
+                ),
             },
+        )
+
+    if method == "agentguard/tasks/create":
+        return _response(
+            request_id,
+            _create_trusted_task(
+                principal=principal,
+                params=params,
+            ),
+        )
+
+    if method == "agentguard/tasks/get":
+        return _response(
+            request_id,
+            _get_trusted_task(
+                principal=principal,
+                params=params,
+            ),
+        )
+
+    if method == "agentguard/approvals/get":
+        return _response(
+            request_id,
+            _get_approval_request(
+                principal=principal,
+                params=params,
+            ),
+        )
+
+    if method == "agentguard/approvals/decide":
+        return _response(
+            request_id,
+            _decide_approval_request(
+                principal=principal,
+                params=params,
+            ),
         )
 
     if method == "tools/call":
@@ -310,3 +939,382 @@ def handle_mcp_request(
         )
 
     raise McpProtocolError(-32601, f"MCP method not found: {method}")
+
+
+REVOCATION_MCP_METHODS = {
+    "agentguard/revocations/task/revoke",
+    "agentguard/revocations/approval/revoke",
+    "agentguard/revocations/capability/revoke",
+    "agentguard/revocations/list",
+}
+
+
+def _revocation_principal_scopes(
+    principal: Dict[str, Any],
+) -> set[str]:
+    raw_scopes = (
+        principal.get("scopes")
+        or principal.get("scope")
+        or []
+    )
+
+    if isinstance(raw_scopes, str):
+        values = raw_scopes.replace(
+            ",",
+            " ",
+        ).split()
+
+    elif isinstance(
+        raw_scopes,
+        (
+            list,
+            tuple,
+            set,
+        ),
+    ):
+        values = [
+            str(item)
+            for item in raw_scopes
+        ]
+
+    else:
+        values = [
+            str(raw_scopes)
+        ]
+
+    return {
+        value.strip()
+        for value in values
+        if value.strip()
+    }
+
+
+def _require_any_revocation_scope(
+    *,
+    principal: Dict[str, Any],
+    required_scopes: set[str],
+) -> None:
+    principal_scopes = (
+        _revocation_principal_scopes(
+            principal
+        )
+    )
+
+    if (
+        principal_scopes
+        & required_scopes
+    ):
+        return
+
+    raise McpProtocolError(
+        -32003,
+        (
+            "Insufficient OAuth scope. "
+            "At least one of the following "
+            "scopes is required: "
+            + ", ".join(
+                sorted(required_scopes)
+            )
+        ),
+    )
+
+
+def _revocation_params(
+    payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    params = payload.get(
+        "params",
+        {},
+    )
+
+    if not isinstance(
+        params,
+        dict,
+    ):
+        raise McpProtocolError(
+            -32602,
+            "params must be an object.",
+        )
+
+    return params
+
+
+def _required_text_param(
+    params: Dict[str, Any],
+    *names: str,
+) -> str:
+    for name in names:
+        value = str(
+            params.get(name)
+            or ""
+        ).strip()
+
+        if value:
+            return value
+
+    raise McpProtocolError(
+        -32602,
+        (
+            "Missing required parameter: "
+            + names[0]
+        ),
+    )
+
+
+def _optional_metadata_param(
+    params: Dict[str, Any],
+) -> Dict[str, Any]:
+    metadata = params.get(
+        "metadata",
+        {},
+    )
+
+    if metadata is None:
+        return {}
+
+    if not isinstance(
+        metadata,
+        dict,
+    ):
+        raise McpProtocolError(
+            -32602,
+            "metadata must be an object.",
+        )
+
+    return dict(metadata)
+
+
+def _revocation_jsonrpc_result(
+    *,
+    request_id: Any,
+    result: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "result": result,
+    }
+
+
+def _handle_revocation_mcp_request(
+    payload: Dict[str, Any],
+    *,
+    principal: Dict[str, Any],
+) -> Dict[str, Any]:
+    method = str(
+        payload.get("method")
+        or ""
+    )
+
+    params = _revocation_params(
+        payload
+    )
+
+    task_handle = (
+        _required_text_param(
+            params,
+            "taskHandle",
+            "task_handle",
+        )
+    )
+
+    try:
+        if (
+            method
+            == "agentguard/revocations/task/revoke"
+        ):
+            _require_any_revocation_scope(
+                principal=principal,
+                required_scopes={
+                    REVOCATION_TASK_MANAGE_SCOPE,
+                    REVOCATION_WRITE_SCOPE,
+                },
+            )
+
+            result = (
+                revoke_task_for_principal(
+                    principal=principal,
+                    task_handle=task_handle,
+                    reason=_required_text_param(
+                        params,
+                        "reason",
+                    ),
+                    metadata=(
+                        _optional_metadata_param(
+                            params
+                        )
+                    ),
+                )
+            )
+
+        elif (
+            method
+            == "agentguard/revocations/approval/revoke"
+        ):
+            _require_any_revocation_scope(
+                principal=principal,
+                required_scopes={
+                    REVOCATION_TASK_MANAGE_SCOPE,
+                    REVOCATION_APPROVAL_DECIDE_SCOPE,
+                    REVOCATION_WRITE_SCOPE,
+                },
+            )
+
+            result = (
+                revoke_approval_ticket_for_principal(
+                    principal=principal,
+                    task_handle=task_handle,
+                    approval_ticket=(
+                        _required_text_param(
+                            params,
+                            "approvalTicket",
+                            "approval_ticket",
+                        )
+                    ),
+                    reason=_required_text_param(
+                        params,
+                        "reason",
+                    ),
+                    metadata=(
+                        _optional_metadata_param(
+                            params
+                        )
+                    ),
+                )
+            )
+
+        elif (
+            method
+            == "agentguard/revocations/capability/revoke"
+        ):
+            _require_any_revocation_scope(
+                principal=principal,
+                required_scopes={
+                    REVOCATION_TASK_MANAGE_SCOPE,
+                    REVOCATION_WRITE_SCOPE,
+                },
+            )
+
+            result = (
+                revoke_capability_token_for_principal(
+                    principal=principal,
+                    task_handle=task_handle,
+                    capability_token=(
+                        _required_text_param(
+                            params,
+                            "capabilityToken",
+                            "capability_token",
+                        )
+                    ),
+                    reason=_required_text_param(
+                        params,
+                        "reason",
+                    ),
+                    metadata=(
+                        _optional_metadata_param(
+                            params
+                        )
+                    ),
+                )
+            )
+
+        elif (
+            method
+            == "agentguard/revocations/list"
+        ):
+            _require_any_revocation_scope(
+                principal=principal,
+                required_scopes={
+                    REVOCATION_TASK_MANAGE_SCOPE,
+                    REVOCATION_READ_SCOPE,
+                    REVOCATION_WRITE_SCOPE,
+                },
+            )
+
+            try:
+                limit = int(
+                    params.get(
+                        "limit",
+                        100,
+                    )
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ) as exc:
+                raise McpProtocolError(
+                    -32602,
+                    "limit must be an integer.",
+                ) from exc
+
+            if (
+                limit < 1
+                or limit > 1000
+            ):
+                raise McpProtocolError(
+                    -32602,
+                    (
+                        "limit must be between "
+                        "1 and 1000."
+                    ),
+                )
+
+            result = (
+                list_task_revocations_for_principal(
+                    principal=principal,
+                    task_handle=task_handle,
+                    limit=limit,
+                )
+            )
+
+        else:
+            raise McpProtocolError(
+                -32601,
+                "Revocation method not found.",
+            )
+
+    except RevocationAuthorizationError as exc:
+        raise McpProtocolError(
+            -32003,
+            str(exc),
+        ) from exc
+
+    except RevocationTargetError as exc:
+        raise McpProtocolError(
+            -32602,
+            str(exc),
+        ) from exc
+
+    except RevocationServiceError as exc:
+        raise McpProtocolError(
+            -32000,
+            str(exc),
+        ) from exc
+
+    return _revocation_jsonrpc_result(
+        request_id=payload.get("id"),
+        result=result,
+    )
+
+
+def handle_mcp_request(
+    payload: Dict[str, Any],
+    *,
+    principal: Dict[str, Any],
+):
+    method = str(
+        payload.get("method")
+        or ""
+    )
+
+    if method in REVOCATION_MCP_METHODS:
+        return _handle_revocation_mcp_request(
+            payload,
+            principal=principal,
+        )
+
+    return _handle_mcp_request_without_revocation(
+        payload,
+        principal=principal,
+    )
