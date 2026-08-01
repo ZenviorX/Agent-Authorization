@@ -1,20 +1,7 @@
 import type {
   LiveConnectionState,
-  LiveRuntimeSnapshot,
-  ServiceHealthState
+  LiveRuntimeSnapshot
 } from '../types/domain';
-
-function serviceLabel(status?: ServiceHealthState) {
-  if (status === 'online') return '在线';
-  if (status === 'offline') return '离线';
-  return '等待状态';
-}
-
-function serviceTone(status?: ServiceHealthState) {
-  if (status === 'online') return 'online';
-  if (status === 'offline') return 'offline';
-  return 'unknown';
-}
 
 function connectionLabel(state: LiveConnectionState) {
   if (state === 'live') return '实时状态已连接';
@@ -65,49 +52,37 @@ export function AuthenticationPage({
         <div>
           <span className="eyebrow">MCP + OAuth</span>
           <h2>认证基础设施与协议状态</h2>
-          <p>
-            展示 OAuth Authorization Server、MCP Protected Resource 和 FastAPI 后端的实时状态，
-            并说明标准认证流程如何进入 AgentGuard 安全链路。
-          </p>
         </div>
         <div className={`authentication-summary auth-summary-${infrastructureReady ? 'ready' : 'waiting'}`}>
           <span>{connectionLabel(connectionState)}</span>
-          <strong>{infrastructureReady ? '认证基础设施在线' : '等待服务就绪'}</strong>
+          <strong>
+            {infrastructureReady
+              ? 'OAuth、MCP 与 Backend 均在线'
+              : '等待认证服务就绪'}
+          </strong>
           <small>
-            此状态表示认证相关服务是否可用，不代表某个 MCP Client 已经取得 Access Token。
+            此处表示认证基础设施状态，不代表某个 MCP Client 已经取得 Access Token。
           </small>
         </div>
       </section>
 
       <section className="authentication-service-grid">
-        <article className="authentication-service-card">
-          <div className="authentication-card-head">
-            <span className={`authentication-status-dot status-${serviceTone(oauth?.status)}`} />
-            <span>OAuth Authorization Server</span>
-            <strong>{serviceLabel(oauth?.status)}</strong>
-          </div>
+        <article className="authentication-service-card auth-service-oauth">
+          <span className="authentication-service-name">OAuth Authorization Server</span>
           <h3>身份授权与 Access Token 签发</h3>
           <code>{oauthIssuer}</code>
           <p>{oauth?.detail || '等待 OAuth Demo Server 状态同步。'}</p>
         </article>
 
-        <article className="authentication-service-card">
-          <div className="authentication-card-head">
-            <span className={`authentication-status-dot status-${serviceTone(mcp?.status)}`} />
-            <span>MCP Protected Resource</span>
-            <strong>{serviceLabel(mcp?.status)}</strong>
-          </div>
+        <article className="authentication-service-card auth-service-mcp">
+          <span className="authentication-service-name">MCP Protected Resource</span>
           <h3>Bearer Token 保护的 JSON-RPC 入口</h3>
           <code>{mcpEndpoint}</code>
           <p>{mcp?.detail || '等待 MCP Gateway 状态同步。'}</p>
         </article>
 
-        <article className="authentication-service-card">
-          <div className="authentication-card-head">
-            <span className={`authentication-status-dot status-${serviceTone(backend?.status)}`} />
-            <span>AgentGuard Backend</span>
-            <strong>{serviceLabel(backend?.status)}</strong>
-          </div>
+        <article className="authentication-service-card auth-service-backend">
+          <span className="authentication-service-name">AgentGuard Backend</span>
           <h3>任务边界、令牌、沙箱与审计</h3>
           <code>{snapshot?.systemStatus.execution_entrypoint || '等待执行入口状态'}</code>
           <p>{backend?.detail || '等待 FastAPI 后端状态同步。'}</p>
@@ -133,7 +108,6 @@ export function AuthenticationPage({
         <div className="authentication-section-heading">
           <span className="eyebrow">Authentication Flow</span>
           <h2>从认证到工具调用</h2>
-          <p>OAuth 负责身份和粗粒度 Scope，AgentGuard 继续检查当前任务、参数和运行时数据流。</p>
         </div>
 
         <div className="authentication-flow">
