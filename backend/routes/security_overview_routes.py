@@ -1,9 +1,37 @@
-﻿import ast
+import ast
 import json
 from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter
+from collections import Counter
+
+from fastapi import HTTPException, Request
+
+from backend.audit.decision_snapshot import (
+    verify_decision_snapshot,
+)
+from backend.audit.trusted_audit_store import (
+    get_trusted_audit_events,
+    verify_trusted_audit_chain,
+)
+from backend.evidence.evidence_bundle import (
+    build_task_evidence_bundle,
+    verify_task_evidence_bundle,
+)
+from backend.revocation.revocation_store import (
+    get_revocation,
+    list_revocations,
+)
+from backend.routes.trusted_audit_routes import (
+    _authenticate,
+    _authorize_task_audit_read,
+    _no_store_json,
+)
+from backend.task_session.task_store import (
+    connect as task_store_connect,
+    load_session,
+)
 
 
 router = APIRouter()
@@ -172,3 +200,850 @@ def security_overview():
         },
         "features": features,
     }
+
+
+def _approval_status_counts(
+    *,
+    task_handle: str,
+) -> Dict[str, int]:
+    connection = task_store_connect()
+
+    try:
+        rows = connection.execute(
+            """
+            SELECT
+                status,
+                COUNT(*) AS status_count
+            FROM trusted_approval_tickets
+            WHERE task_handle = ?
+            GROUP BY status
+            ORDER BY status
+            """,
+            (task_handle,),
+        ).fetchall()
+
+    finally:
+        connection.close()
+
+    counts = {
+        "pending": 0,
+        "approved": 0,
+        "denied": 0,
+        "consumed": 0,
+    }
+
+    for row in rows:
+        status = str(
+            row["status"]
+        )
+
+        counts[status] = int(
+            row["status_count"]
+        )
+
+    counts["total"] = sum(
+        value
+        for key, value in counts.items()
+        if key != "total"
+    )
+
+    return counts
+
+
+def _runtime_security_summary(
+    runtime_state: Any,
+) -> Dict[str, Any]:
+    if not isinstance(
+        runtime_state,
+        dict,
+    ):
+        return {
+            "available": False,
+            "current_step": 0,
+            "used_risk": 0,
+            "final_decision": "",
+            "step_count": 0,
+            "executed_step_count": 0,
+            "blocked_step_count": 0,
+            "pending_confirmation_count": 0,
+            "decision_counts": {},
+        }
+
+    steps = [
+        dict(step)
+        for step in (
+            runtime_state.get("steps")
+            or []
+        )
+        if isinstance(
+            step,
+            dict,
+        )
+    ]
+
+    decision_counts = Counter(
+        str(
+            step.get("decision")
+            or ""
+        )
+        for step in steps
+        if str(
+            step.get("decision")
+            or ""
+        )
+    )
+
+    pending_steps = (
+        runtime_state.get(
+            "pending_confirm_steps"
+        )
+        or []
+    )
+
+    return {
+        "available": True,
+        "current_step": int(
+            runtime_state.get(
+                "current_step",
+                0,
+            )
+            or 0
+        ),
+        "used_risk": int(
+            runtime_state.get(
+                "used_risk",
+                0,
+            )
+            or 0
+        ),
+        "final_decision": str(
+            runtime_state.get(
+                "final_decision"
+            )
+            or ""
+        ),
+        "step_count": len(steps),
+        "executed_step_count": sum(
+            1
+            for step in steps
+            if bool(
+                step.get("executed")
+            )
+        ),
+        "blocked_step_count": sum(
+            1
+            for step in steps
+            if bool(
+                step.get("blocked")
+            )
+            or str(
+                step.get("decision")
+                or ""
+            )
+            == "deny"
+        ),
+        "pending_confirmation_count": len(
+            pending_steps
+        ),
+        "decision_counts": dict(
+            sorted(
+                decision_counts.items()
+            )
+        ),
+    }
+
+
+def _audit_event_summary(
+    events: List[
+        Dict[str, Any]
+    ],
+) -> Dict[str, Any]:
+    event_type_counts = Counter(
+        str(
+            event.get("event_type")
+            or ""
+        )
+        for event in events
+        if str(
+            event.get("event_type")
+            or ""
+        )
+    )
+
+    decision_counts: Counter = (
+        Counter()
+    )
+
+    for event in events:
+        payload = event.get(
+            "payload"
+        )
+
+        if not isinstance(
+            payload,
+            dict,
+        ):
+            continue
+
+        decision = str(
+            payload.get("decision")
+            or ""
+        )
+
+        if decision:
+            decision_counts[
+                decision
+            ] += 1
+
+    return {
+        "event_count": len(events),
+        "event_type_counts": dict(
+            sorted(
+                event_type_counts.items()
+            )
+        ),
+        "decision_counts": dict(
+            sorted(
+                decision_counts.items()
+            )
+        ),
+        "first_sequence": (
+            int(
+                events[0]["sequence"]
+            )
+            if events
+            else None
+        ),
+        "last_sequence": (
+            int(
+                events[-1]["sequence"]
+            )
+            if events
+            else None
+        ),
+    }
+
+
+def _decision_snapshot_summary(
+    events: List[
+        Dict[str, Any]
+    ],
+) -> Dict[str, Any]:
+    results = []
+
+    for event in events:
+        payload = event.get(
+            "payload"
+        )
+
+        if not isinstance(
+            payload,
+            dict,
+        ):
+            continue
+
+        snapshot = payload.get(
+            "decision_snapshot"
+        )
+
+        if not isinstance(
+            snapshot,
+            dict,
+        ):
+            continue
+
+        verification = (
+            verify_decision_snapshot(
+                snapshot,
+                compare_current_policy=True,
+            )
+        )
+
+        results.append(
+            {
+                "sequence": int(
+                    event["sequence"]
+                ),
+                "valid": bool(
+                    verification.get(
+                        "valid"
+                    )
+                ),
+                "current_policy_matches": (
+                    verification.get(
+                        "current_policy_matches"
+                    )
+                ),
+                "snapshot_hash_valid": bool(
+                    verification.get(
+                        "snapshot_hash_valid"
+                    )
+                ),
+                "contract_hash_valid": bool(
+                    verification.get(
+                        "contract_hash_valid"
+                    )
+                ),
+                "decision_hash_valid": bool(
+                    verification.get(
+                        "decision_hash_valid"
+                    )
+                ),
+            }
+        )
+
+    valid_count = sum(
+        1
+        for result in results
+        if result["valid"]
+    )
+
+    policy_changed_count = sum(
+        1
+        for result in results
+        if (
+            result[
+                "current_policy_matches"
+            ]
+            is False
+        )
+    )
+
+    return {
+        "snapshot_count": len(
+            results
+        ),
+        "valid_snapshot_count": (
+            valid_count
+        ),
+        "invalid_snapshot_count": (
+            len(results)
+            - valid_count
+        ),
+        "policy_changed_count": (
+            policy_changed_count
+        ),
+        "all_snapshots_valid": all(
+            result["valid"]
+            for result in results
+        ),
+        "results": results,
+    }
+
+
+def _revocation_summary(
+    *,
+    task_handle: str,
+    task_owner: str,
+) -> Dict[str, Any]:
+    records = list_revocations(
+        task_handle=task_handle,
+        limit=1000,
+    )
+
+    type_counts = Counter(
+        str(
+            record.get(
+                "subject_type"
+            )
+            or ""
+        )
+        for record in records
+        if str(
+            record.get(
+                "subject_type"
+            )
+            or ""
+        )
+    )
+
+    task_revocation = get_revocation(
+        subject_type="task",
+        subject_value=task_handle,
+        expected_task_handle=(
+            task_handle
+        ),
+        expected_user=(
+            task_owner
+        ),
+    )
+
+    return {
+        "task_revoked": (
+            task_revocation
+            is not None
+        ),
+        "revocation_count": len(
+            records
+        ),
+        "type_counts": dict(
+            sorted(
+                type_counts.items()
+            )
+        ),
+        "latest_revocation": (
+            {
+                "revocation_id": int(
+                    records[-1][
+                        "revocation_id"
+                    ]
+                ),
+                "subject_type": str(
+                    records[-1][
+                        "subject_type"
+                    ]
+                ),
+                "reason": str(
+                    records[-1][
+                        "reason"
+                    ]
+                ),
+                "revoked_by": str(
+                    records[-1][
+                        "revoked_by"
+                    ]
+                ),
+                "revoked_at": str(
+                    records[-1][
+                        "revoked_at"
+                    ]
+                ),
+            }
+            if records
+            else None
+        ),
+    }
+
+
+def _evidence_security_summary(
+    *,
+    task_handle: str,
+    task_owner: str,
+    task_exists: bool,
+) -> Dict[str, Any]:
+    if not task_exists:
+        return {
+            "available": False,
+            "valid": None,
+            "reason": (
+                "Live trusted task session "
+                "is unavailable."
+            ),
+        }
+
+    try:
+        bundle = (
+            build_task_evidence_bundle(
+                task_handle=task_handle,
+                expected_user=task_owner,
+            )
+        )
+
+        verification = (
+            verify_task_evidence_bundle(
+                bundle
+            )
+        )
+
+        return {
+            "available": True,
+            "valid": bool(
+                verification.get(
+                    "valid"
+                )
+            ),
+            "bundle_version": int(
+                bundle.get(
+                    "bundle_version",
+                    0,
+                )
+                or 0
+            ),
+            "bundle_hash": str(
+                bundle.get(
+                    "bundle_hash"
+                )
+                or ""
+            ),
+            "task_event_count": int(
+                bundle.get(
+                    "task_event_count",
+                    0,
+                )
+                or 0
+            ),
+            "decision_snapshot_count": int(
+                bundle.get(
+                    "decision_snapshot_count",
+                    0,
+                )
+                or 0
+            ),
+            "revocation_count": int(
+                bundle.get(
+                    "revocation_count",
+                    0,
+                )
+                or 0
+            ),
+            "verification": (
+                verification
+            ),
+        }
+
+    except Exception as exc:
+        return {
+            "available": False,
+            "valid": False,
+            "reason": (
+                "Evidence package generation "
+                "failed."
+            ),
+            "error_type": (
+                type(exc).__name__
+            ),
+        }
+
+
+def _overall_security_status(
+    *,
+    task_revoked: bool,
+    chain_valid: bool,
+    snapshots_valid: bool,
+    evidence_valid: Any,
+    pending_approvals: int,
+) -> Dict[str, Any]:
+    score = 100
+    findings = []
+
+    if not chain_valid:
+        score -= 45
+        findings.append(
+            "Trusted audit chain "
+            "verification failed."
+        )
+
+    if not snapshots_valid:
+        score -= 30
+        findings.append(
+            "One or more authorization "
+            "decision snapshots are invalid."
+        )
+
+    if evidence_valid is False:
+        score -= 30
+        findings.append(
+            "Task evidence package "
+            "verification failed."
+        )
+
+    if task_revoked:
+        score -= 20
+        findings.append(
+            "The trusted task has "
+            "been revoked."
+        )
+
+    if pending_approvals > 0:
+        score -= min(
+            10,
+            pending_approvals * 2,
+        )
+        findings.append(
+            (
+                f"{pending_approvals} approval "
+                "request(s) are pending."
+            )
+        )
+
+    score = max(
+        0,
+        min(100, score),
+    )
+
+    if (
+        not chain_valid
+        or not snapshots_valid
+        or evidence_valid is False
+    ):
+        status = "critical"
+
+    elif task_revoked:
+        status = "revoked"
+
+    elif pending_approvals > 0:
+        status = "attention"
+
+    else:
+        status = "healthy"
+
+    return {
+        "status": status,
+        "score": score,
+        "findings": findings,
+    }
+
+
+@router.get(
+    "/security/overview/"
+    "tasks/{task_handle}"
+)
+def task_security_overview(
+    task_handle: str,
+    request: Request,
+):
+    """
+    Return a consolidated trusted-security view for
+    one task.
+
+    The response contains no raw approval ticket,
+    capability token or external secret.
+    """
+    normalized_handle = str(
+        task_handle
+    ).strip()
+
+    if not normalized_handle:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "task_handle is required."
+            ),
+            headers={
+                "Cache-Control": (
+                    "no-store"
+                ),
+            },
+        )
+
+    principal = _authenticate(
+        request
+    )
+
+    access = (
+        _authorize_task_audit_read(
+            principal=principal,
+            task_handle=(
+                normalized_handle
+            ),
+        )
+    )
+
+    task_exists = bool(
+        access.get(
+            "task_exists"
+        )
+    )
+
+    task_owner = str(
+        access.get(
+            "task_owner"
+        )
+        or ""
+    )
+
+    session = None
+
+    if task_exists:
+        session, version = load_session(
+            task_handle=(
+                normalized_handle
+            ),
+            expected_user=(
+                task_owner
+            ),
+        )
+
+        task_version = int(
+            version
+        )
+
+        runtime_summary = (
+            _runtime_security_summary(
+                getattr(
+                    session,
+                    "runtime_state",
+                    None,
+                )
+            )
+        )
+
+        contract = dict(
+            getattr(
+                session,
+                "contract",
+                {},
+            )
+            or {}
+        )
+
+    else:
+        task_version = None
+        runtime_summary = (
+            _runtime_security_summary(
+                None
+            )
+        )
+        contract = {}
+
+    events = (
+        get_trusted_audit_events(
+            task_handle=(
+                normalized_handle
+            ),
+            limit=1000,
+        )
+    )
+
+    audit_summary = (
+        _audit_event_summary(
+            events
+        )
+    )
+
+    chain_integrity = (
+        verify_trusted_audit_chain()
+    )
+
+    snapshot_summary = (
+        _decision_snapshot_summary(
+            events
+        )
+    )
+
+    approval_counts = (
+        _approval_status_counts(
+            task_handle=(
+                normalized_handle
+            )
+        )
+    )
+
+    revocation_summary = (
+        _revocation_summary(
+            task_handle=(
+                normalized_handle
+            ),
+            task_owner=task_owner,
+        )
+    )
+
+    evidence_summary = (
+        _evidence_security_summary(
+            task_handle=(
+                normalized_handle
+            ),
+            task_owner=task_owner,
+            task_exists=task_exists,
+        )
+    )
+
+    overall = (
+        _overall_security_status(
+            task_revoked=bool(
+                revocation_summary[
+                    "task_revoked"
+                ]
+            ),
+            chain_valid=bool(
+                chain_integrity.get(
+                    "valid"
+                )
+            ),
+            snapshots_valid=bool(
+                snapshot_summary[
+                    "all_snapshots_valid"
+                ]
+            ),
+            evidence_valid=(
+                evidence_summary.get(
+                    "valid"
+                )
+            ),
+            pending_approvals=int(
+                approval_counts.get(
+                    "pending",
+                    0,
+                )
+            ),
+        )
+    )
+
+    return _no_store_json(
+        {
+            "message": (
+                "Trusted task security "
+                "overview loaded."
+            ),
+            "task_handle": (
+                normalized_handle
+            ),
+            "requested_by": str(
+                principal.get("sub")
+                or ""
+            ),
+            "access": access,
+            "overall": overall,
+            "task": {
+                "exists": (
+                    task_exists
+                ),
+                "owner": task_owner,
+                "version": (
+                    task_version
+                ),
+                "contract_present": bool(
+                    contract
+                ),
+                "contract_version": (
+                    contract.get(
+                        "version"
+                    )
+                ),
+            },
+            "runtime": (
+                runtime_summary
+            ),
+            "approvals": (
+                approval_counts
+            ),
+            "revocations": (
+                revocation_summary
+            ),
+            "audit": {
+                **audit_summary,
+                "chain_integrity": (
+                    chain_integrity
+                ),
+            },
+            "decision_snapshots": (
+                snapshot_summary
+            ),
+            "evidence": (
+                evidence_summary
+            ),
+            "acceptance_checks": {
+                "trusted_session": (
+                    task_exists
+                ),
+                "audit_chain_valid": bool(
+                    chain_integrity.get(
+                        "valid"
+                    )
+                ),
+                "decision_snapshots_valid": bool(
+                    snapshot_summary[
+                        "all_snapshots_valid"
+                    ]
+                ),
+                "evidence_valid": (
+                    evidence_summary.get(
+                        "valid"
+                    )
+                ),
+                "revocation_registry_available": (
+                    True
+                ),
+            },
+        }
+    )

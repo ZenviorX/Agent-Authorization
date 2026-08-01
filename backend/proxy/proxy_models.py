@@ -13,6 +13,11 @@ class ToolProxyAuthorizeRequest(BaseModel):
     user: str = Field(default="user", description="Current user identity.")
     original_task: str = Field(default="", description="Original natural language task.")
 
+    task_handle: str = Field(
+        default="",
+        description="Opaque task handle issued and controlled by AgentGuard.",
+    )
+
     tool: str = Field(..., description="Requested tool name.")
     params: Dict[str, Any] = Field(default_factory=dict, description="Tool parameters.")
 
@@ -81,10 +86,26 @@ class ToolProxyAuthorizeRequest(BaseModel):
         description="Additional metadata from external Agent adapter.",
     )
 
+    approval_ticket: str = Field(
+        default="",
+        description=(
+            "Server-issued human approval ticket for this exact call."
+        ),
+    )
+
 
 class ToolProxyAuthorizeResponse(BaseModel):
     success: bool = True
     mode: str = "tool_proxy_authorize"
+
+    task_handle: str = Field(
+        default="",
+        description="Opaque task handle used for this authorization decision.",
+    )
+    task_version: int = Field(
+        default=0,
+        description="Current persisted task session version.",
+    )
 
     decision: str
     risk_score: int
@@ -129,4 +150,25 @@ class ToolProxyAuthorizeResponse(BaseModel):
     sandbox_evaluation: Dict[str, Any] = Field(
         default_factory=dict,
         description="Detailed sandbox policy evaluation result.",
+    )
+
+    data_ref: str = Field(
+        default="",
+        description=(
+            "Opaque server-issued reference to the trusted output data."
+        ),
+    )
+
+    approval_ticket: str = Field(
+        default="",
+        description=(
+            "Opaque server-issued human approval ticket."
+        ),
+    )
+
+    approval_status: str = Field(
+        default="",
+        description=(
+            "Current approval state: pending, approved, denied or consumed."
+        ),
     )

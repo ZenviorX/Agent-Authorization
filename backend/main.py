@@ -30,6 +30,8 @@ from backend.routes.two_phase_tool_proxy_routes import router as two_phase_tool_
 from backend.routes.capability_token_routes import router as capability_token_router
 from backend.routes.llm_tool_call_routes import router as llm_tool_call_router
 from backend.routes.mcp_routes import router as mcp_router
+from backend.routes.trusted_audit_routes import router as trusted_audit_router
+from backend.routes.evidence_bundle_routes import router as evidence_bundle_router
 
 
 app = FastAPI(
@@ -131,6 +133,8 @@ app.include_router(test_results_router)
 # -----------------------------
 
 app.include_router(demo_router)
+app.include_router(trusted_audit_router)
+app.include_router(evidence_bundle_router)
 
 # -----------------------------
 # Frontend pages

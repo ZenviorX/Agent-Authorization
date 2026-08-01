@@ -172,13 +172,24 @@ async def mcp_post(request: Request):
         return JSONResponse(status_code=400, content=protocol_error_response(payload.get("id"), error))
 
     if payload.get("method") == "tools/call":
-        task_header = str(request.headers.get("x-agentguard-task") or "").strip()
-        if task_header:
+        task_handle_header = str(
+            request.headers.get(
+                "x-agentguard-task-handle"
+            )
+            or ""
+        ).strip()
+
+        if task_handle_header:
             params = payload.setdefault("params", {})
+
             if isinstance(params, dict):
                 meta = params.setdefault("_meta", {})
+
                 if isinstance(meta, dict):
-                    meta.setdefault("agentguard/originalTask", task_header)
+                    meta.setdefault(
+                        "agentguard/taskHandle",
+                        task_handle_header,
+                    )
 
     principal = dict(verified.get("payload") or {})
 
