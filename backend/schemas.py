@@ -7,6 +7,10 @@ class ToolCallRequest(BaseModel):
     tool: str
     params: Dict[str, Any] = Field(default_factory=dict)
 
+    # Preserve the original user task/input so Gateway semantic checks and
+    # audit records can evaluate the tool call in context.
+    original_input: Optional[str] = None
+
     # Task13：任务授权合约
     task_contract: Optional[Dict[str, Any]] = None
     input_labels: List[str] = Field(default_factory=list)

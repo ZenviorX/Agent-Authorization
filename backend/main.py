@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,15 +29,17 @@ from backend.routes.frontend_data_routes import router as frontend_data_router
 from backend.routes.two_phase_tool_proxy_routes import router as two_phase_tool_proxy_router
 from backend.routes.capability_token_routes import router as capability_token_router
 from backend.routes.llm_tool_call_routes import router as llm_tool_call_router
+from backend.routes.mcp_routes import router as mcp_router
 
 
 app = FastAPI(
-    title="AI Agent Auth Gateway",
+    title="AgentGuard MCP Security Gateway",
     description=(
-        "Authorization and safety gateway for AI Agent tool calls. "
-        "Core gateway APIs are separated from demo-only FakeAgent interfaces."
+        "OAuth-protected MCP and AI Agent tool-call authorization gateway. "
+        "The MCP adapter reuses AgentGuard Task Boundary, Capability Token, "
+        "Runtime Monitor, Hybrid Sandbox and Audit Evidence controls."
     ),
-    version="0.5.0",
+    version="0.6.0",
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -67,6 +69,8 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:8000",
         "http://localhost:8000",
+        "http://127.0.0.1:9000",
+        "http://localhost:9000",
         "http://127.0.0.1:5500",
         "http://localhost:5500",
         "null",
@@ -101,6 +105,7 @@ app.include_router(research_strategy_router)
 app.include_router(two_phase_tool_proxy_router)
 app.include_router(capability_token_router)
 app.include_router(llm_tool_call_router)
+app.include_router(mcp_router)
 
 # -----------------------------
 # Frontend local runtime data APIs
@@ -202,9 +207,13 @@ def authorized_evidence_page():
 @app.get("/api/status")
 def api_status():
     return {
-        "message": "AI Agent Auth Gateway is running",
-        "version": "0.5.0",
+        "message": "AgentGuard MCP Security Gateway is running",
+        "version": "0.6.0",
         "architecture": {
+            "mcp": (
+                "MCP Client -> OAuth Bearer Token -> /mcp -> Tool Proxy -> "
+                "Task Boundary / Capability Token / Runtime Monitor -> Hybrid Sandbox"
+            ),
             "core": (
                 "External caller -> Agent Runtime / Gateway -> "
                 "Runtime Monitor -> ToolExecutor"
@@ -216,8 +225,13 @@ def api_status():
             "demo": "FakeAgent -> Demo API -> Gateway -> ToolExecutor",
         },
         "registered_core_features": [
+            "mcp_streamable_http",
+            "oauth_protected_resource_metadata",
+            "oauth_bearer_token_validation",
+            "oauth_scope_filtering",
             "gateway",
             "capability_contract",
+            "capability_token_two_phase_authorization",
             "runtime_monitor",
             "attack_chain_detector",
             "sandbox_evidence",
@@ -230,9 +244,15 @@ def api_status():
             "independent_test_runner",
             "frontend_local_runtime_data",
         ],
+        "mcp": {
+            "endpoint": "/mcp",
+            "protected_resource_metadata": "/.well-known/oauth-protected-resource",
+            "protocol_target": "2025-11-25",
+            "demo_authorization_server": "http://127.0.0.1:9000",
+        },
         "note": (
-            "FakeAgent is demo-only. Real Agent runtime APIs are exposed under "
-            "/agent-runtime and still require Gateway / Runtime Monitor checks."
+            "The included OAuth authorization server is a localhost-only competition demo. "
+            "Production deployment should connect AgentGuard to a maintained OAuth/OIDC provider."
         ),
     }
 
@@ -273,6 +293,8 @@ def _install_legacy_frontend_route_notice():
                 "frontend": "http://127.0.0.1:5173",
                 "backend": "http://127.0.0.1:8000",
                 "docs": "http://127.0.0.1:8000/docs",
+                "mcp": "http://127.0.0.1:8000/mcp",
+                "oauth_metadata": "http://127.0.0.1:8000/.well-known/oauth-protected-resource",
                 "recommended_demo_mode": "授权演示 -> 真沙箱执行（自动选择）",
             }
         )
@@ -283,4 +305,3 @@ def _install_legacy_frontend_route_notice():
 
 _install_legacy_frontend_route_notice()
 # === End teacher review cleanup ===
-

@@ -32,13 +32,18 @@ TESTS = [
     "tests/test_execute_phase_no_new_token.py",
     "tests/test_capability_token_sandbox_binding.py",
     "tests/test_sandbox_path_policy.py",
+    "tests/unit/test_oauth_access_token.py",
+    "tests/unit/test_mcp_tool_registry.py",
+    "tests/unit/test_mcp_service.py",
 ]
+
 
 def main() -> int:
     cmd = [sys.executable, "-m", "pytest", *TESTS, "-q"]
     print("=== AgentGuard Backend Authorization Regression ===")
     print("tests:", len(TESTS))
     return subprocess.call(cmd, cwd=ROOT)
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
