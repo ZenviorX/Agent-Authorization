@@ -14,6 +14,8 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 BACKEND_HOST = "127.0.0.1"
 BACKEND_PORT = "8000"
 FRONTEND_PORT = "5173"
+OAUTH_HOST = "127.0.0.1"
+OAUTH_PORT = "9000"
 
 
 def is_windows() -> bool:
@@ -38,14 +40,7 @@ def run_shell(command: str, cwd: Path | None = None) -> None:
 
 
 def kill_existing_processes() -> None:
-    """
-    Stop old local backend/frontend dev processes without killing this launcher.
-
-    Windows notes:
-    - The previous implementation matched every python process containing
-      start_project.py, which also matched the current launcher.
-    - We now skip the current PID and parent PID before stopping anything.
-    """
+    """Stop old local backend/frontend/OAuth demo processes without killing this launcher."""
 
     current_pid = os.getpid()
     parent_pid = os.getppid()
@@ -70,6 +65,7 @@ Get-CimInstance Win32_Process |
         ($_.Name -match "python.exe" -or $_.Name -match "pythonw.exe") -and (
           $_.CommandLine -match "uvicorn" -or
           $_.CommandLine -match "backend.main" -or
+          $_.CommandLine -match "backend.oauth.demo_authorization_server" -or
           $_.CommandLine -match "start_project.py"
         )
       )
@@ -86,10 +82,11 @@ Get-CimInstance Win32_Process |
         )
         return
 
-    # macOS / Linux fallback. Avoid matching this process by using narrower patterns.
     patterns = [
         "uvicorn backend.main:app",
         "python -m uvicorn backend.main:app",
+        "uvicorn backend.oauth.demo_authorization_server:app",
+        "python -m uvicorn backend.oauth.demo_authorization_server:app",
         "npm --prefix ./frontend run dev",
         "vite --host",
     ]
@@ -99,12 +96,7 @@ Get-CimInstance Win32_Process |
 
 
 def ensure_frontend_env() -> None:
-    """
-    Keep frontend API routing stable.
-
-    vite.config.ts proxies backend routes to 127.0.0.1:8000.
-    This .env file makes direct API_BASE explicit as a fallback.
-    """
+    """Keep frontend API routing stable."""
 
     env_file = FRONTEND_DIR / ".env"
     desired = "VITE_API_BASE=http://127.0.0.1:8000\n"
@@ -138,6 +130,24 @@ def start_backend() -> subprocess.Popen:
     return subprocess.Popen(command, cwd=str(PROJECT_ROOT))
 
 
+def start_oauth_server() -> subprocess.Popen:
+    python = venv_python()
+    command = [
+        python,
+        "-m",
+        "uvicorn",
+        "backend.oauth.demo_authorization_server:app",
+        "--reload",
+        "--host",
+        OAUTH_HOST,
+        "--port",
+        OAUTH_PORT,
+    ]
+
+    print("[oauth-demo] " + " ".join(command))
+    return subprocess.Popen(command, cwd=str(PROJECT_ROOT))
+
+
 def start_frontend() -> subprocess.Popen:
     command = ["npm", "--prefix", str(FRONTEND_DIR), "run", "dev"]
 
@@ -145,38 +155,60 @@ def start_frontend() -> subprocess.Popen:
     return subprocess.Popen(command, cwd=str(PROJECT_ROOT), shell=is_windows())
 
 
-def wait_message() -> None:
+def wait_message(*, with_oauth: bool) -> None:
     print()
     print("=" * 72)
-    print("Agent-Authorization started")
+    print("AgentGuard started")
     print("=" * 72)
     print(f"Backend:  http://{BACKEND_HOST}:{BACKEND_PORT}")
     print(f"Frontend: http://localhost:{FRONTEND_PORT}")
     print(f"API Docs: http://{BACKEND_HOST}:{BACKEND_PORT}/docs")
+    print(f"MCP:      http://{BACKEND_HOST}:{BACKEND_PORT}/mcp")
+    print(
+        "OAuth resource metadata: "
+        f"http://{BACKEND_HOST}:{BACKEND_PORT}/.well-known/oauth-protected-resource"
+    )
+
+    if with_oauth:
+        print(f"OAuth demo server: http://{OAUTH_HOST}:{OAUTH_PORT}")
+        print(
+            "OAuth metadata: "
+            f"http://{OAUTH_HOST}:{OAUTH_PORT}/.well-known/oauth-authorization-server"
+        )
+
     print()
     print("Useful checks:")
     print(f"  http://{BACKEND_HOST}:{BACKEND_PORT}/api/status")
     print(f"  http://{BACKEND_HOST}:{BACKEND_PORT}/sandbox-native/health")
     print(f"  http://{BACKEND_HOST}:{BACKEND_PORT}/test-results/latest/summary")
+
+    if with_oauth:
+        print("  python examples/mcp_oauth_demo_client.py")
+
     print("  Frontend -> 授权工作台 -> 真沙箱执行（自动选择）")
     print("  Frontend -> 测试报告 -> 一键运行测试")
     print()
-    print("Press Ctrl+C to stop both backend and frontend.")
+    print("Press Ctrl+C to stop all child processes.")
     print("=" * 72)
     print()
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Start Agent-Authorization backend and frontend.")
+    parser = argparse.ArgumentParser(description="Start AgentGuard backend and frontend.")
     parser.add_argument(
         "--clean",
         action="store_true",
-        help="Stop existing frontend/backend dev processes before starting.",
+        help="Stop existing frontend/backend/OAuth demo processes before starting.",
     )
     parser.add_argument(
         "--no-env",
         action="store_true",
         help="Do not write frontend/.env fallback VITE_API_BASE.",
+    )
+    parser.add_argument(
+        "--with-oauth",
+        action="store_true",
+        help="Also start the localhost-only demo OAuth Authorization Server on port 9000.",
     )
 
     args = parser.parse_args()
@@ -188,13 +220,17 @@ def main() -> int:
     if not args.no_env:
         ensure_frontend_env()
 
-    backend = start_backend()
+    children: list[subprocess.Popen] = []
+
+    if args.with_oauth:
+        children.append(start_oauth_server())
+        time.sleep(1)
+
+    children.append(start_backend())
     time.sleep(2)
-    frontend = start_frontend()
+    children.append(start_frontend())
 
-    wait_message()
-
-    children = [backend, frontend]
+    wait_message(with_oauth=args.with_oauth)
 
     try:
         while True:
@@ -206,7 +242,7 @@ def main() -> int:
             time.sleep(1)
 
     except KeyboardInterrupt:
-        print("\n[stop] stopping backend and frontend...")
+        print("\n[stop] stopping child processes...")
 
         for proc in children:
             if proc.poll() is None:
