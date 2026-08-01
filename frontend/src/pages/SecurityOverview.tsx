@@ -45,6 +45,14 @@ export function SecurityOverview({
     <div className="overview-page">
       <section className="overview-hero">
         <div className="overview-hero-copy">
+          <div className="overview-hero-heading">
+            <span className="overview-hero-eyebrow">AgentGuard Security Operations</span>
+            <div className="overview-hero-page-line">
+              <h2>安全总览</h2>
+              <span>实时状态与安全链路</span>
+            </div>
+          </div>
+
           <div className="overview-kicker-row">
             <span className={`mode-badge mode-${mode}`}>{mode.toUpperCase()} MODE</span>
             <span className={`connection-caption connection-${connectionState}`}>
