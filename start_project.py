@@ -1,149 +1,209 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
+import shutil
 import signal
 import socket
 import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-FRONTEND_DIR = PROJECT_ROOT / "frontend"
-BACKEND_HOST = "127.0.0.1"
-BACKEND_PORT = 8000
-FRONTEND_HOST = "127.0.0.1"
-FRONTEND_PORT = 5173
-OAUTH_HOST = "127.0.0.1"
-OAUTH_PORT = 9000
-MANAGED_PORTS = (BACKEND_PORT, FRONTEND_PORT, OAUTH_PORT)
+ROOT = Path(__file__).resolve().parent
+FRONTEND = ROOT / "frontend"
+RUNTIME = ROOT / ".agentguard"
+STATE_FILE = RUNTIME / "launcher-state.json"
+LOCK_FILE = RUNTIME / "launcher.lock"
+
+SERVICES: dict[str, dict[str, Any]] = {
+    "backend": {
+        "label": "Backend",
+        "port": 8000,
+        "ready": "http://127.0.0.1:8000/api/status",
+        "marker": "AgentGuard",
+        "process_markers": ("backend.main:app", "backend.main"),
+    },
+    "frontend": {
+        "label": "Frontend",
+        "port": 5173,
+        "ready": "http://127.0.0.1:5173",
+        "marker": "AgentGuard",
+        "process_markers": ("vite", "run dev"),
+    },
+    "oauth": {
+        "label": "OAuth",
+        "port": 9000,
+        "ready": "http://127.0.0.1:9000/health",
+        "marker": "local_demo_only",
+        "process_markers": ("backend.oauth.demo_authorization_server",),
+    },
+}
+
+PYTHON_MODULES = (
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "yaml",
+    "jwt",
+    "cryptography",
+    "openai",
+    "dotenv",
+    "sentence_transformers",
+    "numpy",
+)
+
+
+class LaunchError(RuntimeError):
+    pass
 
 
 def is_windows() -> bool:
     return os.name == "nt"
 
 
-def venv_python() -> str:
-    candidates = (
-        PROJECT_ROOT / "venv" / ("Scripts/python.exe" if is_windows() else "bin/python"),
-        PROJECT_ROOT / ".venv" / ("Scripts/python.exe" if is_windows() else "bin/python"),
+def run_powershell(script: str, *, capture: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+        capture_output=capture,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
     )
 
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate)
 
-    return sys.executable
+def load_state() -> dict[str, Any]:
+    try:
+        data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return {}
 
 
-def _process_creation_kwargs() -> dict[str, object]:
+def save_state(state: dict[str, Any]) -> None:
+    RUNTIME.mkdir(parents=True, exist_ok=True)
+    temp = STATE_FILE.with_suffix(".tmp")
+    temp.write_text(json.dumps(state, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temp.replace(STATE_FILE)
+
+
+def file_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
     if is_windows():
-        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
-    return {"start_new_session": True}
+        return run_powershell(
+            f"if (Get-Process -Id {pid} -ErrorAction SilentlyContinue) {{ exit 0 }} else {{ exit 1 }}"
+        ).returncode == 0
+    try:
+        os.kill(pid, 0)
+        return True
+    except (ProcessLookupError, PermissionError):
+        return False
 
 
-def _listening_pids_windows(ports: tuple[int, ...]) -> set[int]:
-    port_list = ",".join(str(port) for port in ports)
-    command = rf'''
-$ports = @({port_list})
-Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
-  Where-Object {{ $ports -contains [int]$_.LocalPort }} |
-  Select-Object -ExpandProperty OwningProcess -Unique
-'''
-    result = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return {int(line.strip()) for line in result.stdout.splitlines() if line.strip().isdigit()}
-
-
-def _listening_pids_posix(ports: tuple[int, ...]) -> set[int]:
-    pids: set[int] = set()
-    for port in ports:
-        result = subprocess.run(
-            ["lsof", "-ti", f"tcp:{port}", "-sTCP:LISTEN"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        pids.update(int(line.strip()) for line in result.stdout.splitlines() if line.strip().isdigit())
-    return pids
-
-
-def _project_process_pids_windows() -> set[int]:
-    env = os.environ.copy()
-    env["AGENTGUARD_PROJECT_ROOT"] = str(PROJECT_ROOT)
-    command = r'''
-$root = $env:AGENTGUARD_PROJECT_ROOT
-Get-CimInstance Win32_Process |
-  Where-Object {
-    $_.CommandLine -and
-    $_.CommandLine.Contains($root) -and
-    (
-      (
-        $_.Name -match "python.exe|pythonw.exe" -and
-        $_.CommandLine -match "uvicorn|backend.main|backend.oauth.demo_authorization_server|start_project.py"
-      ) -or (
-        $_.Name -match "node.exe|npm.exe|cmd.exe" -and
-        $_.CommandLine -match "vite|npm|frontend"
-      )
-    )
-  } |
-  Select-Object -ExpandProperty ProcessId -Unique
-'''
-    result = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
-    return {int(line.strip()) for line in result.stdout.splitlines() if line.strip().isdigit()}
-
-
-def _project_process_pids_posix() -> set[int]:
-    result = subprocess.run(
-        ["pgrep", "-f", str(PROJECT_ROOT)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return {int(line.strip()) for line in result.stdout.splitlines() if line.strip().isdigit()}
-
-
-def _describe_process(pid: int) -> str:
+def command_line(pid: int) -> str:
     if is_windows():
-        command = (
-            f"Get-CimInstance Win32_Process -Filter \"ProcessId={pid}\" | "
-            "Select-Object -ExpandProperty CommandLine"
+        result = run_powershell(
+            f'$p=Get-CimInstance Win32_Process -Filter "ProcessId={pid}" '
+            '-ErrorAction SilentlyContinue; if ($p) { $p.CommandLine }'
         )
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        return result.stdout.strip() or f"PID {pid}"
-
+        return result.stdout.strip()
     result = subprocess.run(
         ["ps", "-p", str(pid), "-o", "command="],
         capture_output=True,
         text=True,
         check=False,
     )
-    return result.stdout.strip() or f"PID {pid}"
+    return result.stdout.strip()
 
 
-def _kill_process_tree(pid: int) -> None:
-    if pid <= 0:
+def listening_pids(port: int) -> set[int]:
+    if is_windows():
+        result = run_powershell(
+            f"Get-NetTCPConnection -State Listen -LocalPort {port} "
+            "-ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique"
+        )
+        return {int(line) for line in result.stdout.splitlines() if line.strip().isdigit()}
+
+    lsof = shutil.which("lsof")
+    if not lsof:
+        return set()
+    result = subprocess.run(
+        [lsof, "-ti", f"tcp:{port}", "-sTCP:LISTEN"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return {int(line) for line in result.stdout.splitlines() if line.strip().isdigit()}
+
+
+def related(pid: int, service: str) -> bool:
+    line = command_line(pid).lower()
+    if not line:
+        return False
+    markers = SERVICES[service]["process_markers"]
+    if not any(marker.lower() in line for marker in markers):
+        return False
+    if service in {"backend", "oauth"}:
+        return True
+    return str(ROOT).lower() in line
+
+
+def project_pids(service: str) -> set[int]:
+    markers = SERVICES[service]["process_markers"]
+    if is_windows():
+        env = os.environ.copy()
+        env["AG_ROOT"] = str(ROOT)
+        env["AG_MARKERS"] = "|".join(markers)
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                '$r=$env:AG_ROOT.ToLower(); $m=$env:AG_MARKERS; '
+                'Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | '
+                'Where-Object { $_.CommandLine -and $_.CommandLine.ToLower().Contains($r) '
+                '-and $_.CommandLine -match $m } | '
+                'Select-Object -ExpandProperty ProcessId -Unique',
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+        return {int(line) for line in result.stdout.splitlines() if line.strip().isdigit()}
+
+    result = subprocess.run(
+        ["ps", "-eo", "pid=,args="], capture_output=True, text=True, check=False
+    )
+    found: set[int] = set()
+    root = str(ROOT).lower()
+    for raw in result.stdout.splitlines():
+        pid_text, _, line = raw.strip().partition(" ")
+        lowered = line.lower()
+        if pid_text.isdigit() and root in lowered and any(m.lower() in lowered for m in markers):
+            found.add(int(pid_text))
+    return found
+
+
+def kill_tree(pid: int) -> None:
+    if not pid_alive(pid):
         return
-
     if is_windows():
         subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"],
@@ -153,49 +213,24 @@ def _kill_process_tree(pid: int) -> None:
         )
         return
 
+    children = subprocess.run(
+        ["pgrep", "-P", str(pid)], capture_output=True, text=True, check=False
+    )
+    for item in children.stdout.splitlines():
+        if item.strip().isdigit():
+            kill_tree(int(item))
     try:
-        os.killpg(pid, signal.SIGTERM)
+        os.kill(pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except (ProcessLookupError, PermissionError):
-            return
+        pass
 
 
-def kill_existing_processes() -> None:
-    """Stop old AgentGuard processes and anything listening on managed ports."""
-
-    current_pid = os.getpid()
-    parent_pid = os.getppid()
-
-    if is_windows():
-        pids = _listening_pids_windows(MANAGED_PORTS)
-        pids.update(_project_process_pids_windows())
-    else:
-        pids = _listening_pids_posix(MANAGED_PORTS)
-        pids.update(_project_process_pids_posix())
-
-    pids.discard(current_pid)
-    pids.discard(parent_pid)
-
-    if not pids:
-        print("[cleanup] no previous AgentGuard process found")
-        return
-
-    print(f"[cleanup] stopping {len(pids)} previous process(es)...")
-    for pid in sorted(pids):
-        print(f"[cleanup] PID={pid} {_describe_process(pid)}")
-        _kill_process_tree(pid)
-
-    time.sleep(1.2)
-
-
-def _port_is_free(host: str, port: int) -> bool:
+def port_free(port: int) -> bool:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         if is_windows() and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-        sock.bind((host, port))
+        sock.bind(("127.0.0.1", port))
         return True
     except OSError:
         return False
@@ -203,316 +238,417 @@ def _port_is_free(host: str, port: int) -> bool:
         sock.close()
 
 
-def wait_for_ports_free(timeout_seconds: float = 10.0) -> bool:
-    deadline = time.monotonic() + timeout_seconds
-
-    while time.monotonic() < deadline:
-        busy = [port for port in MANAGED_PORTS if not _port_is_free("127.0.0.1", port)]
-        if not busy:
-            print("[cleanup] ports 8000, 5173 and 9000 are free")
+def wait_port_free(port: int, seconds: float = 8) -> bool:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if port_free(port):
             return True
-        time.sleep(0.25)
+        time.sleep(0.2)
+    return port_free(port)
 
-    busy = [port for port in MANAGED_PORTS if not _port_is_free("127.0.0.1", port)]
-    print(f"[cleanup] unable to release port(s): {', '.join(map(str, busy))}")
+
+def healthy(service: str) -> bool:
+    spec = SERVICES[service]
+    request = Request(spec["ready"], headers={"User-Agent": "AgentGuard-Launcher/3.0"})
+    try:
+        with urlopen(request, timeout=1.5) as response:
+            body = response.read(256_000).decode("utf-8", errors="replace")
+            return int(getattr(response, "status", 200)) < 500 and spec["marker"].lower() in body.lower()
+    except HTTPError as exc:
+        body = exc.read(256_000).decode("utf-8", errors="replace")
+        return exc.code < 500 and spec["marker"].lower() in body.lower()
+    except (URLError, TimeoutError, OSError):
+        return False
+
+
+def wait_ready(service: str, process: subprocess.Popen[Any], seconds: float) -> bool:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if process.poll() is not None:
+            return False
+        if healthy(service):
+            return True
+        time.sleep(0.4)
     return False
+
+
+def venv_python() -> Path:
+    relative = Path("Scripts/python.exe" if is_windows() else "bin/python")
+    for directory in (ROOT / "venv", ROOT / ".venv"):
+        candidate = directory / relative
+        if candidate.exists():
+            return candidate
+
+    target = ROOT / "venv"
+    print(f"[deps] creating virtual environment: {target}")
+    if subprocess.run([sys.executable, "-m", "venv", str(target)], cwd=ROOT).returncode:
+        raise LaunchError("Failed to create the Python virtual environment.")
+    return target / relative
+
+
+def missing_modules(python: Path) -> list[str]:
+    code = (
+        "import importlib.util,json;"
+        f"m={list(PYTHON_MODULES)!r};"
+        "print(json.dumps([x for x in m if importlib.util.find_spec(x) is None]))"
+    )
+    result = subprocess.run(
+        [str(python), "-c", code], cwd=ROOT, capture_output=True, text=True, check=False
+    )
+    try:
+        return json.loads(result.stdout.strip() or "[]") if result.returncode == 0 else list(PYTHON_MODULES)
+    except json.JSONDecodeError:
+        return list(PYTHON_MODULES)
+
+
+def npm_path() -> str:
+    for name in (("npm.cmd", "npm") if is_windows() else ("npm",)):
+        found = shutil.which(name)
+        if found:
+            return found
+    raise LaunchError("npm was not found. Install Node.js and reopen the terminal.")
+
+
+def npm_command(npm: str, *args: str) -> list[str]:
+    base = [npm, *args]
+    if not is_windows() or not npm.lower().endswith((".cmd", ".bat")):
+        return base
+    return [os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", subprocess.list2cmdline(base)]
+
+
+def frontend_modules_ready(package: dict[str, Any]) -> bool:
+    modules = FRONTEND / "node_modules"
+    names: list[str] = []
+    for group in ("dependencies", "devDependencies"):
+        if isinstance(package.get(group), dict):
+            names.extend(package[group])
+    return modules.exists() and all(
+        (modules.joinpath(*name.split("/")) / "package.json").exists() for name in names
+    )
+
+
+def ensure_dependencies(state: dict[str, Any]) -> tuple[Path, str, bool]:
+    requirements = ROOT / "requirements.txt"
+    package_file = FRONTEND / "package.json"
+    if not requirements.exists() or not package_file.exists():
+        raise LaunchError("requirements.txt or frontend/package.json is missing.")
+
+    python = venv_python()
+    npm = npm_path()
+    deps = state.setdefault("dependencies", {})
+    changed = False
+
+    requirements_hash = file_hash(requirements)
+    missing = missing_modules(python)
+    if deps.get("requirements") != requirements_hash or missing:
+        print("[deps] installing Python dependencies ...")
+        command = [str(python), "-m", "pip", "install", "-r", str(requirements)]
+        if subprocess.run(command, cwd=ROOT).returncode:
+            raise LaunchError("Python dependency installation failed.")
+        missing = missing_modules(python)
+        if missing:
+            raise LaunchError("Missing Python modules: " + ", ".join(missing))
+        deps["requirements"] = requirements_hash
+        changed = True
+    else:
+        print("[deps] Python dependencies are ready")
+
+    try:
+        package = json.loads(package_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise LaunchError(f"frontend/package.json is invalid: {exc}") from exc
+    package_hash = file_hash(package_file)
+    if deps.get("package") != package_hash or not frontend_modules_ready(package):
+        print("[deps] installing frontend dependencies ...")
+        command = npm_command(npm, "--prefix", str(FRONTEND), "install")
+        if subprocess.run(command, cwd=ROOT).returncode:
+            raise LaunchError("Frontend dependency installation failed.")
+        if not frontend_modules_ready(package):
+            raise LaunchError("frontend/node_modules is incomplete after npm install.")
+        deps["package"] = package_hash
+        changed = True
+    else:
+        print("[deps] Frontend dependencies are ready")
+
+    save_state(state)
+    return python, npm, changed
 
 
 def ensure_frontend_env() -> None:
-    """Force the frontend to use the local backend launched by this script."""
-
-    env_file = FRONTEND_DIR / ".env"
-    desired_line = f"VITE_API_BASE=http://{BACKEND_HOST}:{BACKEND_PORT}"
-    existing_lines: list[str] = []
-
-    if env_file.exists():
-        existing_lines = env_file.read_text(encoding="utf-8", errors="ignore").splitlines()
-
-    output: list[str] = []
-    replaced = False
-
-    for line in existing_lines:
-        if line.strip().startswith("VITE_API_BASE="):
-            if not replaced:
-                output.append(desired_line)
-                replaced = True
-            continue
-        output.append(line)
-
-    if not replaced:
-        output.append(desired_line)
-
+    env_file = FRONTEND / ".env"
+    desired = "VITE_API_BASE=http://127.0.0.1:8000"
+    lines = env_file.read_text(encoding="utf-8", errors="replace").splitlines() if env_file.exists() else []
+    output = [line for line in lines if not line.strip().startswith("VITE_API_BASE=")]
+    output.append(desired)
     env_file.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
 
 
-def check_backend_dependencies() -> bool:
-    python = venv_python()
-    result = subprocess.run(
-        [
-            python,
-            "-c",
-            "import fastapi, uvicorn, pydantic, yaml, jwt, cryptography; print('backend dependencies ok')",
-        ],
-        cwd=str(PROJECT_ROOT),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    if result.returncode == 0:
-        print(f"[deps] {result.stdout.strip()}")
-        return True
-
-    print("[deps] backend dependencies are incomplete")
-    if result.stderr.strip():
-        print(result.stderr.strip())
-    print(f'[deps] run: "{python}" -m pip install -r requirements.txt')
-    return False
+def process_command(service: str, python: Path, npm: str) -> list[str]:
+    if service == "backend":
+        return [str(python), "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", "8000"]
+    if service == "oauth":
+        return [
+            str(python), "-m", "uvicorn", "backend.oauth.demo_authorization_server:app",
+            "--host", "127.0.0.1", "--port", "9000",
+        ]
+    return npm_command(npm, "--prefix", str(FRONTEND), "run", "dev", "--", "--strictPort")
 
 
-def start_backend(*, reload_enabled: bool) -> subprocess.Popen:
-    python = venv_python()
-    command = [
-        python,
-        "-m",
-        "uvicorn",
-        "backend.main:app",
-        "--host",
-        BACKEND_HOST,
-        "--port",
-        str(BACKEND_PORT),
-    ]
-    if reload_enabled:
-        command.append("--reload")
-
-    print("[backend] " + " ".join(command))
-    return subprocess.Popen(command, cwd=str(PROJECT_ROOT), **_process_creation_kwargs())
+def recorded_pid(state: dict[str, Any], service: str) -> int:
+    try:
+        return int(state.get("services", {}).get(service, {}).get("pid", 0))
+    except (TypeError, ValueError, AttributeError):
+        return 0
 
 
-def start_oauth_server(*, reload_enabled: bool) -> subprocess.Popen:
-    python = venv_python()
-    command = [
-        python,
-        "-m",
-        "uvicorn",
-        "backend.oauth.demo_authorization_server:app",
-        "--host",
-        OAUTH_HOST,
-        "--port",
-        str(OAUTH_PORT),
-    ]
-    if reload_enabled:
-        command.append("--reload")
+def stop_service(service: str, state: dict[str, Any]) -> None:
+    spec = SERVICES[service]
+    targets = project_pids(service)
+    targets.update(pid for pid in listening_pids(spec["port"]) if related(pid, service))
+    old = recorded_pid(state, service)
+    if old and related(old, service):
+        targets.add(old)
 
-    print("[oauth-demo] " + " ".join(command))
-    return subprocess.Popen(command, cwd=str(PROJECT_ROOT), **_process_creation_kwargs())
+    targets.discard(os.getpid())
+    targets.discard(os.getppid())
+    for pid in sorted(targets):
+        kill_tree(pid)
+
+    if targets and not wait_port_free(spec["port"]):
+        raise LaunchError(f"Could not release {service} port {spec['port']}.")
 
 
-def start_frontend() -> subprocess.Popen:
-    command = ["npm", "--prefix", str(FRONTEND_DIR), "run", "dev"]
-    print("[frontend] " + " ".join(command))
-    return subprocess.Popen(
-        command,
-        cwd=str(PROJECT_ROOT),
-        shell=is_windows(),
-        **_process_creation_kwargs(),
-    )
+def existing_service(service: str, state: dict[str, Any], restart: bool) -> int:
+    spec = SERVICES[service]
+    listeners = listening_pids(spec["port"])
+    related_listeners = {pid for pid in listeners if related(pid, service)}
+    old = recorded_pid(state, service)
+    old = old if old and pid_alive(old) and related(old, service) else 0
+
+    if healthy(service) and (related_listeners or old):
+        pid = old or min(related_listeners)
+        if restart:
+            stop_service(service, state)
+            return 0
+        print(f"[reuse] {spec['label']} PID={pid}")
+        return pid
+
+    related_processes = project_pids(service) | related_listeners
+    if related_processes or old:
+        stop_service(service, state)
+        return 0
+
+    if listeners or not port_free(spec["port"]):
+        details = "; ".join(f"PID={pid} {command_line(pid)}" for pid in sorted(listeners))
+        raise LaunchError(
+            f"Port {spec['port']} is occupied by an unrelated process. "
+            f"Close it manually. {details}".rstrip()
+        )
+    return 0
 
 
-def wait_for_http(
-    url: str,
-    *,
-    process: subprocess.Popen | None = None,
-    timeout_seconds: float = 25.0,
-) -> bool:
-    """Wait until a local endpoint responds, or stop early if its process exits."""
+def start_service(
+    service: str,
+    state: dict[str, Any],
+    python: Path,
+    npm: str,
+    restart: bool,
+) -> dict[str, Any]:
+    spec = SERVICES[service]
+    pid = existing_service(service, state, restart)
+    process: subprocess.Popen[Any] | None = None
+    reused = bool(pid)
 
-    deadline = time.monotonic() + timeout_seconds
-    request = Request(url, headers={"User-Agent": "AgentGuard-Launcher/2.0"})
+    if not pid:
+        command = process_command(service, python, npm)
+        print(f"[start] {spec['label']}: {subprocess.list2cmdline(command)}")
+        kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if is_windows() else {"start_new_session": True}
+        process = subprocess.Popen(command, cwd=ROOT, **kwargs)
+        pid = process.pid
+        timeout = 45 if service == "frontend" else 30
+        if not wait_ready(service, process, timeout):
+            kill_tree(pid)
+            raise LaunchError(f"{spec['label']} failed to start at {spec['ready']}.")
 
-    while time.monotonic() < deadline:
-        if process is not None and process.poll() is not None:
-            print(
-                f"[startup] process exited before {url} became ready "
-                f"(code={process.returncode})"
-            )
-            return False
+    state.setdefault("services", {})[service] = {"pid": pid, "port": spec["port"]}
+    save_state(state)
+    print(f"[OK] {spec['label']:<8} {'REUSED' if reused else 'STARTED':<7} {spec['ready']}")
+    return {"name": service, "pid": pid, "process": process}
 
+
+def stop_managed(items: list[dict[str, Any]], state: dict[str, Any]) -> None:
+    if items:
+        print("\n[stop] closing AgentGuard services ...")
+    for item in reversed(items):
+        stop_service(item["name"], state)
+        state.get("services", {}).pop(item["name"], None)
+        print(f"[stop] {SERVICES[item['name']]['label']} closed")
+    save_state(state)
+
+
+def service_status() -> None:
+    for name in ("frontend", "backend", "oauth"):
+        status = "READY" if healthy(name) else "OFFLINE"
+        print(f"  [{status:<7}] {SERVICES[name]['label']:<8} {SERVICES[name]['ready']}")
+
+
+def read_lock_pid() -> int:
+    try:
+        return int(json.loads(LOCK_FILE.read_text(encoding="utf-8")).get("pid", 0))
+    except (FileNotFoundError, OSError, ValueError, TypeError, json.JSONDecodeError):
+        return 0
+
+
+def acquire_lock(restart: bool) -> int | None:
+    RUNTIME.mkdir(parents=True, exist_ok=True)
+    while True:
         try:
-            with urlopen(request, timeout=1.5) as response:
-                return int(getattr(response, "status", 200)) < 500
-        except HTTPError as exc:
-            if int(exc.code) < 500:
-                return True
-        except (URLError, TimeoutError, OSError):
-            pass
-
-        time.sleep(0.4)
-
-    return False
-
-
-def stop_children(children: list[subprocess.Popen]) -> None:
-    for proc in reversed(children):
-        if proc.poll() is None:
-            _kill_process_tree(proc.pid)
-
-    deadline = time.monotonic() + 4.0
-    while time.monotonic() < deadline:
-        if all(proc.poll() is not None for proc in children):
-            return
-        time.sleep(0.2)
-
-    for proc in reversed(children):
-        if proc.poll() is None:
+            fd = os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, json.dumps({"pid": os.getpid(), "root": str(ROOT)}).encode())
+            return fd
+        except FileExistsError:
+            pid = read_lock_pid()
+            if pid and pid_alive(pid):
+                if not restart:
+                    print(f"[running] AgentGuard launcher already exists (PID={pid}).")
+                    service_status()
+                    print("[hint] Use --restart for a fresh instance or --stop to close it.")
+                    return None
+                print(f"[restart] stopping launcher PID={pid} ...")
+                kill_tree(pid)
+                time.sleep(1)
             try:
-                proc.kill()
-            except Exception:
+                LOCK_FILE.unlink()
+            except FileNotFoundError:
                 pass
 
 
-def _state(ready: bool) -> str:
-    return "[OK]" if ready else "[FAIL]"
+def release_lock(fd: int | None) -> None:
+    if fd is None:
+        return
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    if read_lock_pid() == os.getpid():
+        try:
+            LOCK_FILE.unlink()
+        except FileNotFoundError:
+            pass
 
 
-def wait_message(
-    *,
-    with_oauth: bool,
-    backend_ready: bool,
-    frontend_ready: bool,
-    oauth_ready: bool,
-) -> None:
-    backend_base = f"http://{BACKEND_HOST}:{BACKEND_PORT}"
-    frontend_url = f"http://{FRONTEND_HOST}:{FRONTEND_PORT}"
-    oauth_base = f"http://{OAUTH_HOST}:{OAUTH_PORT}"
+def print_urls(with_oauth: bool) -> None:
+    print("\n" + "=" * 68)
+    print("AgentGuard is ready")
+    print("=" * 68)
+    print("Frontend:           http://127.0.0.1:5173")
+    print("Backend API:        http://127.0.0.1:8000")
+    print("API documentation: http://127.0.0.1:8000/docs")
+    print("MCP endpoint:       http://127.0.0.1:8000/mcp")
+    print("OAuth demo server:  " + ("http://127.0.0.1:9000" if with_oauth else "skipped"))
+    print("\nPress Ctrl+C to stop all managed services.")
+    print("=" * 68 + "\n")
 
-    print()
-    print("=" * 78)
-    print("AgentGuard startup result")
-    print("=" * 78)
-    print("Browser pages:")
-    print(f"  {_state(frontend_ready)} Frontend:           {frontend_url}")
-    print(f"  {_state(backend_ready)} API documentation:  {backend_base}/docs")
-    print(f"  {_state(backend_ready)} Backend status:      {backend_base}/api/status")
-    if with_oauth:
-        print(f"  {_state(oauth_ready)} OAuth demo console:  {oauth_base}/")
-    print()
-    print("Protocol endpoints:")
-    print(f"  MCP JSON-RPC endpoint:  POST {backend_base}/mcp")
-    if with_oauth:
-        print(f"  OAuth token endpoint:   POST {oauth_base}/token")
-    print()
-    print("Press Ctrl+C to stop all child processes.")
-    print("=" * 78)
-    print()
+
+def stop_everything(state: dict[str, Any]) -> None:
+    for name in ("oauth", "frontend", "backend"):
+        stop_service(name, state)
+    state["services"] = {}
+    save_state(state)
+
+
+def install_signal_handlers() -> None:
+    def stop_handler(signum: int, frame: Any) -> None:
+        raise KeyboardInterrupt
+
+    for name in ("SIGTERM", "SIGBREAK"):
+        value = getattr(signal, name, None)
+        if value is not None:
+            try:
+                signal.signal(value, stop_handler)
+            except (OSError, ValueError):
+                pass
+
+
+def parser() -> argparse.ArgumentParser:
+    result = argparse.ArgumentParser(
+        description="Install dependencies and run one managed AgentGuard instance."
+    )
+    result.add_argument("--with-oauth", action="store_true", help="Start OAuth demo server on port 9000.")
+    result.add_argument("--restart", action="store_true", help="Replace an existing AgentGuard instance.")
+    result.add_argument("--stop", action="store_true", help="Stop AgentGuard and exit.")
+    result.add_argument("--clean", action="store_true", help=argparse.SUPPRESS)
+    return result
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Restart AgentGuard backend, frontend and optional OAuth server."
-    )
+    args = parser().parse_args()
+    restart = args.restart or args.clean
+    state = load_state()
 
-    clean_group = parser.add_mutually_exclusive_group()
-    clean_group.add_argument(
-        "--clean",
-        action="store_true",
-        help="Explicitly request cleanup. Cleanup is already enabled by default.",
-    )
-    clean_group.add_argument(
-        "--no-clean",
-        action="store_true",
-        help="Do not stop existing processes or release managed ports before startup.",
-    )
-    parser.add_argument(
-        "--no-env",
-        action="store_true",
-        help="Do not update frontend/.env VITE_API_BASE.",
-    )
-    parser.add_argument(
-        "--with-oauth",
-        action="store_true",
-        help="Also start the localhost OAuth Authorization Server on port 9000.",
-    )
-    parser.add_argument(
-        "--reload",
-        action="store_true",
-        help="Enable Uvicorn auto-reload. Disabled by default to avoid orphan processes.",
-    )
-
-    args = parser.parse_args()
-
-    if not args.no_clean:
-        kill_existing_processes()
-        if not wait_for_ports_free():
-            return 2
-
-    if not args.no_env:
-        ensure_frontend_env()
-
-    if not check_backend_dependencies():
-        return 2
-
-    children: list[subprocess.Popen] = []
-
-    try:
-        oauth_ready = False
-        if args.with_oauth:
-            oauth_process = start_oauth_server(reload_enabled=args.reload)
-            children.append(oauth_process)
-            oauth_ready = wait_for_http(
-                f"http://{OAUTH_HOST}:{OAUTH_PORT}/health",
-                process=oauth_process,
-                timeout_seconds=20,
-            )
-            if not oauth_ready:
-                print("[startup] OAuth server failed to start; stopping all services")
-                return 1
-
-        backend_process = start_backend(reload_enabled=args.reload)
-        children.append(backend_process)
-        backend_ready = wait_for_http(
-            f"http://{BACKEND_HOST}:{BACKEND_PORT}/api/status",
-            process=backend_process,
-            timeout_seconds=30,
-        )
-        if not backend_ready:
-            print("[startup] backend failed to start; frontend will not be launched")
-            return 1
-
-        frontend_process = start_frontend()
-        children.append(frontend_process)
-        frontend_ready = wait_for_http(
-            f"http://{FRONTEND_HOST}:{FRONTEND_PORT}",
-            process=frontend_process,
-            timeout_seconds=30,
-        )
-        if not frontend_ready:
-            print("[startup] frontend failed to start")
-            return 1
-
-        wait_message(
-            with_oauth=args.with_oauth,
-            backend_ready=backend_ready,
-            frontend_ready=frontend_ready,
-            oauth_ready=oauth_ready,
-        )
-
-        while True:
-            for proc in children:
-                if proc.poll() is not None:
-                    print(
-                        f"[exit] child process PID={proc.pid} "
-                        f"exited with code {proc.returncode}"
-                    )
-                    return int(proc.returncode or 1)
+    if args.stop:
+        launcher = read_lock_pid()
+        if launcher and pid_alive(launcher):
+            kill_tree(launcher)
             time.sleep(1)
-
-    except KeyboardInterrupt:
-        print("\n[stop] stopping child processes...")
+        try:
+            LOCK_FILE.unlink()
+        except FileNotFoundError:
+            pass
+        stop_everything(state)
+        print("[stop] AgentGuard is not running")
         return 0
 
+    lock_fd = acquire_lock(restart)
+    if lock_fd is None:
+        return 0
+
+    install_signal_handlers()
+    managed: list[dict[str, Any]] = []
+    try:
+        print("=" * 68)
+        print("AgentGuard managed launcher")
+        print("=" * 68)
+
+        state["launcher_pid"] = os.getpid()
+        save_state(state)
+        python, npm, dependencies_changed = ensure_dependencies(state)
+        ensure_frontend_env()
+        restart_services = restart or dependencies_changed
+
+        if not args.with_oauth:
+            stale_oauth = project_pids("oauth")
+            for pid in stale_oauth:
+                kill_tree(pid)
+
+        managed.append(start_service("backend", state, python, npm, restart_services))
+        managed.append(start_service("frontend", state, python, npm, restart_services))
+        if args.with_oauth:
+            managed.append(start_service("oauth", state, python, npm, restart_services))
+
+        print_urls(args.with_oauth)
+        while True:
+            for item in managed:
+                process = item["process"]
+                if process is not None and process.poll() is not None:
+                    raise LaunchError(
+                        f"{SERVICES[item['name']]['label']} exited with code {process.returncode}."
+                    )
+                if not healthy(item["name"]):
+                    raise LaunchError(f"{SERVICES[item['name']]['label']} is no longer healthy.")
+            time.sleep(2)
+
+    except KeyboardInterrupt:
+        print("\n[stop] Ctrl+C received.")
+        return 0
+    except LaunchError as exc:
+        print(f"\n[ERROR] {exc}")
+        return 1
     finally:
-        stop_children(children)
+        stop_managed(managed, state)
+        state.pop("launcher_pid", None)
+        save_state(state)
+        release_lock(lock_fd)
 
 
 if __name__ == "__main__":
