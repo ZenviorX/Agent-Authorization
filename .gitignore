@@ -42,6 +42,9 @@ frontend/package-lock.json
 config/secrets/
 secrets/
 
+# Launcher runtime state
+.agentguard/
+
 # Runtime generated files
 runtime_workspace/outbox/
 runtime_workspace/evidence/
