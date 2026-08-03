@@ -104,3 +104,6 @@ test/results/latest_*.html
 test/results/run_*/
 test/results/archive/
 !test/results/.gitkeep
+
+# TypeScript incremental build cache
+*.tsbuildinfo
