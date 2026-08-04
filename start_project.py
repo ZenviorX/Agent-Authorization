@@ -22,6 +22,9 @@ RUNTIME = ROOT / ".agentguard"
 STATE_FILE = RUNTIME / "launcher-state.json"
 LOCK_FILE = RUNTIME / "launcher.lock"
 
+GRACEFUL_STOP_SECONDS = 5.0
+FORCE_STOP_SECONDS = 3.0
+
 SERVICES: dict[str, dict[str, Any]] = {
     "backend": {
         "label": "Backend",
@@ -114,6 +117,50 @@ def pid_alive(pid: int) -> bool:
         return False
 
 
+def reap_child(pid: int) -> bool:
+    if is_windows() or pid <= 0:
+        return False
+    try:
+        waited, _ = os.waitpid(pid, os.WNOHANG)
+        return waited == pid
+    except (ChildProcessError, ProcessLookupError, PermissionError):
+        return False
+
+
+def wait_pid_exit(pid: int, seconds: float) -> bool:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if reap_child(pid) or not pid_alive(pid):
+            return True
+        time.sleep(0.1)
+    return reap_child(pid) or not pid_alive(pid)
+
+
+def process_group_alive(pgid: int) -> bool:
+    if pgid <= 0 or is_windows():
+        return False
+    try:
+        os.killpg(pgid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def wait_process_group_exit(pgid: int, seconds: float, leader_pid: int = 0) -> bool:
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if leader_pid:
+            reap_child(leader_pid)
+        if not process_group_alive(pgid):
+            return True
+        time.sleep(0.1)
+    if leader_pid:
+        reap_child(leader_pid)
+    return not process_group_alive(pgid)
+
+
 def command_line(pid: int) -> str:
     if is_windows():
         result = run_powershell(
@@ -201,28 +248,76 @@ def project_pids(service: str) -> set[int]:
     return found
 
 
+def child_pids(pid: int) -> list[int]:
+    result = subprocess.run(
+        ["pgrep", "-P", str(pid)], capture_output=True, text=True, check=False
+    )
+    return [int(item) for item in result.stdout.splitlines() if item.strip().isdigit()]
+
+
 def kill_tree(pid: int) -> None:
-    if not pid_alive(pid):
+    """Terminate one managed process and every descendant/process-group member.
+
+    Services are started in their own process groups. Ctrl+C reaches the launcher,
+    then this function shuts down the complete service group on both Windows and
+    POSIX systems. A forced termination is used only after a graceful timeout.
+    """
+    if pid <= 0 or pid in {os.getpid(), os.getppid()} or not pid_alive(pid):
         return
+
     if is_windows():
+        ctrl_break = getattr(signal, "CTRL_BREAK_EVENT", None)
+        if ctrl_break is not None:
+            try:
+                os.kill(pid, ctrl_break)
+            except (OSError, ValueError):
+                pass
+            else:
+                if wait_pid_exit(pid, GRACEFUL_STOP_SECONDS):
+                    return
+
         subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,
         )
+        wait_pid_exit(pid, FORCE_STOP_SECONDS)
         return
 
-    children = subprocess.run(
-        ["pgrep", "-P", str(pid)], capture_output=True, text=True, check=False
-    )
-    for item in children.stdout.splitlines():
-        if item.strip().isdigit():
-            kill_tree(int(item))
+    try:
+        pgid = os.getpgid(pid)
+    except (ProcessLookupError, PermissionError, OSError):
+        pgid = 0
+
+    if pgid > 0 and pgid != os.getpgrp():
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            pass
+        if wait_process_group_exit(pgid, GRACEFUL_STOP_SECONDS, pid):
+            return
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        wait_process_group_exit(pgid, FORCE_STOP_SECONDS, pid)
+        return
+
+    # Safety fallback for a process that was not started in a separate group.
+    for child in child_pids(pid):
+        kill_tree(child)
     try:
         os.kill(pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
+        return
+    if wait_pid_exit(pid, GRACEFUL_STOP_SECONDS):
+        return
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
         pass
+    wait_pid_exit(pid, FORCE_STOP_SECONDS)
 
 
 def port_free(port: int) -> bool:
@@ -415,7 +510,14 @@ def stop_service(service: str, state: dict[str, Any]) -> None:
         kill_tree(pid)
 
     if targets and not wait_port_free(spec["port"]):
-        raise LaunchError(f"Could not release {service} port {spec['port']}.")
+        remaining = {
+            pid for pid in listening_pids(spec["port"])
+            if related(pid, service)
+        }
+        for pid in sorted(remaining):
+            kill_tree(pid)
+        if not wait_port_free(spec["port"], FORCE_STOP_SECONDS):
+            raise LaunchError(f"Could not release {service} port {spec['port']}.")
 
 
 def existing_service(service: str, state: dict[str, Any], restart: bool) -> int:
@@ -479,11 +581,23 @@ def start_service(
 def stop_managed(items: list[dict[str, Any]], state: dict[str, Any]) -> None:
     if items:
         print("\n[stop] closing AgentGuard services ...")
+
+    errors: list[str] = []
     for item in reversed(items):
-        stop_service(item["name"], state)
-        state.get("services", {}).pop(item["name"], None)
-        print(f"[stop] {SERVICES[item['name']]['label']} closed")
+        name = item["name"]
+        try:
+            stop_service(name, state)
+        except LaunchError as exc:
+            errors.append(str(exc))
+            print(f"[warn] {SERVICES[name]['label']} cleanup: {exc}")
+        else:
+            print(f"[stop] {SERVICES[name]['label']} closed")
+        finally:
+            state.get("services", {}).pop(name, None)
+
     save_state(state)
+    if errors:
+        print("[warn] cleanup completed with errors; run 'python start_project.py --stop' if needed.")
 
 
 def service_status() -> None:
@@ -551,17 +665,32 @@ def print_urls(with_oauth: bool) -> None:
 
 
 def stop_everything(state: dict[str, Any]) -> None:
+    errors: list[str] = []
     for name in ("oauth", "frontend", "backend"):
-        stop_service(name, state)
+        try:
+            stop_service(name, state)
+        except LaunchError as exc:
+            errors.append(str(exc))
+            print(f"[warn] {SERVICES[name]['label']} cleanup: {exc}")
+        finally:
+            state.get("services", {}).pop(name, None)
     state["services"] = {}
     save_state(state)
+    if errors:
+        raise LaunchError("; ".join(errors))
 
 
 def install_signal_handlers() -> None:
+    stopping = False
+
     def stop_handler(signum: int, frame: Any) -> None:
+        nonlocal stopping
+        if stopping:
+            return
+        stopping = True
         raise KeyboardInterrupt
 
-    for name in ("SIGTERM", "SIGBREAK"):
+    for name in ("SIGINT", "SIGTERM", "SIGBREAK"):
         value = getattr(signal, name, None)
         if value is not None:
             try:
@@ -609,7 +738,11 @@ def main() -> int:
             LOCK_FILE.unlink()
         except FileNotFoundError:
             pass
-        stop_everything(state)
+        try:
+            stop_everything(state)
+        except LaunchError as exc:
+            print(f"[ERROR] {exc}")
+            return 1
         print("[stop] AgentGuard is not running")
         return 0
 
@@ -659,10 +792,12 @@ def main() -> int:
         print(f"\n[ERROR] {exc}")
         return 1
     finally:
-        stop_managed(managed, state)
-        state.pop("launcher_pid", None)
-        save_state(state)
-        release_lock(lock_fd)
+        try:
+            stop_managed(managed, state)
+            state.pop("launcher_pid", None)
+            save_state(state)
+        finally:
+            release_lock(lock_fd)
 
 
 if __name__ == "__main__":
