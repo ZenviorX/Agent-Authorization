@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>AgentGuard 决赛 PPT｜演示与评测三页效果图</title>
+<link rel="stylesheet" href="agentguard_evidence_slides.css" />
+</head>
+<body>
+
+<section class="slide" id="slide-10" data-slide="10">
+  <div class="header">
+    <h1>四、现场演示：同一任务的三种结果</h1>
+    <div class="eyebrow">真实系统 · 可信任务 · 三态授权</div>
+  </div>
+
+  <div class="task-banner">
+    <div class="label">可信任务</div>
+    <div class="task-copy">
+      <div class="task-title">读取 public/notice.txt 并总结</div>
+      <div class="task-sub">明确禁止修改文件、发送邮件或向外部传输</div>
+    </div>
+    <div class="handle mono">taskHandle · task_7c2e…91af</div>
+  </div>
+
+  <div class="demo-grid">
+    <article class="demo-card allow">
+      <div class="card-head">
+        <div class="decision">ALLOW｜自动放行</div>
+        <div class="seq">STEP 01</div>
+      </div>
+      <div class="window">
+        <div class="window-bar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="window-title">AgentGuard Demo Console</span>
+        </div>
+        <div class="window-body">
+          <div class="call-line"><span>Tool Call</span><code>file.read("public/notice.txt")</code></div>
+          <div class="kv">
+            <div class="k">OAuth Scope</div><div class="v ok">✓ tool:file:read</div>
+            <div class="k">Task Boundary</div><div class="v ok">✓ 指定公开资源</div>
+            <div class="k">Capability Token</div><div class="v mono">cap_8a31…e2d7</div>
+            <div class="k">Sandbox</div><div class="v ok">✓ native / read-only</div>
+          </div>
+        </div>
+      </div>
+      <div class="reason">调用符合可信任务和资源边界，系统签发一次性 Capability Token 后进入受控执行。</div>
+      <div class="status-row">
+        <div class="status-chip">decision<strong>allow</strong></div>
+        <div class="status-chip">executed<strong>true</strong></div>
+        <div class="status-chip">evidence<strong>verified</strong></div>
+      </div>
+    </article>
+
+    <article class="demo-card confirm">
+      <div class="card-head">
+        <div class="decision">CONFIRM｜等待审批</div>
+        <div class="seq">STEP 02</div>
+      </div>
+      <div class="window">
+        <div class="window-bar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="window-title">AgentGuard Demo Console</span>
+        </div>
+        <div class="window-body">
+          <div class="call-line"><span>Tool Call</span><code>file.write("outbox/report.txt")</code></div>
+          <div class="kv">
+            <div class="k">OAuth Scope</div><div class="v ok">✓ tool:file:write</div>
+            <div class="k">Side Effect</div><div class="v warn">! 写入操作</div>
+            <div class="k">Approval Ticket</div><div class="v mono">apr_4f82…61bc</div>
+            <div class="k">Execution</div><div class="v warn">暂停，等待独立审批</div>
+          </div>
+        </div>
+      </div>
+      <div class="reason">操作与“生成结果”目标相关，但会改变系统状态；确认前不签发可执行凭证。</div>
+      <div class="status-row">
+        <div class="status-chip">decision<strong>confirm</strong></div>
+        <div class="status-chip">executed<strong>false</strong></div>
+        <div class="status-chip">ticket<strong>issued</strong></div>
+      </div>
+    </article>
+
+    <article class="demo-card deny">
+      <div class="card-head">
+        <div class="decision">DENY｜直接拒绝</div>
+        <div class="seq">STEP 03</div>
+      </div>
+      <div class="window">
+        <div class="window-bar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="window-title">AgentGuard Demo Console</span>
+        </div>
+        <div class="window-body">
+          <div class="call-line"><span>Tool Call</span><code>email.send("outside@example.com")</code></div>
+          <div class="kv">
+            <div class="k">OAuth Scope</div><div class="v ok">✓ scope 已满足</div>
+            <div class="k">Task Boundary</div><div class="v bad">✕ 明确禁止外发</div>
+            <div class="k">Risk Chain</div><div class="v bad">外部目的地 + 数据外流</div>
+            <div class="k">Execution</div><div class="v bad">阻断，未进入工具执行器</div>
+          </div>
+        </div>
+      </div>
+      <div class="reason">即使 OAuth 资格足够，当前调用仍违反可信任务边界，AgentGuard 独立作出拒绝。</div>
+      <div class="status-row">
+        <div class="status-chip">decision<strong>deny</strong></div>
+        <div class="status-chip">executed<strong>false</strong></div>
+        <div class="status-chip">audit<strong>written</strong></div>
+      </div>
+    </article>
+  </div>
+
+  <div class="evidence-strip">
+    <div class="evidence-title">现场证据链</div>
+    <div class="evidence-item"><strong>可信任务</strong>taskHandle</div>
+    <div class="evidence-item"><strong>人工审批</strong>approvalTicket</div>
+    <div class="evidence-item"><strong>授权执行</strong>Capability Token</div>
+    <div class="evidence-item"><strong>受控环境</strong>Sandbox Evidence</div>
+    <div class="evidence-item"><strong>可验证复盘</strong>Audit Hash Chain</div>
+  </div>
+
+  <div class="page-no">10</div>
+</section>
+
+<section class="slide" id="slide-11" data-slide="11">
+  <div class="header">
+    <h1>四、131 条自建严格授权回归评测</h1>
+    <div class="eyebrow">同一评测集 · 唯一正确决策 · 公平消融</div>
+  </div>
+
+  <div class="eval-lead">
+    <strong>131 条</strong>自建严格授权回归用例，覆盖正常放行、人工确认与攻击拒绝
+    <div class="only">每条用例仅有 1 个 expected_decision</div>
+  </div>
+
+  <div class="eval-body">
+    <div class="distribution">
+      <div class="section-pill">评测集构成</div>
+      <div class="donut-wrap">
+        <svg class="donut" viewBox="0 0 260 260" aria-label="131条用例构成">
+          <circle class="bg" cx="130" cy="130" r="100"></circle>
+          <circle class="deny-seg" cx="130" cy="130" r="100"></circle>
+          <circle class="confirm-seg" cx="130" cy="130" r="100"></circle>
+          <circle class="allow-seg" cx="130" cy="130" r="100"></circle>
+        </svg>
+        <div class="donut-center">
+          <div class="n">131</div>
+          <div class="t">严格授权用例</div>
+        </div>
+      </div>
+      <div class="dist-cards">
+        <div class="dist-card allow"><div class="num">15</div><div class="label">ALLOW</div></div>
+        <div class="dist-card confirm"><div class="num">13</div><div class="label">CONFIRM</div></div>
+        <div class="dist-card deny"><div class="num">103</div><div class="label">DENY</div></div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="section-pill">完整系统结果</div>
+      <div class="metric-grid">
+        <div class="metric">
+          <div class="value">131/131</div>
+          <div class="desc">精确通过<span>完整 AgentGuard 决策与唯一预期一致</span></div>
+        </div>
+        <div class="metric">
+          <div class="value">103/103</div>
+          <div class="desc">攻击直接拒绝<span>敏感访问、越权与攻击链全部阻断</span></div>
+        </div>
+        <div class="metric">
+          <div class="value">13/13</div>
+          <div class="desc">人工确认命中<span>存在合理目标但具有明显副作用</span></div>
+        </div>
+        <div class="metric">
+          <div class="value">15/15</div>
+          <div class="desc">正常自动放行<span>低风险且符合可信任务边界</span></div>
+        </div>
+        <div class="metric critical">
+          <div class="value">0</div>
+          <div class="desc">攻击误放行<span>当前 131 条自建严格回归用例中的统计结果</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="latency-band">
+    <strong>0.1270 ms</strong>
+    <span>平均进程内授权决策耗时</span>
+    <div class="scope">不包含 OAuth、HTTP、Sandbox 启动、工具执行和前端渲染；该数据不等同于端到端系统延迟。</div>
+  </div>
+
+  <div class="page-no">11</div>
+</section>
+
+<section class="slide" id="slide-12" data-slide="12">
+  <div class="header">
+    <h1>四、消融实验与结果边界</h1>
+    <div class="eyebrow">任务合约 × 语义风险 × 运行状态</div>
+  </div>
+
+  <div class="ablation-summary">
+    <span class="arrow">➤</span>
+    不同安全模块承担不同职责；<strong>完整系统在当前 131 条自建严格回归集上达到 100% 精确准确率</strong>
+  </div>
+  <div class="boundary"><strong>结果边界：</strong>100% 仅代表当前自建评测集，不代表现实世界绝对安全或对未知攻击的完备覆盖。</div>
+
+  <div class="ablation-grid">
+    <div class="chart-panel">
+      <div class="chart-title">精确准确率对比 <small>所有方法使用同一 131 条评测集</small></div>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <div class="bar-label">AgentGuard-full</div>
+          <div class="bar-track"><div class="bar-fill full" style="width:100%"></div></div>
+          <div class="bar-value">100.00%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">No Contract</div>
+          <div class="bar-track"><div class="bar-fill ablation" style="width:93.13%"></div></div>
+          <div class="bar-value">93.13%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">No Semantic</div>
+          <div class="bar-track"><div class="bar-fill ablation" style="width:90.84%"></div></div>
+          <div class="bar-value">90.84%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Rules-only</div>
+          <div class="bar-track"><div class="bar-fill baseline" style="width:83.97%"></div></div>
+          <div class="bar-value">83.97%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">Keyword-only</div>
+          <div class="bar-track"><div class="bar-fill baseline" style="width:69.47%"></div></div>
+          <div class="bar-value">69.47%</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">OAuth-only</div>
+          <div class="bar-track"><div class="bar-fill oauth" style="width:11.45%"></div></div>
+          <div class="bar-value">11.45%</div>
+        </div>
+      </div>
+      <div class="axis"><span>0</span><span>20</span><span>40</span><span>60</span><span>80</span><span>100%</span></div>
+    </div>
+
+    <div class="role-panel">
+      <div class="role-card">
+        <div class="role-head orange">任务合约｜约束“能做什么”</div>
+        <div class="role-body">
+          把宽泛 Scope 收缩到当前任务的工具、资源、步骤和风险预算。
+          <div class="role-kpi">移除后：攻击误放行率升至 <strong>2.91%</strong></div>
+        </div>
+      </div>
+      <div class="role-card">
+        <div class="role-head">语义风险｜提高“分得准”</div>
+        <div class="role-body">
+          提升提示注入、策略绕过和危险表达的精确分类，避免仅靠关键词硬匹配。
+          <div class="role-kpi">关闭后：精确准确率降至 <span class="blue">90.84%</span></div>
+        </div>
+      </div>
+      <div class="role-card">
+        <div class="role-head gray">正确结论｜职责不同，共同增益</div>
+        <div class="role-body">
+          任务合约直接守住授权边界；语义风险模块提升分类精度。两者共同构成任务级动态授权，而非单一规则得分。
+          <div class="role-kpi">避免绝对表述：关闭语义模块后，当前集攻击误放行仍为 0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-no">12</div>
+</section>
+
+<script>
+  const query = new URLSearchParams(location.search);
+  const slide = query.get('slide');
+  if (slide) {
+    document.body.classList.add('single');
+    const active = document.querySelector(`[data-slide="${slide}"]`);
+    if (active) active.classList.add('active');
+  }
+</script>
+</body>
+</html>
