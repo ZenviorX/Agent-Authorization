@@ -574,7 +574,21 @@ def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         description="Install dependencies and run one managed AgentGuard instance."
     )
-    result.add_argument("--with-oauth", action="store_true", help="Start OAuth demo server on port 9000.")
+    oauth = result.add_mutually_exclusive_group()
+    oauth.add_argument(
+        "--with-oauth",
+        dest="with_oauth",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    oauth.add_argument(
+        "--without-oauth",
+        "--no-oauth",
+        dest="with_oauth",
+        action="store_false",
+        help="Skip the OAuth demo server and start only Backend and Frontend.",
+    )
+    result.set_defaults(with_oauth=True)
     result.add_argument("--restart", action="store_true", help="Replace an existing AgentGuard instance.")
     result.add_argument("--stop", action="store_true", help="Stop AgentGuard and exit.")
     result.add_argument("--clean", action="store_true", help=argparse.SUPPRESS)
