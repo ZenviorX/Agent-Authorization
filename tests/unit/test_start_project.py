@@ -1,4 +1,7 @@
+import os
 import signal
+
+import pytest
 
 import start_project
 
@@ -34,6 +37,7 @@ def test_signal_handlers_include_ctrl_c(monkeypatch) -> None:
     assert signal.SIGTERM in installed
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process groups are unavailable on Windows")
 def test_posix_kill_tree_targets_service_process_group(monkeypatch) -> None:
     sent: list[tuple[int, int]] = []
     monkeypatch.setattr(start_project, "is_windows", lambda: False)
@@ -58,6 +62,7 @@ def test_posix_kill_tree_targets_service_process_group(monkeypatch) -> None:
     assert sent == [(9001, signal.SIGTERM)]
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX process groups are unavailable on Windows")
 def test_posix_kill_tree_forces_group_after_timeout(monkeypatch) -> None:
     sent: list[tuple[int, int]] = []
     waits = iter([False, True])
