@@ -16,7 +16,7 @@ DEFAULT_AUTH_SERVER = "http://127.0.0.1:9000"
 DEFAULT_MCP_ENDPOINT = "http://127.0.0.1:8000/mcp"
 DEFAULT_CLIENT_ID = "agentguard-demo-client"
 DEFAULT_REDIRECT_URI = "http://127.0.0.1:8765/callback"
-DEFAULT_SCOPES = "mcp:tools:list tool:file:read"
+DEFAULT_SCOPES = "mcp:tools:list mcp:tasks:manage tool:file:read"
 PROTOCOL_VERSION = "2025-11-25"
 
 
@@ -228,6 +228,32 @@ def run_demo(args: argparse.Namespace) -> int:
     if args.discover_only:
         return 0
 
+    task_response = _mcp_request(
+        endpoint=args.mcp_endpoint,
+        access_token=access_token,
+        payload={
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "agentguard/tasks/create",
+            "params": {
+                "originalTask": args.task,
+            },
+        },
+    )
+
+    print("\n=== Trusted task created ===")
+    print(json.dumps(task_response, ensure_ascii=False, indent=2))
+
+    task_handle = str(
+        ((task_response or {}).get("result") or {}).get("taskHandle")
+        or ""
+    )
+
+    if not task_handle:
+        raise RuntimeError(
+            "agentguard/tasks/create did not return taskHandle."
+        )
+
     try:
         arguments = json.loads(args.arguments_json)
     except json.JSONDecodeError as exc:
@@ -241,13 +267,13 @@ def run_demo(args: argparse.Namespace) -> int:
         access_token=access_token,
         payload={
             "jsonrpc": "2.0",
-            "id": 3,
+            "id": 4,
             "method": "tools/call",
             "params": {
                 "name": args.tool,
                 "arguments": arguments,
                 "_meta": {
-                    "agentguard/originalTask": args.task,
+                    "agentguard/taskHandle": task_handle,
                     "agentguard/sandboxProfile": args.sandbox_profile,
                     "agentguard/agentPlatform": "python-demo-client",
                 },
