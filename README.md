@@ -287,30 +287,11 @@ pytest tests/unit/test_mcp_service.py -q
 npm --prefix ".\frontend" run build
 ```
 
-## 11. 决赛演示建议
 
-建议只讲一条完整故事线：
-
-```text
-1. Client 通过 OAuth Authorization Code + PKCE 获得只读 Token
-2. tools/list 只展示 file.read
-3. 正常读取 public/notice.txt，AgentGuard allow 并在 Sandbox 执行
-4. Token 缺少写入/邮件 scope 时返回 403 insufficient_scope
-5. Token scope 足够，但用户任务明确禁止外发时，Task Boundary deny
-6. 展示 Capability Token 绑定、Sandbox Evidence 和 Audit Hash Chain
-```
-
-评委能够清楚看到：
-
-```text
-MCP 是标准工具调用入口；
-OAuth 是身份和粗粒度 scope；
-AgentGuard 是任务级动态安全网关。
 ```
 
 ## 12. 系统边界
 
-必须实事求是：
 
 ```text
 1. backend.oauth.demo_authorization_server 是 localhost 竞赛演示组件，不是生产级 IdP。
