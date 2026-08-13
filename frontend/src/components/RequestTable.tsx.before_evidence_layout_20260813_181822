@@ -7,7 +7,6 @@ interface RequestTableProps {
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
   compact?: boolean;
-  evidenceLayout?: boolean;
 }
 
 const riskTone = {
@@ -24,41 +23,19 @@ const decisionTone = {
   review: 'purple'
 } as const;
 
-function shortenReference(value: string, head = 10, tail = 8) {
-  if (!value || value.length <= head + tail + 3) return value;
-  return `${value.slice(0, head)}…${value.slice(-tail)}`;
-}
-
-function looksLikeHash(value: string) {
-  return /^[a-f0-9]{40,}$/i.test(value || '');
-}
-
-function compactReason(value: string, maxLength = 150) {
-  if (!value || value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength).trim()}…`;
-}
-
-export function RequestTable({
-  rows,
-  onApprove,
-  onReject,
-  compact = false,
-  evidenceLayout = false
-}: RequestTableProps) {
+export function RequestTable({ rows, onApprove, onReject, compact = false }: RequestTableProps) {
   const showActions = Boolean(onApprove || onReject);
   const columnCount = (compact ? 6 : 7) + (showActions ? 1 : 0);
 
   return (
-    <div className={`table-wrap${evidenceLayout ? ' evidence-table-wrap' : ''}`}>
-      <table className={`data-table${evidenceLayout ? ' evidence-request-table' : ''}`}>
+    <div className="table-wrap">
+      <table className="data-table">
         <thead>
           <tr>
             <th>请求</th>
             <th>智能体 / 用户</th>
             <th>工具与目标</th>
-            {!compact && (
-              <th>{evidenceLayout ? '审计哈希 / 裁定依据' : '策略解释'}</th>
-            )}
+            {!compact && <th>策略解释</th>}
             <th>风险</th>
             <th>决策</th>
             <th>状态</th>
@@ -68,10 +45,8 @@ export function RequestTable({
         <tbody>
           {rows.map((row) => (
             <tr key={row.id}>
-              <td className={evidenceLayout ? 'request-ref-cell' : undefined}>
-                <strong title={row.id}>
-                  {evidenceLayout ? shortenReference(row.id, 9, 6) : row.id}
-                </strong>
+              <td>
+                <strong>{row.id}</strong>
                 <span>{row.createdAt}</span>
               </td>
               <td>
@@ -83,18 +58,9 @@ export function RequestTable({
                 <span>{row.target}</span>
               </td>
               {!compact && (
-                <td className={`wide-cell${evidenceLayout ? ' evidence-policy-cell' : ''}`}>
-                  <strong title={row.policy}>
-                    {evidenceLayout && looksLikeHash(row.policy)
-                      ? `审计哈希 ${shortenReference(row.policy, 10, 8)}`
-                      : row.policy}
-                  </strong>
-
-                  <span title={row.reason}>
-                    {evidenceLayout
-                      ? compactReason(row.reason)
-                      : row.reason}
-                  </span>
+                <td className="wide-cell">
+                  <strong>{row.policy}</strong>
+                  <span>{row.reason}</span>
                 </td>
               )}
               <td><Badge tone={riskTone[row.risk]}>{riskText[row.risk]}</Badge></td>

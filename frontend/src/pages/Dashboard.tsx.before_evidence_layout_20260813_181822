@@ -64,10 +64,7 @@ export function Dashboard({
         description="表格随实时数据层自动更新；审批操作不再使用不存在的前端伪接口。"
         actions={<Badge tone={pending.length ? 'yellow' : 'green'}>{pending.length} 个待确认</Badge>}
       >
-        <RequestTable
-          rows={requests.slice(0, 12)}
-          evidenceLayout
-        />
+        <RequestTable rows={requests.slice(0, 12)} />
       </Section>
 
       <section className="evidence-grid">
