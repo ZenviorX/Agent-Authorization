@@ -303,7 +303,7 @@ function buildHybridSandboxDemoBody(input: AgentCommandInput) {
     originalTask = '请把演示邮件写入内部 outbox，不进行真实外发。';
     tool = 'email.send';
     params = {
-      to: 'teacher@sdu.edu.cn',
+      to: 'demo@example.com',
       subject: 'AgentGuard Hybrid Sandbox Demo',
       content: '这封邮件只会写入沙箱 outbox，不会真实外发。'
     };
