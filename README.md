@@ -288,9 +288,8 @@ npm --prefix ".\frontend" run build
 ```
 
 
-```
 
-## 12. 系统边界
+## 11. 系统边界
 
 
 ```text
@@ -302,7 +301,7 @@ npm --prefix ".\frontend" run build
 6. 样例测试通过率只说明当前测试集，不代表真实世界绝对安全。
 ```
 
-## 13. 项目总结
+## 12. 项目总结
 
 AgentGuard 的工程路径是：
 
