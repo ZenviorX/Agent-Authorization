@@ -255,28 +255,12 @@ function ResultPanel({ result }: { result: AgentCommandResponse | null }) {
     ? attackChain.events
     : [];
 
-  const attackStageLabels: Record<string, string> = {
-    normal: '正常行为',
-    external_content_read: '低可信内容读取',
-    prompt_injection_detected: '提示注入检测',
-    indirect_prompt_injection_chain: '间接提示注入链',
-    sensitive_resource_access: '敏感资源访问',
-    prompt_to_sensitive_access_chain: '提示注入 → 敏感访问',
-    external_output: '外部发送',
-    data_exfiltration_chain: '完整数据外发链',
-    high_risk_command: '高危命令',
-    prompt_to_command_execution_chain: '提示注入 → 高危命令'
-  };
-
   const attackStages = attackEvents
     .map((item) => {
       if (!isRecord(item)) return '';
-
       const step = toText(item.step);
-      const stageKey = String(item.stage ?? '');
-      const stage = attackStageLabels[stageKey] || stageKey || '未知阶段';
+      const stage = toText(item.stage);
       const delta = toText(item.risk_delta);
-
       return `步骤 ${step} · ${stage} · 风险 +${delta}`;
     })
     .filter(Boolean)
@@ -324,7 +308,7 @@ function ResultPanel({ result }: { result: AgentCommandResponse | null }) {
             <span>风险演化</span>
             <code>{attackStages || '-'}</code>
 
-            <span>累计风险积分</span>
+            <span>累计风险</span>
             <code>{toText(attackChain.cumulative_risk)}</code>
 
             <span>最终裁定</span>
