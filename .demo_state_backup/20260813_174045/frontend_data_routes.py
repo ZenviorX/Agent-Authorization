@@ -230,9 +230,7 @@ def _as_audit_log(record: Dict[str, Any]) -> Dict[str, Any]:
 
 @router.get("/overview")
 def frontend_overview() -> Dict[str, Any]:
-    # Authorization statistics use Gateway audit records only.
-    # Sandbox Evidence is counted separately by localEvidenceRuns.
-    records = _load_audit_records()
+    records = _all_local_records()
     test_summary = _load_test_summary()
 
     total = len(records)
@@ -264,18 +262,12 @@ def frontend_overview() -> Dict[str, Any]:
 
 @router.get("/requests")
 def frontend_requests(limit: int = 50) -> List[Dict[str, Any]]:
-    return [
-        _as_gateway_request(record)
-        for record in _load_audit_records()[:limit]
-    ]
+    return [_as_gateway_request(record) for record in _all_local_records()[:limit]]
 
 
 @router.get("/audit-logs")
 def frontend_audit_logs(limit: int = 50) -> List[Dict[str, Any]]:
-    return [
-        _as_audit_log(record)
-        for record in _load_audit_records()[:limit]
-    ]
+    return [_as_audit_log(record) for record in _all_local_records()[:limit]]
 
 
 @router.get("/evaluations")

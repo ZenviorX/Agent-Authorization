@@ -17,7 +17,95 @@ DEFAULT_MCP_ENDPOINT = "http://127.0.0.1:8000/mcp"
 DEFAULT_CLIENT_ID = "agentguard-demo-client"
 DEFAULT_REDIRECT_URI = "http://127.0.0.1:8765/callback"
 DEFAULT_SCOPES = "mcp:tools:list mcp:tasks:manage tool:file:read"
+
 PROTOCOL_VERSION = "2025-11-25"
+
+# ---------------------------------------------------------
+# Competition demo output
+# ---------------------------------------------------------
+
+BOLD = "\033[1m"
+DIM = "\033[2m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+CYAN = "\033[36m"
+RESET = "\033[0m"
+
+
+def _line(char: str = "═", width: int = 62) -> None:
+    print(char * width)
+
+
+def _stage(index: int, title: str) -> None:
+    print()
+    print(f"{BOLD}{CYAN}[{index}/4] {title}{RESET}")
+
+
+def _ok(message: str) -> None:
+    print(f"  {GREEN}✓{RESET} {message}")
+
+
+def _short(value: str, head: int = 10, tail: int = 6) -> str:
+    value = str(value or "")
+    if len(value) <= head + tail + 3:
+        return value
+    return value[:head] + "..." + value[-tail:]
+
+
+def _cn_scope(scope: str) -> str:
+    mapping = {
+        "mcp:tools:list": "MCP 工具发现",
+        "mcp:tasks:manage": "可信任务管理",
+        "tool:email:send": "邮件发送",
+        "sink:side-effect": "副作用操作",
+        "sink:external-email": "外部发送",
+        "tool:file:read": "文件读取",
+        "tool:file:write": "文件写入",
+        "tool:file:delete": "文件删除",
+        "source:sensitive-file": "敏感文件访问",
+    }
+    return mapping.get(scope, scope)
+
+
+def _reason_cn(reason: str) -> str:
+    text = str(reason or "")
+
+    mapping = [
+        (
+            "Tool email.send is explicitly forbidden by the capability contract.",
+            "邮件发送超出当前可信任务边界",
+        ),
+        (
+            "Capability Contract forbids side-effect tools for this task.",
+            "当前任务禁止副作用工具",
+        ),
+        (
+            "Capability Contract forbids external transmission.",
+            "当前任务禁止外部传输",
+        ),
+        (
+            "Task Boundary Guard evaluated this tool call.",
+            "已根据可信任务边界检查本次工具调用",
+        ),
+        (
+            "Capability Contract was derived from the original task.",
+            "授权约束由用户原始任务生成",
+        ),
+        (
+            "Task Boundary Guard checked the requested tool call against this contract.",
+            "已依据授权约束检查实际工具请求",
+        ),
+    ]
+
+    for source, target in mapping:
+        if text == source:
+            return target
+
+    if text == "Attack chain detector:":
+        return ""
+
+    return text
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -180,8 +268,15 @@ def run_demo(args: argparse.Namespace) -> int:
     if not access_token:
         raise RuntimeError(f"OAuth token response does not contain access_token: {token_response}")
 
-    print("\n=== OAuth token acquired ===")
-    print(json.dumps({key: value for key, value in token_response.items() if key != "access_token"}, ensure_ascii=False, indent=2))
+    _line()
+    print(f"{BOLD}  AgentGuard · OAuth + MCP 动态授权演示{RESET}")
+    _line()
+
+    _stage(1, "OAuth 授权")
+    _ok("访问令牌获取成功")
+    print("  权限：")
+    for scope in str(token_response.get("scope") or "").split():
+        print(f"    • {_cn_scope(scope)}")
 
     initialize = _mcp_request(
         endpoint=args.mcp_endpoint,
@@ -200,8 +295,16 @@ def run_demo(args: argparse.Namespace) -> int:
             },
         },
     )
-    print("\n=== MCP initialize ===")
-    print(json.dumps(initialize, ensure_ascii=False, indent=2))
+    _stage(2, "MCP 接入")
+    server_info = ((initialize or {}).get("result") or {}).get("serverInfo") or {}
+    _ok(
+        "AgentGuard MCP Gateway 连接成功"
+        + (
+            f"（v{server_info.get('version')}）"
+            if server_info.get("version")
+            else ""
+        )
+    )
 
     _mcp_request(
         endpoint=args.mcp_endpoint,
@@ -222,8 +325,23 @@ def run_demo(args: argparse.Namespace) -> int:
             "params": {},
         },
     )
-    print("\n=== OAuth-filtered tools/list ===")
-    print(json.dumps(tools, ensure_ascii=False, indent=2))
+    visible_tools = (
+        ((tools or {}).get("result") or {}).get("tools")
+        or []
+    )
+    visible_names = [
+        str(item.get("name") or "")
+        for item in visible_tools
+        if isinstance(item, dict) and item.get("name")
+    ]
+
+    if visible_names:
+        _ok(
+            "当前 OAuth 权限允许发现工具："
+            + ", ".join(visible_names)
+        )
+    else:
+        _ok("OAuth 工具过滤完成")
 
     if args.discover_only:
         return 0
@@ -241,8 +359,9 @@ def run_demo(args: argparse.Namespace) -> int:
         },
     )
 
-    print("\n=== Trusted task created ===")
-    print(json.dumps(task_response, ensure_ascii=False, indent=2))
+    _stage(3, "可信任务")
+    _ok("服务端已创建可信任务")
+    print(f"  任务：{args.task}")
 
     task_handle = str(
         ((task_response or {}).get("result") or {}).get("taskHandle")
@@ -253,6 +372,8 @@ def run_demo(args: argparse.Namespace) -> int:
         raise RuntimeError(
             "agentguard/tasks/create did not return taskHandle."
         )
+
+    print(f"  Task Handle：{_short(task_handle)}")
 
     try:
         arguments = json.loads(args.arguments_json)
@@ -280,8 +401,110 @@ def run_demo(args: argparse.Namespace) -> int:
             },
         },
     )
-    print("\n=== MCP tools/call through AgentGuard ===")
-    print(json.dumps(call_result, ensure_ascii=False, indent=2))
+    _stage(4, "AgentGuard 动态裁定")
+
+    structured = (
+        ((call_result or {}).get("result") or {})
+        .get("structuredContent")
+        or {}
+    )
+
+    decision = str(
+        structured.get("decision") or "unknown"
+    ).lower()
+
+    risk_score = int(
+        structured.get("risk_score") or 0
+    )
+
+    executed = bool(
+        structured.get("executed")
+    )
+
+    print()
+    print(f"  请求工具：{args.tool}")
+
+    if args.tool == "email.send":
+        print(
+            "  目标地址："
+            + str(arguments.get("to") or "")
+        )
+    elif args.tool.startswith("file."):
+        print(
+            "  目标资源："
+            + str(arguments.get("path") or "")
+        )
+
+    print()
+
+    labels = {
+        "allow": ("ALLOW  允许执行", GREEN),
+        "confirm": ("CONFIRM  等待确认", YELLOW),
+        "deny": ("DENY  拒绝执行", RED),
+    }
+
+    label, color = labels.get(
+        decision,
+        (decision.upper(), CYAN),
+    )
+
+    print("  ┌─────────────────────────────────────────┐")
+    print(
+        f"  │{color}{BOLD}"
+        + label.center(41)
+        + f"{RESET}│"
+    )
+    print("  └─────────────────────────────────────────┘")
+
+    print()
+    print(f"  风险分数：{risk_score} / 100")
+    print(
+        "  是否执行："
+        + (
+            f"{GREEN}是{RESET}"
+            if executed
+            else f"{RED}否{RESET}"
+        )
+    )
+
+    reasons = structured.get("reason") or []
+
+    clean_reasons = []
+    for reason in reasons:
+        converted = _reason_cn(str(reason))
+        if converted and converted not in clean_reasons:
+            clean_reasons.append(converted)
+
+    if clean_reasons:
+        print()
+        print("  裁定依据：")
+        for reason in clean_reasons[:5]:
+            print(f"    • {reason}")
+
+    print()
+    _line()
+
+    if decision == "deny" and not executed:
+        print(
+            f"{BOLD}"
+            "  OAuth 权限已通过，但 AgentGuard 阻止了任务越界行为"
+            f"{RESET}"
+        )
+    elif decision == "allow" and executed:
+        print(
+            f"{BOLD}"
+            "  授权通过，并已进入受控执行环境"
+            f"{RESET}"
+        )
+    elif decision == "confirm":
+        print(
+            f"{BOLD}"
+            "  高副作用操作已暂停，等待人工确认"
+            f"{RESET}"
+        )
+
+    _line()
+
     return 0
 
 

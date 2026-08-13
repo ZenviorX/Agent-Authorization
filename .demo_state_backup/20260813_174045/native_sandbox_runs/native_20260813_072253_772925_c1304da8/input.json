@@ -1,0 +1,21 @@
+{
+  "run_id": "native_20260813_072253_772925_c1304da8",
+  "tool": "file.read",
+  "params": {
+    "path": "public/notice.txt"
+  },
+  "sandbox_profile": "local_readonly",
+  "runtime_workspace": "/Users/zenviorx/Documents/3.Github/Agent-Authorization/runtime_workspace",
+  "runtime_policy": {
+    "allowed_prefixes": [
+      "public/",
+      "course/"
+    ],
+    "writable_prefixes": [],
+    "network": "blocked_by_tool_surface",
+    "shell": "interpreter_only",
+    "memory": "not_enforced_without_os_container",
+    "timeout_seconds": 15
+  },
+  "created_at": "2026-08-13T07:22:53.773131+00:00"
+}

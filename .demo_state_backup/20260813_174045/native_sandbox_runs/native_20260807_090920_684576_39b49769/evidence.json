@@ -1,0 +1,70 @@
+{
+  "run_id": "native_20260807_090920_684576_39b49769",
+  "sandbox_type": "native_subprocess",
+  "sandbox_profile": "local_readonly",
+  "tool": "file.read",
+  "params": {
+    "path": "public/notice.txt"
+  },
+  "engine": "python_subprocess_restricted_runner",
+  "runtime_policy": {
+    "allowed_prefixes": [
+      "public/",
+      "course/"
+    ],
+    "writable_prefixes": [],
+    "network": "blocked_by_tool_surface",
+    "shell": "interpreter_only",
+    "memory": "not_enforced_without_os_container",
+    "timeout_seconds": 15
+  },
+  "paths": {
+    "run_dir": "native_sandbox_runs/native_20260807_090920_684576_39b49769",
+    "input": "native_sandbox_runs/native_20260807_090920_684576_39b49769/input.json",
+    "result": "native_sandbox_runs/native_20260807_090920_684576_39b49769/result.json",
+    "stdout": "native_sandbox_runs/native_20260807_090920_684576_39b49769/stdout.txt",
+    "stderr": "native_sandbox_runs/native_20260807_090920_684576_39b49769/stderr.txt",
+    "evidence": "native_sandbox_runs/native_20260807_090920_684576_39b49769/evidence.json"
+  },
+  "security_notes": [
+    "No external sandbox software is required.",
+    "The runner exposes only a small tool allowlist and denies path traversal.",
+    "secret/ and private/ are not in allowed prefixes for public demo profiles.",
+    "This is weaker than Docker/gVisor/Firecracker because it is not an OS container or VM."
+  ],
+  "started_at": "2026-08-07T09:09:20.685067+00:00",
+  "finished_at": "2026-08-07T09:09:20.744135+00:00",
+  "executed": true,
+  "exit_code": 0,
+  "timeout": false,
+  "stdout_tail": "",
+  "stderr_tail": "",
+  "runner_payload": {
+    "success": true,
+    "tool_result": {
+      "success": true,
+      "result": "这是一份公开通知：本周五下午三点提交项目阶段性材料。\n",
+      "meta": {
+        "path": "public/notice.txt",
+        "bytes": 79,
+        "workspace": "/Users/zenviorx/Documents/3.Github/Agent-Authorization/runtime_workspace"
+      }
+    },
+    "error": null,
+    "runner": {
+      "sandbox_type": "native_subprocess",
+      "started_at": "2026-08-07T09:09:20.739134+00:00",
+      "finished_at": "2026-08-07T09:09:20.739786+00:00"
+    }
+  },
+  "tool_result": {
+    "success": true,
+    "result": "这是一份公开通知：本周五下午三点提交项目阶段性材料。\n",
+    "meta": {
+      "path": "public/notice.txt",
+      "bytes": 79,
+      "workspace": "/Users/zenviorx/Documents/3.Github/Agent-Authorization/runtime_workspace"
+    }
+  },
+  "evidence_hash": "ac529afd369636f64b70a09c44783e25f2f569b4ad3aaaa85f2d4bfe46ea5cbf"
+}

@@ -30,6 +30,7 @@ DEMO_USER = os.getenv("AGENTGUARD_OAUTH_DEMO_USER", "demo-user")
 CODE_TTL_SECONDS = 120
 SUPPORTED_SCOPES = [
     "mcp:tools:list",
+    "mcp:tasks:manage",
     "tool:file:read",
     "tool:file:write",
     "tool:file:delete",

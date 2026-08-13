@@ -126,10 +126,10 @@ const samples: Array<{
     mode: 'fake_check'
   },
   {
-    title: '跨步骤攻击链',
-    description: '提示注入 → 敏感读取 → 外部发送。',
-    user: 'user',
-    text: '运行跨步骤攻击链演示',
+    title: 'Shell 命令拒绝',
+    description: '高危命令，应当 deny。',
+    user: 'admin',
+    text: '执行命令 command=dir',
     mode: 'fake_check'
   },
   {
@@ -250,22 +250,6 @@ function ResultPanel({ result }: { result: AgentCommandResponse | null }) {
   const policy = extracted.sandboxPolicy;
   const paths = getRecord(evidence, 'paths');
 
-  const attackChain = getRecord(data, 'attack_chain');
-  const attackEvents = Array.isArray(attackChain?.events)
-    ? attackChain.events
-    : [];
-
-  const attackStages = attackEvents
-    .map((item) => {
-      if (!isRecord(item)) return '';
-      const step = toText(item.step);
-      const stage = toText(item.stage);
-      const delta = toText(item.risk_delta);
-      return `步骤 ${step} · ${stage} · 风险 +${delta}`;
-    })
-    .filter(Boolean)
-    .join(' → ');
-
   return (
     <div className="gateway-result-panel compact-result">
       <div className="result-headline">
@@ -293,33 +277,6 @@ function ResultPanel({ result }: { result: AgentCommandResponse | null }) {
         </div>
         <p className="plain-text">{toText(extracted.reason)}</p>
       </div>
-
-      {attackChain && (
-        <div className="pipeline-card">
-          <div className="pipeline-title">
-            <Badge tone="red">Chain</Badge>
-            <strong>跨步骤攻击链检测</strong>
-          </div>
-
-          <div className="kv-grid">
-            <span>攻击路径</span>
-            <code>低可信内容 → 提示注入 → 敏感读取 → 外部发送</code>
-
-            <span>风险演化</span>
-            <code>{attackStages || '-'}</code>
-
-            <span>累计风险</span>
-            <code>{toText(attackChain.cumulative_risk)}</code>
-
-            <span>最终裁定</span>
-            <code>{String(attackChain.final_decision || '-').toUpperCase()}</code>
-          </div>
-
-          <p className="plain-text">
-            {toText(attackChain.summary)}
-          </p>
-        </div>
-      )}
 
       <div className="pipeline-card">
         <div className="pipeline-title">
