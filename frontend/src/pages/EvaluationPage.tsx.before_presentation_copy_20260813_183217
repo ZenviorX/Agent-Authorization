@@ -56,22 +56,22 @@ export function EvaluationPage({
       <section className="evaluation-hero">
         <div>
           <span className="eyebrow">Security Evaluation</span>
-          <h1>严格授权回归评测与策略对比</h1>
+          <h1>用实时数据证明 AgentGuard 的安全收益</h1>
           <p>
-            通过统一用例集验证正常放行、人工确认与风险拒绝，并统计决策匹配率、风险阻断率、误放行率、误拒率和授权判定耗时。
+            测试模块会把样例直接输入 Gateway，输出准确率、风险阻断率、误放行率、误拒率和延迟；页面会在测试完成后自动同步最新摘要。
           </p>
         </div>
         <div className="evaluation-score-card">
-          <span>本轮决策匹配率</span>
+          <span>Latest Accuracy</span>
           <strong>{formatPercentNumber(testSummary?.accuracy)}%</strong>
           <small>{testSummary?.generated_at ?? '尚未生成最新测试结果'}</small>
         </div>
       </section>
 
       <Section
-        eyebrow="Strict Authorization Evaluation"
-        title="131 条严格授权回归评测"
-        description="每条用例仅设置一个预期裁定，统一检验正常放行、人工确认与风险拒绝。"
+        eyebrow="Independent Test Module"
+        title="独立 Gateway 测试"
+        description="提交时以该模块生成的 latest_summary.json 为准；页面不使用浏览器 Mock 伪造测试结果。"
         actions={(
           <div className="row-actions">
             <button className="secondary-btn small" onClick={onRefreshTestSummary} disabled={testRunning}>刷新结果</button>
@@ -82,16 +82,16 @@ export function EvaluationPage({
         )}
       >
         <div className="metric-grid compact">
-          <MetricCard title="测试样例" value={testSummary?.total_cases ?? 0} suffix=" cases" hint="覆盖正常操作与多类风险场景" icon="lab" />
-          <MetricCard title="通过样例" value={testSummary?.passed_cases ?? 0} suffix=" cases" hint="裁定结果与唯一预期决策一致" icon="check" />
-          <MetricCard title="风险阻断/确认率" value={formatPercentNumber(testSummary?.risk_block_or_confirm_rate)} suffix="%" hint="风险请求进入确认或拒绝的比例" icon="shield" />
-          <MetricCard title="平均授权延迟" value={testSummary?.avg_latency_ms ?? 0} suffix=" ms" hint="本机进程内授权判定平均耗时" icon="spark" />
+          <MetricCard title="测试样例" value={testSummary?.total_cases ?? 0} suffix=" cases" hint="本轮输入 Gateway 的样例数量" icon="lab" />
+          <MetricCard title="通过样例" value={testSummary?.passed_cases ?? 0} suffix=" cases" hint="实际 decision 与预期匹配" icon="check" />
+          <MetricCard title="风险阻断/确认率" value={formatPercentNumber(testSummary?.risk_block_or_confirm_rate)} suffix="%" hint="风险样例被 confirm 或 deny" icon="shield" />
+          <MetricCard title="平均延迟" value={testSummary?.avg_latency_ms ?? 0} suffix=" ms" hint="Gateway 判定平均耗时" icon="spark" />
         </div>
 
         <div className="metric-grid compact">
-          <MetricCard title="风险误放行率" value={formatPercentNumber(testSummary?.risk_unsafe_allow_rate)} suffix="%" hint="风险请求被错误放行的比例" icon="arrow" />
-          <MetricCard title="正常误拒率" value={formatPercentNumber(testSummary?.normal_false_deny_rate)} suffix="%" hint="正常请求被错误拒绝的比例" icon="dashboard" />
-          <MetricCard title="失败样例" value={testSummary?.failed_cases ?? 0} suffix=" cases" hint="裁定结果与预期决策不一致" icon="shield" />
+          <MetricCard title="风险误放行率" value={formatPercentNumber(testSummary?.risk_unsafe_allow_rate)} suffix="%" hint="风险样例被错误 allow，越低越好" icon="arrow" />
+          <MetricCard title="正常误拒率" value={formatPercentNumber(testSummary?.normal_false_deny_rate)} suffix="%" hint="正常样例被 deny，越低越好" icon="dashboard" />
+          <MetricCard title="失败样例" value={testSummary?.failed_cases ?? 0} suffix=" cases" hint="决策与预期不一致" icon="shield" />
           <MetricCard title="测试耗时" value={Number((testSummary?.elapsed_ms ?? 0).toFixed(2))} suffix=" ms" hint="完整测试轮次耗时" icon="spark" />
         </div>
 
@@ -100,17 +100,17 @@ export function EvaluationPage({
         <div className={`test-run-state ${testRunning ? 'test-run-active' : latestTestAvailable ? 'test-run-success' : ''}`}>
           <div>
             <strong>{testRunning ? '测试正在执行' : latestTestAvailable ? '最新测试结果已生成' : '暂无测试结果'}</strong>
-            <span>{testRunMessage ?? testSummary?.message ?? '点击“一键运行测试”开始本轮评测。'}</span>
+            <span>{testRunMessage ?? testSummary?.message ?? '点击“一键运行测试”生成真实结果。'}</span>
           </div>
-          <code>{testSummary?.generated_at ? `评测完成：${testSummary.generated_at}` : '等待评测结果'}</code>
+          <code>{testSummary?.generated_at ?? testSummary?.hint ?? 'test/results/latest_summary.json'}</code>
         </div>
       </Section>
 
       <section className="evaluation-detail-grid">
         <Section
-          eyebrow="Evaluation Metrics"
-          title="运行与评测指标"
-          description="综合展示授权判定、风险控制与执行证据相关指标。"
+          eyebrow="Auxiliary Metrics"
+          title="本地运行辅助指标"
+          description="由运行证据、审计日志和测试摘要实时聚合。"
         >
           <div className="evaluation-metric-list">
             {metrics.map((metric) => (
@@ -125,35 +125,23 @@ export function EvaluationPage({
         </Section>
 
         <Section
-          eyebrow="Evaluation Protocol"
-          title="评测口径"
-          description={`采用唯一预期决策进行严格匹配；本轮完整评测耗时 ${formatMs(testSummary?.elapsed_ms)}。`}
+          eyebrow="Result Files"
+          title="测试产物"
+          description={`生成 JSON、CSV、Markdown 和 HTML 看板。测试耗时 ${formatMs(testSummary?.elapsed_ms)}。`}
         >
           <div className="result-file-list">
-            <div>
-              <span>唯一预期决策</span>
-              <code>每条用例仅设置一个正确裁定</code>
-            </div>
-            <div>
-              <span>风险样例</span>
-              <code>{testSummary?.risk_cases ?? 0} 条</code>
-            </div>
-            <div>
-              <span>正常样例</span>
-              <code>{testSummary?.normal_cases ?? 0} 条</code>
-            </div>
-            <div>
-              <span>结果边界</span>
-              <code>当前结果仅代表本轮自建严格回归用例集</code>
-            </div>
+            <div><span>摘要 JSON</span><code>{testSummary?.outputs?.latest_summary ?? 'test/results/latest_summary.json'}</code></div>
+            <div><span>样例明细</span><code>{testSummary?.outputs?.latest_cases ?? 'test/results/latest_cases.json'}</code></div>
+            <div><span>CSV 明细</span><code>{testSummary?.outputs?.latest_detail_csv ?? 'test/results/latest_detail.csv'}</code></div>
+            <div><span>HTML 看板</span><code>{testSummary?.outputs?.latest_dashboard_html ?? 'test/results/latest_dashboard.html'}</code></div>
           </div>
         </Section>
       </section>
 
       <Section
         eyebrow="Baseline Comparison"
-        title="策略对照明细"
-        description="比较不同授权策略在风险控制、正常放行和决策匹配方面的表现。"
+        title="历史策略对照明细"
+        description="图表突出主要结论；下方保留完整数值，便于答辩时解释。"
       >
         {strategyComparison?.available ? (
           <div className="strategy-detail-grid">
@@ -173,8 +161,8 @@ export function EvaluationPage({
           </div>
         ) : (
           <div className="empty-state">
-            <strong>策略对照结果尚未生成</strong>
-            <p>{strategyComparison?.hint ?? '运行评测后可查看不同策略的对照结果。'}</p>
+            <strong>历史策略对照结果未生成</strong>
+            <p>{strategyComparison?.hint ?? '当前推荐先运行上方独立测试模块。'}</p>
           </div>
         )}
       </Section>
