@@ -157,7 +157,7 @@ const samples: Array<{
     title: '沙箱邮件 outbox',
     description: '邮件只写 outbox，不真实外发。',
     user: 'user',
-    text: '真沙箱发送邮件到 teacher@sdu.edu.cn',
+    text: '真沙箱发送邮件到 demo@example.com',
     mode: 'docker_sandbox_execute'
   },
   {
