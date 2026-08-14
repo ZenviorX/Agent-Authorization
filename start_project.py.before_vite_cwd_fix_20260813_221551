@@ -177,60 +177,6 @@ def command_line(pid: int) -> str:
     return result.stdout.strip()
 
 
-def process_cwd(pid: int) -> str:
-    """
-    Return the working directory of a POSIX process.
-
-    npm may spawn Vite as a child whose command line no longer
-    contains the AgentGuard repository path. In that case cwd
-    is the reliable ownership signal.
-    """
-    if is_windows() or pid <= 0:
-        return ""
-
-    lsof = shutil.which("lsof")
-    if not lsof:
-        return ""
-
-    result = subprocess.run(
-        [
-            lsof,
-            "-a",
-            "-p",
-            str(pid),
-            "-d",
-            "cwd",
-            "-Fn",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    for raw in result.stdout.splitlines():
-        if raw.startswith("n"):
-            return raw[1:].strip()
-
-    return ""
-
-
-def path_is_under(path: str, root: Path) -> bool:
-    if not path:
-        return False
-
-    try:
-        resolved_path = Path(path).resolve()
-        resolved_root = root.resolve()
-
-        return (
-            resolved_path == resolved_root
-            or resolved_root in resolved_path.parents
-        )
-
-    except (OSError, RuntimeError, ValueError):
-        return False
-
-
 def listening_pids(port: int) -> set[int]:
     if is_windows():
         result = run_powershell(
@@ -253,31 +199,14 @@ def listening_pids(port: int) -> set[int]:
 
 def related(pid: int, service: str) -> bool:
     line = command_line(pid).lower()
-
     if not line:
         return False
-
     markers = SERVICES[service]["process_markers"]
-
-    if not any(
-        marker.lower() in line
-        for marker in markers
-    ):
+    if not any(marker.lower() in line for marker in markers):
         return False
-
     if service in {"backend", "oauth"}:
         return True
-
-    # npm --prefix may spawn a Vite child whose command
-    # line no longer contains ROOT. Recognize that child
-    # through its working directory as well.
-    if str(ROOT).lower() in line:
-        return True
-
-    return path_is_under(
-        process_cwd(pid),
-        FRONTEND,
-    )
+    return str(ROOT).lower() in line
 
 
 def project_pids(service: str) -> set[int]:
@@ -311,37 +240,11 @@ def project_pids(service: str) -> set[int]:
     )
     found: set[int] = set()
     root = str(ROOT).lower()
-
     for raw in result.stdout.splitlines():
         pid_text, _, line = raw.strip().partition(" ")
         lowered = line.lower()
-
-        if not pid_text.isdigit():
-            continue
-
-        if not any(
-            marker.lower() in lowered
-            for marker in markers
-        ):
-            continue
-
-        pid = int(pid_text)
-
-        command_owned = (
-            root in lowered
-        )
-
-        cwd_owned = (
-            service == "frontend"
-            and path_is_under(
-                process_cwd(pid),
-                FRONTEND,
-            )
-        )
-
-        if command_owned or cwd_owned:
-            found.add(pid)
-
+        if pid_text.isdigit() and root in lowered and any(m.lower() in lowered for m in markers):
+            found.add(int(pid_text))
     return found
 
 

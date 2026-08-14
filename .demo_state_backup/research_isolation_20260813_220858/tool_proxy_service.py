@@ -2295,8 +2295,6 @@ def _build_revocation_denial_response(
 
 def authorize_tool_call(
     request: ToolProxyAuthorizeRequest,
-    *,
-    record_audit: bool = True,
 ) -> ToolProxyAuthorizeResponse:
     """
     Tool Proxy 核心服务函数。
@@ -2642,13 +2640,12 @@ def authorize_tool_call(
                 ),
             )
 
-    if record_audit:
-        _write_proxy_audit_log(
-            request=request,
-            result_dict=result_dict,
-            executed=executed,
-            tool_result=tool_result,
-        )
+    _write_proxy_audit_log(
+        request=request,
+        result_dict=result_dict,
+        executed=executed,
+        tool_result=tool_result,
+    )
 
     return ToolProxyAuthorizeResponse(
         success=True,

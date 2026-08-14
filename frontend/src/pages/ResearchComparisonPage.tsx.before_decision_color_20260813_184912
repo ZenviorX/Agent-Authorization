@@ -90,17 +90,6 @@ function decisionLabel(value: string) {
   return value.toUpperCase();
 }
 
-function decisionTone(
-  value: string
-): 'green' | 'red' | 'yellow' {
-  const normalized = value.toLowerCase();
-
-  if (normalized === 'deny') return 'red';
-  if (normalized === 'confirm') return 'yellow';
-
-  return 'green';
-}
-
 export function ResearchComparisonPage({
   onReportChange
 }: {
@@ -393,20 +382,47 @@ export function ResearchComparisonPage({
                       </td>
 
                       <td>
-                        <Badge tone={decisionTone(item.noguard)}>
+                        <Badge
+                          tone={
+                            item.noguard === 'allow' &&
+                            item.is_risky
+                              ? 'red'
+                              : 'green'
+                          }
+                        >
                           {decisionLabel(item.noguard)}
                         </Badge>
                       </td>
 
                       <td>
-                        <Badge tone={decisionTone(item.oauth_only)}>
-                          {decisionLabel(item.oauth_only)}
+                        <Badge
+                          tone={
+                            item.oauth_only === 'allow' &&
+                            item.is_risky
+                              ? 'red'
+                              : 'green'
+                          }
+                        >
+                          {decisionLabel(
+                            item.oauth_only
+                          )}
                         </Badge>
                       </td>
 
                       <td>
-                        <Badge tone={decisionTone(item.agentguard)}>
-                          {decisionLabel(item.agentguard)}
+                        <Badge
+                          tone={
+                            item.agentguard === 'deny'
+                              ? 'green'
+                              : item.agentguard ===
+                                  'confirm'
+                                ? 'yellow'
+                                : 'green'
+                          }
+                        >
+                          {decisionLabel(
+                            item.agentguard
+                          )}
                         </Badge>
                       </td>
 

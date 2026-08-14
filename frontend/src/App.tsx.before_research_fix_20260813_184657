@@ -4,10 +4,7 @@ import { AuthenticationPage } from './pages/AuthenticationPage';
 import { Dashboard } from './pages/Dashboard';
 import { EvaluationPage } from './pages/EvaluationPage';
 import { GatewayWorkbench } from './pages/GatewayWorkbench';
-import {
-  ResearchComparisonPage,
-  type ResearchReport
-} from './pages/ResearchComparisonPage';
+import { ResearchComparisonPage } from './pages/ResearchComparisonPage';
 import { SecurityOverview } from './pages/SecurityOverview';
 import { api } from './services/api';
 import type { StrategyComparisonResponse } from './types/domain';
@@ -81,7 +78,6 @@ function formatEventTime(value?: string) {
 export default function App() {
   const [page, setPage] = useState<PageKey>('auth');
   const [strategyComparison, setStrategyComparison] = useState<StrategyComparisonResponse | null>(null);
-  const [researchReport, setResearchReport] = useState<ResearchReport | null>(null);
   const [testRunning, setTestRunning] = useState(false);
   const [testRunMessage, setTestRunMessage] = useState<string | null>(null);
   const { snapshot, connectionState, error, refresh } = useLiveRuntime();
@@ -244,18 +240,18 @@ export default function App() {
           items: [
             {
               label: '对比策略',
-              value: `${researchReport ? 3 : 0} 种`,
-              tone: researchReport ? 'blue' : 'gray'
+              value: `${Object.keys(strategyComparison?.summary ?? {}).length} 种`,
+              tone: 'blue'
             },
             {
               label: '对比样例',
-              value: `${researchReport?.total_cases ?? 0} 条`,
-              tone: researchReport ? 'purple' : 'gray'
+              value: `${strategyComparison?.total_cases ?? 0} 条`,
+              tone: 'purple'
             },
             {
               label: '结果状态',
-              value: researchReport ? '已生成' : '等待生成',
-              tone: researchReport ? 'green' : 'gray'
+              value: strategyComparison?.available ? '可用' : '等待生成',
+              tone: strategyComparison?.available ? 'green' : 'gray'
             }
           ]
         };
@@ -297,11 +293,7 @@ export default function App() {
         onRefreshTestSummary={() => void refresh()}
       />
     ),
-    research: (
-      <ResearchComparisonPage
-        onReportChange={setResearchReport}
-      />
-    )
+    research: <ResearchComparisonPage />
   };
 
   return (

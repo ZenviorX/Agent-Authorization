@@ -248,12 +248,7 @@ def run_oauth_comparison(request: OAuthComparisonRequest) -> OAuthComparisonResp
     tool_request = _build_tool_proxy_request(request)
 
     oauth_only = _run_oauth_only(tool_request)
-    # Research evaluation uses the same authorization
-    # pipeline but is isolated from operational audit records.
-    agentguard_response = authorize_tool_call(
-        tool_request,
-        record_audit=False,
-    )
+    agentguard_response = authorize_tool_call(tool_request)
     agentguard = agentguard_response.model_dump()
 
     return OAuthComparisonResponse(

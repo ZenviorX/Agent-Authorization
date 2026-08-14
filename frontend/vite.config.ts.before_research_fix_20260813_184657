@@ -27,8 +27,7 @@ export default defineConfig(({ mode }) => {
         '/external-agent': proxyConfig,
         '/test-results': proxyConfig,
         '/sandbox-docker': proxyConfig,
-        '/sandbox-native': proxyConfig,
-        '/research': proxyConfig
+        '/sandbox-native': proxyConfig
       }
     }
   };
