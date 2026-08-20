@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { DecisionDonut } from '../components/DecisionDonut';
 import { SecurityPipeline } from '../components/SecurityPipeline';
 import type { LiveConnectionState, LiveRuntimeSnapshot } from '../types/domain';
+
+const DEMO_CLEAR_KEY = 'agentguard:security-overview-cleared-at';
 
 function formatPercent(value: number) {
   return `${value.toFixed(1)}%`;
@@ -22,6 +25,13 @@ function relativeTime(value?: string) {
   return date.toLocaleString();
 }
 
+function runtimeTimestamp(value?: string) {
+  if (!value) return 0;
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+  const timestamp = new Date(normalized).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
 export function SecurityOverview({
   snapshot,
   connectionState,
@@ -31,15 +41,48 @@ export function SecurityOverview({
   connectionState: LiveConnectionState;
   onNavigate: (page: 'workbench' | 'evidence' | 'test') => void;
 }) {
+  const [demoClearedAt, setDemoClearedAt] = useState(() => {
+    const saved = window.localStorage.getItem(DEMO_CLEAR_KEY);
+    const parsed = Number(saved || 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  });
+
   const overview = snapshot?.overview;
-  const requests = snapshot?.requests ?? [];
-  const audits = snapshot?.auditLogs ?? [];
+  const requests = (snapshot?.requests ?? []).filter(
+    (item) => runtimeTimestamp(item.createdAt) > demoClearedAt
+  );
+  const audits = (snapshot?.auditLogs ?? []).filter(
+    (item) => runtimeTimestamp(item.timestamp) > demoClearedAt
+  );
   const latest = requests[0];
   const denied = requests.filter((item) => item.decision === 'deny').length;
   const confirmed = requests.filter((item) => item.decision === 'confirm').length;
   const highRisk = requests.filter((item) => item.risk === 'high' || item.risk === 'critical').length;
   const controlled = requests.length ? ((denied + confirmed) / requests.length) * 100 : 0;
   const mode = snapshot?.systemStatus.agentguard_mode || 'unknown';
+
+  const visibleSnapshot: LiveRuntimeSnapshot | null = snapshot
+    ? {
+        ...snapshot,
+        requests,
+        auditLogs: audits,
+        overview: snapshot.overview
+          ? {
+              ...snapshot.overview,
+              totalRequests: requests.length,
+              blockedRequests: denied,
+              confirmRequests: confirmed,
+              localAuditLogs: audits.length
+            }
+          : snapshot.overview
+      }
+    : null;
+
+  function clearDemoRecords() {
+    const clearedAt = Date.now();
+    window.localStorage.setItem(DEMO_CLEAR_KEY, String(clearedAt));
+    setDemoClearedAt(clearedAt);
+  }
 
   return (
     <div className="overview-page">
@@ -91,7 +134,7 @@ export function SecurityOverview({
       <section className="overview-metrics">
         <article>
           <span>可信运行记录</span>
-          <strong>{overview?.totalRequests ?? 0}</strong>
+          <strong>{requests.length}</strong>
           <small>审计与沙箱证据聚合</small>
         </article>
         <article>
@@ -130,7 +173,7 @@ export function SecurityOverview({
           </div>
           <button className="secondary-btn small" onClick={() => onNavigate('workbench')}>发起新调用</button>
         </div>
-        <SecurityPipeline snapshot={snapshot} />
+        <SecurityPipeline snapshot={visibleSnapshot} />
       </section>
 
       <section className="overview-insight-grid">
@@ -140,7 +183,19 @@ export function SecurityOverview({
               <span className="eyebrow">Decision Analytics</span>
               <h2>决策分布</h2>
             </div>
-            <small>{requests.length} 条实时记录</small>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <small>{requests.length} 条实时记录</small>
+              <button
+                className="link-button"
+                type="button"
+                onClick={clearDemoRecords}
+                disabled={!requests.length && !audits.length}
+                title="仅清空当前演示视图，底层审计证据仍然保留"
+                style={{ fontSize: 11, padding: '3px 7px', minHeight: 0 }}
+              >
+                清空
+              </button>
+            </div>
           </div>
           <DecisionDonut requests={requests} />
         </article>
